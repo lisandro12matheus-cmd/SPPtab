@@ -1,0 +1,1 @@
+﻿Os arquivos Visual C++ Runtime incluÃ­dos neste pacote sÃ£o redistribuÃ­veis da Microsoft e acompanham o PHP para evitar uma instalaÃ§Ã£o separada de dependÃªncias.

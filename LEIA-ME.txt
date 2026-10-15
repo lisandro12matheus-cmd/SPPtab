@@ -1,0 +1,9 @@
+﻿TabWin2 â€” versÃ£o portÃ¡til para Windows 64 bits
+
+Extraia a pasta TabWin2 para um local que vocÃª possa acessar, como Downloads ou Ãrea de Trabalho. Depois, abra TabWin2.exe. NÃ£o precisa instalar PHP, Python nem servidor.
+
+Uma janela pequena mantÃ©m o serviÃ§o local ligado e o app abre no navegador padrÃ£o. O botÃ£o X recolhe a janela para a bandeja, mantendo o sistema funcionando. Para desligar, use â€œEncerrar TabWin2â€ na janela ou no menu do Ã­cone perto do relÃ³gio.
+
+Em uma pasta nova, os arquivos baixados e convertidos ficam em data, ao lado de TabWin2.exe. Se vocÃª jÃ¡ usava outra versÃ£o, o app reaproveita a biblioteca existente. Se a pasta escolhida nÃ£o permitir gravaÃ§Ã£o, usa uma pasta local da sua conta. Para levar a biblioteca para outro computador, copie a pasta de dados indicada na etapa de conversÃ£o.
+
+Para buscar bases e definiÃ§Ãµes oficiais, conecte-se Ã  internet e use a tela â€œBuscar arquivosâ€. Este pacote nÃ£o possui assinatura digital; o Windows pode exibir um aviso na primeira execuÃ§Ã£o.
