@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#eef3fb">
+  <meta name="description" content="Baixe o SPPtab para Windows.">
+  <title>SPPtab — Download</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-width: 280px;
+      min-height: 100vh;
+      min-height: 100svh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        radial-gradient(ellipse at 50% 38%, rgba(75, 136, 231, .12), transparent 42%),
+        linear-gradient(145deg, #f8faff 0%, #edf3fb 52%, #e8eff9 100%);
+    }
+
+    .download-card {
+      width: min(100%, 440px);
+      display: grid;
+      justify-items: center;
+      gap: 34px;
+      padding: clamp(32px, 8vw, 54px);
+      border: 1px solid rgba(32, 52, 111, .08);
+      border-radius: 28px;
+      background: rgba(255, 255, 255, .94);
+      box-shadow: 0 24px 70px rgba(32, 52, 111, .12), 0 3px 10px rgba(32, 52, 111, .04);
+    }
+
+    .logo {
+      display: block;
+      width: min(100%, 330px);
+      height: auto;
+    }
+
+    .download-button {
+      width: 100%;
+      min-height: 58px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 15px 22px;
+      border: 0;
+      border-radius: 14px;
+      background: #1760bd;
+      box-shadow: 0 8px 18px rgba(23, 96, 189, .2);
+      color: #fff;
+      font: inherit;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.2;
+      text-align: center;
+      text-decoration: none;
+      transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    }
+
+    .download-button:hover {
+      transform: translateY(-2px);
+      background: #124f9e;
+      box-shadow: 0 12px 24px rgba(23, 96, 189, .25);
+    }
+
+    .download-button:focus-visible {
+      outline: 3px solid #8ebaff;
+      outline-offset: 4px;
+    }
+
+    .download-button:active { transform: translateY(0); }
+    .download-button svg { width: 20px; height: 20px; flex: none; }
+
+    @media (max-width: 380px) {
+      body { padding: 16px; }
+      .download-card { gap: 28px; border-radius: 22px; }
+      .download-button { font-size: 15px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="download-card">
+    <img class="logo" src="assets/spptab-logo.svg" alt="SPPtab">
+    <a
+      class="download-button"
+      href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable.zip"
+      aria-label="Baixar SPPtab portátil para Windows 64 bits"
+    >
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 3.75v10.5m0 0 4.25-4.25M12 14.25l-4.25-4.25M5 16.25v2.5A1.25 1.25 0 0 0 6.25 20h11.5A1.25 1.25 0 0 0 19 18.75v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Baixar para Windows 64 bits</span>
+    </a>
+  </main>
+</body>
+</html>
