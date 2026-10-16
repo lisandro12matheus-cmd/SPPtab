@@ -128,6 +128,17 @@
     .tiny-pixels i { width: 6px; height: 6px; border-radius: 2px; background: var(--blue-mid); }
     .tiny-pixels i:nth-child(2) { background: var(--blue-bright); }
     .tiny-pixels i:nth-child(3) { background: #9dc6ff; }
+    .release-status { display: flex; align-items: center; gap: 13px; width: fit-content; max-width: 100%; margin-top: 25px; padding: 11px 14px; border: 1px solid #e3ebf7; border-radius: 12px; background: #f8faff; }
+    .release-status__mark { display: grid; width: 25px; height: 25px; flex: none; grid-template-columns: repeat(2, 8px); grid-template-rows: repeat(2, 8px); gap: 3px; place-content: center; }
+    .release-status__mark i { border-radius: 2px; background: var(--blue); }
+    .release-status__mark i:nth-child(2) { background: var(--blue-mid); }
+    .release-status__mark i:nth-child(3) { background: var(--blue-bright); }
+    .release-status__copy { display: grid; gap: 2px; min-width: 0; }
+    .release-status__copy small { color: #8290aa; font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .release-status__copy strong { color: var(--navy); font-size: 12px; font-weight: 700; line-height: 1.3; }
+    .release-status__link { margin-left: 12px; color: var(--blue); font-size: 11px; font-weight: 700; white-space: nowrap; text-decoration: none; }
+    .release-status__link:hover { text-decoration: underline; }
+    .release-status__link:focus-visible { outline: 3px solid #8ebaff; outline-offset: 4px; }
 
     .hero-art {
       position: relative;
@@ -403,6 +414,8 @@
       .hero-actions .button { width: 100%; }
       .text-link { justify-content: center; }
       .hero-note { align-items: flex-start; font-size: 11px; }
+      .release-status { width: 100%; flex-wrap: wrap; }
+      .release-status__link { margin-left: auto; }
       .hero-art { height: 300px; }
       .art-ring { width: 260px; }
       .art-flow { gap: 9px; padding-inline: 10px; font-size: 10px; }
@@ -452,6 +465,11 @@
           <a class="text-link" href="#fluxo">Ver etapas <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m0 0-4.5-4.5M15 10l-4.5 4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
         </div>
         <p class="hero-note"><span class="tiny-pixels" aria-hidden="true"><i></i><i></i><i></i></span> Portátil para Windows 64 bits · Baixe, extraia e abra o SPPtab.exe</p>
+        <div class="release-status" aria-label="Versão disponível do SPPtab">
+          <span class="release-status__mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="release-status__copy"><small>Última versão publicada</small><strong id="releaseVersion" aria-live="polite">Consultando GitHub…</strong></span>
+          <a class="release-status__link" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest" target="_blank" rel="noreferrer">Ver versões ↗</a>
+        </div>
       </div>
       <div class="hero-art" aria-hidden="true">
         <div class="art-ring"></div>
@@ -531,5 +549,26 @@
       <a href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest" target="_blank" rel="noreferrer">Versões</a>
     </div>
   </footer>
+  <script>
+    (() => {
+      const version = document.getElementById('releaseVersion');
+      fetch('https://api.github.com/repos/lisandro12matheus-cmd/SPPtab/releases/latest', {
+        headers: { Accept: 'application/vnd.github+json' }
+      })
+        .then((response) => {
+          if (!response.ok) throw new Error('Versão indisponível');
+          return response.json();
+        })
+        .then((release) => {
+          if (!release || typeof release.tag_name !== 'string') throw new Error('Versão indisponível');
+          const date = release.published_at ? new Date(release.published_at) : null;
+          const published = date && !Number.isNaN(date.getTime())
+            ? new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Sao_Paulo' }).format(date)
+            : '';
+          version.textContent = published ? `${release.tag_name} · ${published}` : release.tag_name;
+        })
+        .catch(() => { version.textContent = 'Consulte no GitHub'; });
+    })();
+  </script>
 </body>
 </html>
