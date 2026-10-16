@@ -337,7 +337,10 @@ def delete_library_file(payload: dict[str,Any]):
     except (OSError,json.JSONDecodeError):
         pass
 
-    return {"ok":True,"deleted":{"path":relative,"name":source.name},"files":catalog()["files"]}
+    # The client already has the current library list and removes this item locally.
+    # Rebuilding the catalog here recursively walks every DBC and stats every DBF,
+    # making a simple file deletion wait on unrelated bases.
+    return {"ok":True,"deleted":{"path":relative,"name":source.name}}
 
 def converted_relative(source_relative: str) -> str:
     rel=Path(source_relative)
