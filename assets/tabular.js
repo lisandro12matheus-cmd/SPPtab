@@ -27,6 +27,7 @@
   let popupReady = false;
   let pendingPopupMessage = null;
   let applyingPreset = false;
+  let resultTabulationPayload = null;
 
   function updateTabLocationTag() {
     let saved = null;
@@ -992,6 +993,9 @@
     if (message.type === 'tabwin2-result-ready' && message.runId === resultRunId) {
       popupReady = true;
       sendPopupMessage();
+    } else if (message.type === 'tabwin2-add-result-columns' && message.runId === resultRunId) {
+      const columns = Array.isArray(message.columns) ? [...new Set(message.columns.map(String))] : [];
+      if (columns.length <= 2) recalculateResultColumns(columns);
     }
   });
 
@@ -1002,6 +1006,44 @@
     pendingPopupMessage = null;
     resultPopup = window.open(`resultado.php?run=${resultRunId}`, 'tabwin2-result');
     return resultPopup;
+  }
+
+  async function recalculateResultColumns(columns) {
+    if (!resultTabulationPayload || !resultPopup || resultPopup.closed || isTabulating) return;
+    const button = $('#runButton');
+    isTabulating = true;
+    updateRunButton();
+    button.textContent = 'Atualizando resultado…';
+    notice(3, 'Refazendo o cruzamento com as novas colunas.');
+    try {
+      const payload = { ...resultTabulationPayload, additionalColumns: columns, testCrc: false, saveRecords: false };
+      const job = await request(payload);
+      while (true) {
+        const state = await request({ action: 'tabulate_status', job_id: job.job_id });
+        if (state.status === 'error') throw new Error(state.message || 'Não foi possível atualizar as colunas.');
+        if (state.status === 'done') {
+          lastResult = state.result;
+          pendingPopupMessage = { type: 'tabwin2-result-update', runId: resultRunId, data: lastResult };
+          sendPopupMessage();
+          notice(3, 'As colunas e os totais foram atualizados.', 'success');
+          break;
+        }
+        const progress = Number(state.progress) || 0;
+        const stage = state.stage || 'Atualizando o cruzamento';
+        pendingPopupMessage = { type: 'tabwin2-progress', runId: resultRunId, progress, stage };
+        sendPopupMessage();
+        notice(3, `${stage} · ${progress}%`);
+        await new Promise((resolve) => setTimeout(resolve, 700));
+      }
+    } catch (error) {
+      pendingPopupMessage = { type: 'tabwin2-column-error', runId: resultRunId, message: error.message };
+      sendPopupMessage();
+      notice(3, error.message, 'error');
+    } finally {
+      isTabulating = false;
+      button.innerHTML = 'Gerar tabulação <span aria-hidden="true">↗</span>';
+      updateRunButton();
+    }
   }
 
   async function generate() {
@@ -1017,7 +1059,7 @@
     const column = $('#columnField').value;
     const columnValue = $('#columnValue').value;
     try {
-      const job = await request({
+      resultTabulationPayload = {
         action: 'tabulate_start',
         path: selected.path,
         dbfPath,
@@ -1034,7 +1076,9 @@
         testCrc: $('#testCrc').checked,
         saveRecords: $('#saveRecords').checked,
         unclassified: document.querySelector('input[name="unclassified"]:checked')?.value || 'ignore',
-      });
+        additionalColumns: [],
+      };
+      const job = await request(resultTabulationPayload);
 
       while (true) {
         const state = await request({ action: 'tabulate_status', job_id: job.job_id });

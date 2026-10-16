@@ -5,6 +5,7 @@ import json, os, re, subprocess, tempfile, zipfile, secrets, threading, time, sy
 from ftplib import FTP
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
+from itertools import product
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -887,13 +888,21 @@ def tabulate(payload, progress=None):
     coloption=next((item for item in cols if item["id"]==payload.get("column")),None) if payload.get("column") else None
     if not rowoption: raise ValueError("Escolha uma linha disponível na definição.")
     if payload.get("column") and not coloption: raise ValueError("Escolha uma coluna disponível na definição.")
+    raw_additional=payload.get("additionalColumns",[])
+    if not isinstance(raw_additional,list) or len(raw_additional)>2: raise ValueError("Adicione no máximo duas dimensões extras ao resultado.")
+    available_column_options={item["id"]:item for item in cols}
+    additional_ids=list(dict.fromkeys(str(value) for value in raw_additional))
+    if coloption and coloption["id"] in additional_ids: raise ValueError("A coluna principal já está incluída no resultado.")
+    if any(option_id not in available_column_options for option_id in additional_ids): raise ValueError("Uma coluna adicional não pertence à definição deste arquivo.")
+    additional_options=[available_column_options[option_id] for option_id in additional_ids]
+    column_options=([coloption] if coloption else [])+additional_options
     rowfield=rowoption["field"]; colfield=coloption["field"] if coloption else ""
     raw_metrics=payload.get("metrics") or [payload.get("metric","FREQ")]
     if not isinstance(raw_metrics,list) or not 1<=len(raw_metrics)<=50: raise ValueError("Selecione de 1 a 50 incrementos.")
     metrics=list(dict.fromkeys(str(value).upper() for value in raw_metrics))
     valid_metrics={"FREQ","RECORDS",*(item["field"] for item in increments)}
     if any(metric not in valid_metrics for metric in metrics): raise ValueError("Um incremento escolhido não pertence à definição deste arquivo.")
-    if len(metrics)>1 and coloption: raise ValueError("Quando mais de um incremento é selecionado, deixe Colunas como Não ativa.")
+    if len(metrics)>1 and column_options: raise ValueError("Quando mais de um incremento é selecionado, deixe Colunas como Não ativa e remova as dimensões extras.")
     groupfield=(group or {}).get("field")
     metric_details=[]
     increment_labels={item["field"]:item["label"] for item in increments}
@@ -921,22 +930,23 @@ def tabulate(payload, progress=None):
     usemun=bool(municipality)
     municipality_skipped=requested_municipality and not usemun and not munfield
     municipality_name=str(payload.get("municipalityName") or "").strip()[:80] if usemun else ""
-    rowlabels=relation_mapping(system,rowoption); collabels=relation_mapping(system,coloption)
+    rowlabels=relation_mapping(system,rowoption); column_labels=[relation_mapping(system,item) for item in column_options]
     unclassified_mode=str(payload.get("unclassified","ignore")).lower()
     if unclassified_mode not in {"ignore","include","discriminate"}: raise ValueError("Tratamento de não classificados inválido.")
     suppress_rows=bool(payload.get("suppressRows",True)); suppress_columns=bool(payload.get("suppressColumns",True))
     save_records=bool(payload.get("saveRecords",False)); test_crc=bool(payload.get("testCrc",False))
     archive=UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip"
-    identity={"cacheVersion":5,"dbfs":[cache_file_identity(x["dbf"]) for x in sources],"definition":cache_file_identity(archive) if archive.is_file() else defname,"row":rowoption["id"],"column":coloption["id"] if coloption else "","metrics":metrics,"municipalityCode":municipality,"municipalitySkipped":municipality_skipped,"filters":[[key,mode,sorted(values)] for key,state in filters.items() for mode,values in state.items()],"columnFilter":{"option":coloption["id"],"value":column_value} if column_value and coloption else None,"unclassified":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns}
+    identity={"cacheVersion":6,"dbfs":[cache_file_identity(x["dbf"]) for x in sources],"definition":cache_file_identity(archive) if archive.is_file() else defname,"row":rowoption["id"],"columns":[item["id"] for item in column_options],"metrics":metrics,"municipalityCode":municipality,"municipalitySkipped":municipality_skipped,"filters":[[key,mode,sorted(values)] for key,state in filters.items() for mode,values in state.items()],"columnFilter":{"option":coloption["id"],"value":column_value} if column_value and coloption else None,"unclassified":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns}
     target=cache_target("tabulations",identity)
     if not save_records and not test_crc:
         cached=cache_read(target)
         if cached is not None:
             if progress: progress(98,"Abrindo tabulação já calculada")
             return cached
-    requested=[rowfield]+([colfield] if colfield else [])+[detail["field"] for detail in metric_details if detail["field"]]+[field for field,_ in filter_specs]
+    column_fields=[item["field"] for item in column_options]
+    requested=[rowfield]+column_fields+[detail["field"] for detail in metric_details if detail["field"]]+[field for field,_ in filter_specs]
     names=list(dict.fromkeys(requested)); positions={name:index for index,name in enumerate(names)}
-    row_index=positions[rowfield]; col_index=positions[colfield] if colfield else None
+    row_index=positions[rowfield]; col_indices=[positions[field] for field in column_fields]; col_index=positions[colfield] if colfield else None
     filter_indexes=[(positions[field],conditions) for field,conditions in filter_specs]
     metric_indexes=[positions[detail["field"]] if detail["field"] else None for detail in metric_details]
     agg=defaultdict(int); rowtot=defaultdict(int); coltot=defaultdict(int); rowset=set(); colset=set(); totals=[0 for _ in metrics]
@@ -966,7 +976,7 @@ def tabulate(payload, progress=None):
             if not classified and unclassified_mode=="ignore":
                 excluded_unclassified+=1; continue
             key="\x00UNCLASSIFIED" if not classified and unclassified_mode=="include" else raw_key
-            col=(record[col_index] or "(vazio)") if col_index is not None else "Total"
+            col=tuple(record[index] or "(vazio)" for index in col_indices) if col_indices else ("Total",)
             values=[]
             for detail,index in zip(metric_details,metric_indexes):
                 if detail["id"]=="RECORDS" or (detail["id"]=="FREQ" and not groupfield): value=1
@@ -991,18 +1001,28 @@ def tabulate(payload, progress=None):
         order={code:index for index,code in enumerate(code for code in mapping if code!="\x00ranges")}
         return sorted(values,key=lambda code:(order.get(code,1000000000),code))
     raw_rows=ordered_codes(rowlabels,rowset,suppress_rows)
-    raw_columns=ordered_codes(collabels,colset,suppress_columns) if colfield else ["Total"]
+    if column_options:
+        dimension_codes=[ordered_codes(mapping,{key[index] for key in colset},suppress_columns) for index,mapping in enumerate(column_labels)]
+        if suppress_columns:
+            orders=[{code:index for index,code in enumerate(codes)} for codes in dimension_codes]
+            raw_columns=sorted(colset,key=lambda values:tuple((orders[index].get(code,1000000000),code) for index,code in enumerate(values)))
+        else:
+            combinations=1
+            for values in dimension_codes: combinations*=len(values)
+            if combinations>250: raise ValueError("As dimensões escolhidas geram mais de 250 colunas. Ative Suprimir colunas zeradas ou escolha menos dimensões.")
+            raw_columns=list(product(*dimension_codes))
+    else: raw_columns=[("Total",)]
     if suppress_rows:
         raw_rows=[key for key in raw_rows if any(rowtot[(key,metric)]!=0 for metric in metrics)]
-    if colfield and suppress_columns:
-        raw_columns=[code for code in raw_columns if any(coltot[(code,metric)]!=0 for metric in metrics)]
-    if not suppress_columns and len(raw_columns)>250: raise ValueError("A lista de colunas com zeros ultrapassa 250 categorias. Ative Suprimir colunas zeradas ou escolha outra variável.")
-    display_columns=[cnv_label(collabels,col) for col in raw_columns] if colfield else ([detail["label"] for detail in metric_details] if len(metrics)>1 else ["Total"])
+    if column_options and suppress_columns:
+        raw_columns=[codes for codes in raw_columns if any(coltot[(codes,metric)]!=0 for metric in metrics)]
+    if len(raw_columns)>250: raise ValueError("A lista de colunas ultrapassa 250 categorias. Ative Suprimir colunas zeradas ou escolha menos dimensões.")
+    display_columns=[(" · ".join(f"{option['label']}: {cnv_label(mapping,code)}" for option,mapping,code in zip(column_options,column_labels,codes)) if len(column_options)>1 else cnv_label(column_labels[0],codes[0])) for codes in raw_columns] if column_options else ([detail["label"] for detail in metric_details] if len(metrics)>1 else ["Total"])
     result_rows=[]
     for key in raw_rows[:5000]:
         if key=="\x00UNCLASSIFIED": label="Não classificados"
         else: label=cnv_label(rowlabels,key)
-        if colfield:
+        if column_options:
             values=[scaled_text(agg[(key,col,metrics[0])],metric_details[0]["decimals"]) for col in raw_columns]
         elif len(metrics)>1:
             values=[scaled_text(rowtot[(key,metric)],detail["decimals"]) for metric,detail in zip(metrics,metric_details)]
@@ -1010,7 +1030,7 @@ def tabulate(payload, progress=None):
         item={"key":"" if key=="\x00UNCLASSIFIED" else key,"label":label,"values":values,"unclassified":key=="\x00UNCLASSIFIED"}
         if len(metrics)==1: item["total"]=scaled_text(rowtot[(key,metrics[0])],metric_details[0]["decimals"])
         result_rows.append(item)
-    if colfield:
+    if column_options:
         column_totals=[scaled_text(coltot[(col,metrics[0])],metric_details[0]["decimals"]) for col in raw_columns]
         total=scaled_text(totals[0],metric_details[0]["decimals"])
     elif len(metrics)>1:
@@ -1018,7 +1038,7 @@ def tabulate(payload, progress=None):
         total=None
     else:
         column_totals=[scaled_text(totals[0],metric_details[0]["decimals"])]; total=scaled_text(totals[0],metric_details[0]["decimals"])
-    result={"ok":True,"definition":defname,"metrics":[{"id":m["id"],"label":m["label"]} for m in metric_details],"metric":metric_details[0]["label"] if len(metrics)==1 else f"{len(metrics)} incrementos","records":records,"processedRecords":processed,"excludedUnclassified":excluded_unclassified,"total":total,"totalsByMetric":[scaled_text(value,detail["decimals"]) for value,detail in zip(totals,metric_details)],"columnTotals":column_totals,"municipalityApplied":usemun,"municipalitySkipped":municipality_skipped,"municipalityCode":municipality or None,"municipalityName":municipality_name or None,"municipalityField":munfield if usemun else None,"appliedFilters":sum(len(state["include"])+len(state["exclude"]) for state in filters.values())+(1 if column_value else 0),"columns":display_columns,"rows":result_rows,"totalCategories":len(raw_rows),"truncated":len(raw_rows)>5000,"files":[x["source"].name for x in sources],"unclassifiedMode":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns,"crcTested":test_crc}
+    result={"ok":True,"definition":defname,"metrics":[{"id":m["id"],"label":m["label"]} for m in metric_details],"metric":metric_details[0]["label"] if len(metrics)==1 else f"{len(metrics)} incrementos","records":records,"processedRecords":processed,"excludedUnclassified":excluded_unclassified,"total":total,"totalsByMetric":[scaled_text(value,detail["decimals"]) for value,detail in zip(totals,metric_details)],"columnTotals":column_totals,"municipalityApplied":usemun,"municipalitySkipped":municipality_skipped,"municipalityCode":municipality or None,"municipalityName":municipality_name or None,"municipalityField":munfield if usemun else None,"appliedFilters":sum(len(state["include"])+len(state["exclude"]) for state in filters.values())+(1 if column_value else 0),"columns":display_columns,"columnDimensions":[{"id":item["id"],"label":item["label"],"field":item["field"]} for item in column_options],"availableColumns":[{"id":item["id"],"label":item["label"],"field":item["field"]} for item in cols if not coloption or item["id"]!=coloption["id"]],"additionalColumns":additional_ids,"rows":result_rows,"totalCategories":len(raw_rows),"truncated":len(raw_rows)>5000,"files":[x["source"].name for x in sources],"unclassifiedMode":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns,"crcTested":test_crc}
     if save_records:
         if progress: progress(97,"Salvando os registros selecionados")
         token=secrets.token_hex(16)
