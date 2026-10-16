@@ -292,13 +292,14 @@
   function renderColumnOptions(query = '') {
     const box = $('#columnOptions');
     const available = result?.availableColumns || [];
+    const candidates = available.filter((item) => !pendingAdditionalColumns.has(String(item.id)));
     const normalized = query.trim().toLocaleLowerCase('pt-BR');
-    const matching = available.filter((item) => `${item.label} ${item.field}`.toLocaleLowerCase('pt-BR').includes(normalized));
+    const matching = candidates.filter((item) => `${item.label} ${item.field}`.toLocaleLowerCase('pt-BR').includes(normalized));
     box.replaceChildren();
     if (!matching.length) {
       const empty = document.createElement('p');
       empty.className = 'result-column-empty';
-      empty.textContent = available.length ? 'Nenhuma coluna corresponde à busca.' : 'Esta definição não oferece outras colunas.';
+      empty.textContent = candidates.length ? 'Nenhuma coluna corresponde à busca.' : 'Todas as opções compatíveis já estão no resultado.';
       box.append(empty);
       return;
     }
@@ -308,8 +309,7 @@
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.value = item.id;
-      checkbox.checked = pendingAdditionalColumns.has(item.id);
-      checkbox.disabled = (result.metrics || []).length !== 1;
+      checkbox.disabled = pendingAdditionalColumns.size >= 2;
       const copy = document.createElement('span');
       const name = document.createElement('strong');
       name.textContent = item.label;
@@ -324,14 +324,80 @@
           $('#columnHelp').classList.add('is-error');
           return;
         }
-        if (checkbox.checked) pendingAdditionalColumns.add(item.id);
-        else pendingAdditionalColumns.delete(item.id);
-        $('#columnHelp').textContent = `${pendingAdditionalColumns.size} de 2 dimensões extras selecionadas. O cruzamento será recalculado.`;
+        pendingAdditionalColumns.add(String(item.id));
+        renderActiveColumns();
+        renderColumnOptions($('#columnSearch').value);
+        updateColumnPickerState();
         $('#columnHelp').classList.remove('is-error');
         $('#applyColumns').disabled = sameColumns(pendingAdditionalColumns, result.additionalColumns || []);
       });
       box.append(label);
     });
+  }
+
+  function renderActiveColumns() {
+    const box = $('#activeColumns');
+    box.replaceChildren();
+    const dimensions = new Map((result.columnDimensions || []).map((item) => [String(item.id), item]));
+    const available = new Map((result.availableColumns || []).map((item) => [String(item.id), item]));
+    for (const item of result.columnDimensions || []) {
+      const id = String(item.id);
+      const chip = document.createElement('span');
+      chip.className = 'result-active-column';
+      const name = document.createElement('strong');
+      name.textContent = item.label;
+      const detail = document.createElement('small');
+      detail.textContent = pendingAdditionalColumns.has(id) ? 'adicionada' : 'já parametrizada';
+      chip.append(name, detail);
+      if (pendingAdditionalColumns.has(id)) {
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.setAttribute('aria-label', `Remover ${item.label}`);
+        remove.textContent = '×';
+        remove.addEventListener('click', () => {
+          pendingAdditionalColumns.delete(id);
+          renderActiveColumns();
+          renderColumnOptions($('#columnSearch').value);
+          updateColumnPickerState();
+          $('#columnHelp').classList.remove('is-error');
+        });
+        chip.append(remove);
+      }
+      box.append(chip);
+    }
+    for (const id of pendingAdditionalColumns) {
+      if (dimensions.has(id)) continue;
+      const item = available.get(id);
+      if (!item) continue;
+      const chip = document.createElement('span');
+      chip.className = 'result-active-column';
+      const name = document.createElement('strong');
+      name.textContent = item.label;
+      const detail = document.createElement('small');
+      detail.textContent = 'adicionada';
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.setAttribute('aria-label', `Remover ${item.label}`);
+      remove.textContent = '×';
+      remove.addEventListener('click', () => {
+        pendingAdditionalColumns.delete(id);
+        renderActiveColumns();
+        renderColumnOptions($('#columnSearch').value);
+        updateColumnPickerState();
+        $('#columnHelp').classList.remove('is-error');
+      });
+      chip.append(name, detail, remove);
+      box.append(chip);
+    }
+  }
+
+  function updateColumnPickerState() {
+    const count = pendingAdditionalColumns.size;
+    const measures = (result.metrics || []).length;
+    $('#columnHelp').textContent = measures > 1
+      ? `${count} de 2 dimensões extras. As categorias serão separadas por medida.`
+      : `${count} de 2 dimensões extras. O cruzamento será recalculado.`;
+    $('#applyColumns').disabled = sameColumns(pendingAdditionalColumns, result.additionalColumns || []);
   }
 
   function sameColumns(left, right) {
@@ -347,11 +413,9 @@
     pendingAdditionalColumns = new Set((result.additionalColumns || []).map(String));
     $('#columnSearch').value = '';
     $('#columnSearch').oninput = () => renderColumnOptions($('#columnSearch').value);
-    $('#columnHelp').textContent = (result.metrics || []).length === 1
-      ? `${pendingAdditionalColumns.size} de 2 dimensões extras selecionadas. O cruzamento será recalculado.`
-      : 'Para adicionar dimensões, gere a tabulação com uma medida por vez.';
-    $('#columnHelp').classList.toggle('is-disabled', (result.metrics || []).length !== 1);
-    $('#applyColumns').disabled = true;
+    $('#columnHelp').classList.remove('is-disabled', 'is-error');
+    renderActiveColumns();
+    updateColumnPickerState();
     $('#applyColumns').onclick = () => {
       if (!window.opener || pendingAdditionalColumns.size > 2) return;
       $('#applyColumns').disabled = true;

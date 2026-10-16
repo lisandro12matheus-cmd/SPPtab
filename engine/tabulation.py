@@ -902,7 +902,6 @@ def tabulate(payload, progress=None):
     metrics=list(dict.fromkeys(str(value).upper() for value in raw_metrics))
     valid_metrics={"FREQ","RECORDS",*(item["field"] for item in increments)}
     if any(metric not in valid_metrics for metric in metrics): raise ValueError("Um incremento escolhido não pertence à definição deste arquivo.")
-    if len(metrics)>1 and column_options: raise ValueError("Quando mais de um incremento é selecionado, deixe Colunas como Não ativa e remova as dimensões extras.")
     groupfield=(group or {}).get("field")
     metric_details=[]
     increment_labels={item["field"]:item["label"] for item in increments}
@@ -1016,13 +1015,17 @@ def tabulate(payload, progress=None):
         raw_rows=[key for key in raw_rows if any(rowtot[(key,metric)]!=0 for metric in metrics)]
     if column_options and suppress_columns:
         raw_columns=[codes for codes in raw_columns if any(coltot[(codes,metric)]!=0 for metric in metrics)]
-    if len(raw_columns)>250: raise ValueError("A lista de colunas ultrapassa 250 categorias. Ative Suprimir colunas zeradas ou escolha menos dimensões.")
-    display_columns=[(" · ".join(f"{option['label']}: {cnv_label(mapping,code)}" for option,mapping,code in zip(column_options,column_labels,codes)) if len(column_options)>1 else cnv_label(column_labels[0],codes[0])) for codes in raw_columns] if column_options else ([detail["label"] for detail in metric_details] if len(metrics)>1 else ["Total"])
+    output_column_count=len(raw_columns)*len(metrics) if column_options else len(metrics)
+    if output_column_count>250: raise ValueError("As categorias e medidas gerariam mais de 250 colunas. Escolha menos dimensões ou medidas.")
+    dimension_names=[(" · ".join(f"{option['label']}: {cnv_label(mapping,code)}" for option,mapping,code in zip(column_options,column_labels,codes)) if len(column_options)>1 else cnv_label(column_labels[0],codes[0])) for codes in raw_columns] if column_options else []
+    display_columns=[f"{name} · {detail['label']}" for name in dimension_names for detail in metric_details] if column_options and len(metrics)>1 else dimension_names if column_options else ([detail["label"] for detail in metric_details] if len(metrics)>1 else ["Total"])
     result_rows=[]
     for key in raw_rows[:5000]:
         if key=="\x00UNCLASSIFIED": label="Não classificados"
         else: label=cnv_label(rowlabels,key)
-        if column_options:
+        if column_options and len(metrics)>1:
+            values=[scaled_text(agg[(key,col,metric)],detail["decimals"]) for col in raw_columns for metric,detail in zip(metrics,metric_details)]
+        elif column_options:
             values=[scaled_text(agg[(key,col,metrics[0])],metric_details[0]["decimals"]) for col in raw_columns]
         elif len(metrics)>1:
             values=[scaled_text(rowtot[(key,metric)],detail["decimals"]) for metric,detail in zip(metrics,metric_details)]
@@ -1030,7 +1033,10 @@ def tabulate(payload, progress=None):
         item={"key":"" if key=="\x00UNCLASSIFIED" else key,"label":label,"values":values,"unclassified":key=="\x00UNCLASSIFIED"}
         if len(metrics)==1: item["total"]=scaled_text(rowtot[(key,metrics[0])],metric_details[0]["decimals"])
         result_rows.append(item)
-    if column_options:
+    if column_options and len(metrics)>1:
+        column_totals=[scaled_text(coltot[(col,metric)],detail["decimals"]) for col in raw_columns for metric,detail in zip(metrics,metric_details)]
+        total=None
+    elif column_options:
         column_totals=[scaled_text(coltot[(col,metrics[0])],metric_details[0]["decimals"]) for col in raw_columns]
         total=scaled_text(totals[0],metric_details[0]["decimals"])
     elif len(metrics)>1:
