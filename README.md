@@ -20,13 +20,21 @@ O resultado abre em uma nova aba, que mostra o andamento enquanto a tabulação 
 
 Na tela de tabulação, use **Salvar combinação** para nomear e guardar linhas, colunas, medidas, filtros e opções do resultado. A área **Minhas Tabulações** aparece na navegação depois que um DBC é selecionado. Os modelos ficam disponíveis para outras competências do mesmo estado e tipo quando os campos e a definição oficial são compatíveis; a competência e o município escolhido não são gravados. As combinações ficam em `uploads/.cache/saved-tabulations.json` (ou dentro da pasta de dados da versão portátil) e acompanham a biblioteca local.
 
+Em **Pacotes de dados**, escolha a UF e a competência para consultar os módulos públicos do CNES e a tabela mensal de procedimentos SIGTAP. Os módulos CNES disponíveis incluem estabelecimentos (ST), dados complementares (DC), profissionais (PF), leitos (LT), equipamentos (EQ), equipes (EP), serviços especializados (SR) e habilitações (HB). A disponibilidade varia por módulo e competência; selecione apenas o que pretende usar. O SPPtab baixa o DBC oficial, acompanha a conversão e guarda também o DBF preparado para cruzamentos.
+
+Na aba do resultado, **Adicionar dados complementares** permite cruzar as linhas com um pacote baixado. O relacionamento começa pelo CNES do estabelecimento; no módulo PF também é possível usar o CNS do profissional. A tabela SIGTAP relaciona pelo código do procedimento. Os campos escolhidos entram como colunas adicionais e não alteram os totais da produção original. Leitos e quantidades de equipamentos são somados por estabelecimento; as demais informações repetidas são resumidas na linha correspondente. O cruzamento roda localmente e mostra progresso.
+
 As tabulações leem apenas os campos selecionados no DBF e descartam os registros fora do município escolhido antes de decodificar os demais campos. A busca reutiliza por alguns minutos a lista anual do DATASUS por UF; a biblioteca guarda em `uploads/.cache/` os municípios, as listas de valores, os rótulos oficiais e os resultados recentes. Repetir a mesma configuração retorna o resultado do cache. Os arquivos DBF gerados pela opção “Salvar registros” ficam em `uploads/RESULTADOS/` e são entregues pela rota protegida de download.
 
 ## Fontes e organização
 
+- CNES: [portal oficial e consulta de estabelecimentos/profissionais](https://wiki.datasus.gov.br/cnes/index.php/Portal_CNES) e arquivos públicos mensais por módulo no DATASUS.
+- SIGTAP: [documentação oficial](https://wiki.datasus.gov.br/sigtap/index.php/P%C3%A1gina_principal) e [área de downloads por competência](https://wiki.datasus.gov.br/sigtap/index.php/Download).
 - Dados originais: serviço HTTPS ou FTP público do DATASUS, separados em `uploads/{SIA|SIH}/{ano}/{mês}/{família}/`.
 - Definições oficiais: `uploads/DEFINICOES/originais/TAB_{SIA|SIH}.zip`; arquivos DEF e referências ativas ficam em `uploads/DEFINICOES/{sistema}/`.
 - DBFs convertidos: `uploads/CONVERTIDOS/{sistema}/{ano}/{mês}/{família}/`.
+- Pacotes CNES baixados e convertidos: `uploads/PACOTES/CNES/{UF}/{AAAAMM}/{módulo}/` (mantém o DBC de origem e o DBF).
+- Procedimentos SIGTAP convertidos para consulta: `uploads/PACOTES/SIGTAP/{AAAAMM}/tb_procedimento.csv`, junto do ZIP oficial.
 - Progresso temporário dos trabalhos: `uploads/.jobs/`.
 - Cache local de valores de colunas e tabulações: `uploads/.cache/`.
 - DBFs de registros selecionados para download: `uploads/RESULTADOS/`.

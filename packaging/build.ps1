@@ -119,6 +119,8 @@ Em uma pasta nova, os arquivos baixados e convertidos ficam em data, ao lado de 
 
 Para buscar bases e definições oficiais, conecte-se à internet e use a tela “Buscar arquivos”. A consulta usa HTTPS e, se necessário, tenta o FTP. Se a rede bloquear ambos, você ainda pode copiar a pasta data de outro computador e trabalhar com os arquivos já salvos.
 
+Na tela “Pacotes de dados”, escolha a UF, a competência e os módulos CNES que deseja baixar. O SPPtab mantém o arquivo original e prepara uma cópia convertida para os cruzamentos. A tabela SIGTAP também fica disponível por competência. No resultado da tabulação, use “Adicionar dados complementares” para relacionar pelo CNES, CNS profissional ou código do procedimento, conforme o pacote.
+
 Este pacote não possui assinatura digital; o Windows pode exibir um aviso de aplicativo não reconhecido na primeira execução. Confira a origem do download e compare o SHA-256 do ZIP com o arquivo SPPtab-Portable-SHA256SUM.txt da mesma versão antes de executá-lo.
 '@ | Set-Content -LiteralPath (Join-Path $AppPayload 'LEIA-ME.txt') -Encoding UTF8
 
@@ -132,7 +134,7 @@ if (-not $SkipSelfTests) {
     $vendorPath = Join-Path $AppFiles 'engine\vendor'
     $enginePath = Join-Path $AppFiles 'engine'
     $dataPathSmoke = Join-Path $BuildRoot 'data-path-selftest'
-    $pythonSmoke = "import os, sys, ftplib, json, zipfile; os.environ['TABWIN2_DATA_DIR']=r'$dataPathSmoke'; sys.path.insert(0, r'$vendorPath'); sys.path.insert(0, r'$enginePath'); import dbfread, dbctodbf, datasus; assert datasus.library_folder('sia', 2026, 7) == 'uploads/SIA/2026/07'; print('python-ok')"
+    $pythonSmoke = "import os, sys, ftplib, json, zipfile; os.environ['TABWIN2_DATA_DIR']=r'$dataPathSmoke'; sys.path.insert(0, r'$vendorPath'); sys.path.insert(0, r'$enginePath'); import dbfread, dbctodbf, datasus, official_source, packages; assert datasus.library_folder('sia', 2026, 7) == 'uploads/SIA/2026/07'; print('python-ok')"
     $pythonTest = & $embeddedPython -c $pythonSmoke
     if ($LASTEXITCODE -ne 0 -or $pythonTest -notmatch 'python-ok') { throw 'O Python portátil ou as bibliotecas DBF não passaram pela verificação.' }
 }
@@ -167,7 +169,7 @@ try {
 finally {
     $archive.Dispose()
 }
-$requiredEntries = @('SPPtab.exe', 'runtime/php/php.exe', 'runtime/php/php.ini', 'runtime/python/python.exe', 'app/api.php', 'app/minhas-tabulacoes.php', 'app/assets/presets.css', 'app/assets/saved-tabulations.js', 'app/assets/tabulations-nav.js', 'app/packaging/router.php')
+$requiredEntries = @('SPPtab.exe', 'runtime/php/php.exe', 'runtime/php/php.ini', 'runtime/python/python.exe', 'app/api.php', 'app/pacotes.php', 'app/minhas-tabulacoes.php', 'app/engine/packages.py', 'app/assets/packages.css', 'app/assets/packages.js', 'app/assets/crosswalk.css', 'app/assets/presets.css', 'app/assets/saved-tabulations.js', 'app/assets/tabulations-nav.js', 'app/packaging/router.php')
 $archiveCheck = [IO.Compression.ZipFile]::OpenRead($PayloadZip)
 try {
     $actualEntries = @($archiveCheck.Entries | ForEach-Object { $_.FullName })
@@ -195,7 +197,7 @@ finally {
 $portableCheck = [IO.Compression.ZipFile]::OpenRead($PortableOutput)
 try {
     $portableEntries = @($portableCheck.Entries | ForEach-Object { $_.FullName })
-    foreach ($entry in @('SPPtab/SPPtab.exe', 'SPPtab/runtime/php/php.exe', 'SPPtab/runtime/python/python.exe', 'SPPtab/app/index.php', 'SPPtab/app/minhas-tabulacoes.php', 'SPPtab/app/assets/app.css', 'SPPtab/app/assets/presets.css', 'SPPtab/app/assets/saved-tabulations.js', 'SPPtab/app/assets/tabulations-nav.js', 'SPPtab/LEIA-ME.txt')) {
+    foreach ($entry in @('SPPtab/SPPtab.exe', 'SPPtab/runtime/php/php.exe', 'SPPtab/runtime/python/python.exe', 'SPPtab/app/index.php', 'SPPtab/app/pacotes.php', 'SPPtab/app/minhas-tabulacoes.php', 'SPPtab/app/engine/packages.py', 'SPPtab/app/assets/app.css', 'SPPtab/app/assets/packages.css', 'SPPtab/app/assets/packages.js', 'SPPtab/app/assets/crosswalk.css', 'SPPtab/app/assets/presets.css', 'SPPtab/app/assets/saved-tabulations.js', 'SPPtab/app/assets/tabulations-nav.js', 'SPPtab/LEIA-ME.txt')) {
         if ($portableEntries -notcontains $entry) { throw "A pasta portátil não contém o componente obrigatório: $entry" }
     }
 }

@@ -51,7 +51,7 @@ def list_files(system: str, year: int, month: int | None, uf: str = "PA") -> lis
     return [item["arquivo"] for item in response if isinstance(item, dict) and isinstance(item.get("arquivo"), str)]
 
 
-def download_file(remote: str, expected_name: str, destination: Path) -> None:
+def download_file(remote: str, expected_name: str, destination: Path, progress=None) -> None:
     """Pede ao DATASUS um ZIP por HTTPS e extrai apenas o arquivo solicitado."""
     if not remote.startswith("/dissemin/publicos/") or Path(remote).name.lower() != expected_name.lower():
         raise ValueError("O caminho do arquivo oficial é inválido.")
@@ -73,7 +73,16 @@ def download_file(remote: str, expected_name: str, destination: Path) -> None:
         with urllib.request.urlopen(request, timeout=120) as response, archive_path.open("wb") as output:
             if urllib.parse.urlparse(response.geturl()).hostname != "datasus.saude.gov.br":
                 raise ValueError("O download foi redirecionado para outro domínio.")
-            shutil.copyfileobj(response, output, length=1024 * 1024)
+            total_size = int(response.headers.get("Content-Length") or 0)
+            downloaded = 0
+            while True:
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                output.write(chunk)
+                downloaded += len(chunk)
+                if progress:
+                    progress(downloaded, total_size or None)
         with zipfile.ZipFile(archive_path) as archive:
             candidates = [entry for entry in archive.infolist() if not entry.is_dir() and Path(entry.filename).name.lower() == expected_name.lower()]
             if len(candidates) != 1 or candidates[0].file_size < 32:

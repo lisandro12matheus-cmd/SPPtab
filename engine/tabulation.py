@@ -775,8 +775,20 @@ def delete_preset(payload):
     return {"ok":True,"deleted":1}
 
 def category_values(payload):
-    relative=payload.get("path",""); source=safe_file(relative); path=safe_dbf(payload.get("dbfPath") or converted_relative(relative)); system,kind,_=meta(source)
-    _,_,_,fields=dbf_layout(path)
+    raw_sources=payload.get("sources")
+    if raw_sources is None: raw_sources=[{"path":payload.get("path",""),"dbfPath":payload.get("dbfPath")}]
+    if not isinstance(raw_sources,list) or not 1<=len(raw_sources)<=100: raise ValueError("A lista de bases para carregar filtros é inválida.")
+    sources=[]
+    for entry in raw_sources:
+        if not isinstance(entry,dict): raise ValueError("Uma das bases selecionadas é inválida.")
+        relative=str(entry.get("path") or ""); source=safe_file(relative); current_system,current_kind,filename_match=meta(source); current_uf=filename_match.group("uf").upper()
+        if sources and (current_system,current_kind,current_uf)!=(sources[0]["system"],sources[0]["kind"],sources[0]["uf"]): raise ValueError("Os filtros precisam pertencer à mesma família de arquivos.")
+        path=safe_dbf(entry.get("dbfPath") or converted_relative(relative))
+        _,_,_,current_fields=dbf_layout(path)
+        if sources and (set(current_fields)!=set(sources[0]["fields"]) or any((current_fields[name]["type"],current_fields[name]["length"],current_fields[name]["decimals"])!=(info["type"],info["length"],info["decimals"]) for name,info in sources[0]["fields"].items())): raise ValueError(f"O arquivo {source.name} possui campos diferentes dos demais selecionados.")
+        sources.append({"source":source,"path":path,"system":current_system,"kind":current_kind,"uf":current_uf,"fields":current_fields})
+    system,kind=sources[0]["system"],sources[0]["kind"]
+    fields=sources[0]["fields"]
     defname,definition=archive_def(system,kind)
     if definition is None: raise RuntimeError("Definição oficial indisponível para este arquivo.")
     lines,columns,selections,_,_=parse_def(definition,[{"name":name,**info} for name,info in fields.items()])
@@ -791,18 +803,19 @@ def category_values(payload):
     municipality=municipality_code(payload,fields,munfield)
     usemun=bool(municipality)
     archive=UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip"
-    identity={"cacheVersion":6,"dbf":cache_file_identity(path),"option":option["id"],"type":option_type,"municipalityCode":municipality,"definition":cache_file_identity(archive) if archive.is_file() else defname}
+    identity={"cacheVersion":8,"dbfs":[cache_file_identity(item["path"]) for item in sources],"option":option["id"],"type":option_type,"municipalityCode":municipality,"definition":cache_file_identity(archive) if archive.is_file() else defname}
     target=cache_target("category-values",identity)
     cached=cache_read(target)
     if cached is not None: return cached
     names=[field]
     values=set(); truncated=False
-    for record in iter_dbf_fields(path,names,pre_filter=(munfield,municipality) if usemun else None):
-        value=record[0]
-        if not value: continue
-        if value not in values:
-            if len(values)>=5000: truncated=True
-            else: values.add(value)
+    for item in sources:
+        for record in iter_dbf_fields(item["path"],names,pre_filter=(munfield,municipality) if usemun else None):
+            value=record[0]
+            if not value: continue
+            if value not in values:
+                if len(values)>=5000: truncated=True
+                else: values.add(value)
     mapping=relation_mapping(system,option)
     ordered=sorted(values,key=lambda value:(cnv_label(mapping,value).casefold(),value))
     result={"ok":True,"option":option["id"],"optionType":option_type,"field":field,"values":[{"value":value,"label":cnv_label(mapping,value)} for value in ordered],"truncated":truncated}
@@ -915,13 +928,23 @@ def tabulate(payload, progress=None):
         metric_details.append({"id":metric,"field":numeric,"decimals":fieldinfo[numeric]["decimals"] if numeric else 0,"label":(f"Frequência · {groupfield}" if metric=="FREQ" and groupfield else "Frequência de registros" if metric=="FREQ" else "Número de registros" if metric=="RECORDS" else increment_labels.get(metric,metric))})
     raw_filters=payload.get("filters",[])
     if not isinstance(raw_filters,list) or len(raw_filters)>300: raise ValueError("A lista de categorias selecionadas é inválida ou excede o limite de 300.")
-    available_selections={item["id"]:item for item in selections}; filters=defaultdict(lambda:{"include":set(),"exclude":set()})
+    filter_option_groups={"selection":selections,"column":cols,"line":rows}
+    available_filter_options={kind_name:{item["id"]:item for item in options} for kind_name,options in filter_option_groups.items()}
+    filters=defaultdict(lambda:{"include":set(),"exclude":set()})
     for condition in raw_filters:
-        if not isinstance(condition,dict) or condition.get("option") not in available_selections: raise ValueError("Uma seleção não pertence à definição deste arquivo.")
+        option_type=str(condition.get("optionType") or "selection") if isinstance(condition,dict) else ""
+        option_id=condition.get("option") if isinstance(condition,dict) else None
+        if option_type not in available_filter_options or option_id not in available_filter_options[option_type]: raise ValueError("Um filtro não pertence à definição deste arquivo.")
         value=str(condition.get("value","" )).strip(); mode=str(condition.get("mode","include")).lower()
         if not value or len(value)>80 or mode not in {"include","exclude"}: raise ValueError("Uma categoria selecionada é inválida.")
-        filters[condition["option"]][mode].add(value)
-    filter_specs=[(available_selections[option]["field"],conditions) for option,conditions in filters.items()]
+        filters[(option_type,option_id)][mode].add(value)
+    filter_specs=[(available_filter_options[option_type][option_id]["field"],conditions) for (option_type,option_id),conditions in filters.items()]
+    excluded_filter_fields={rowoption["field"],*(item["field"] for item in column_options),*(available_filter_options[option_type][option_id]["field"] for option_type,option_id in filters)}
+    result_filter_options=[]; seen_filter_fields=set()
+    for option_type,options in filter_option_groups.items():
+        for item in options:
+            if item["field"] in excluded_filter_fields or item["field"] in seen_filter_fields: continue
+            result_filter_options.append({"id":item["id"],"label":item["label"],"field":item["field"],"optionType":option_type}); seen_filter_fields.add(item["field"])
     column_filter=payload.get("columnFilter"); column_value=""
     if column_filter:
         if not isinstance(column_filter,dict) or not coloption or column_filter.get("option")!=coloption["id"]: raise ValueError("O valor selecionado não corresponde à coluna atual.")
@@ -939,7 +962,7 @@ def tabulate(payload, progress=None):
     suppress_rows=bool(payload.get("suppressRows",True)); suppress_columns=bool(payload.get("suppressColumns",True))
     save_records=bool(payload.get("saveRecords",False)); test_crc=bool(payload.get("testCrc",False))
     archive=UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip"
-    identity={"cacheVersion":6,"dbfs":[cache_file_identity(x["dbf"]) for x in sources],"definition":cache_file_identity(archive) if archive.is_file() else defname,"row":rowoption["id"],"columns":[item["id"] for item in column_options],"metrics":metrics,"municipalityCode":municipality,"municipalitySkipped":municipality_skipped,"filters":[[key,mode,sorted(values)] for key,state in filters.items() for mode,values in state.items()],"columnFilter":{"option":coloption["id"],"value":column_value} if column_value and coloption else None,"unclassified":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns}
+    identity={"cacheVersion":8,"dbfs":[cache_file_identity(x["dbf"]) for x in sources],"definition":cache_file_identity(archive) if archive.is_file() else defname,"row":rowoption["id"],"columns":[item["id"] for item in column_options],"metrics":metrics,"municipalityCode":municipality,"municipalitySkipped":municipality_skipped,"filters":[[key,mode,sorted(values)] for key,state in filters.items() for mode,values in state.items()],"columnFilter":{"option":coloption["id"],"value":column_value} if column_value and coloption else None,"unclassified":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns}
     target=cache_target("tabulations",identity)
     if not save_records and not test_crc:
         cached=cache_read(target)
@@ -1048,7 +1071,7 @@ def tabulate(payload, progress=None):
         total=None
     else:
         column_totals=[scaled_text(totals[0],metric_details[0]["decimals"])]; total=scaled_text(totals[0],metric_details[0]["decimals"])
-    result={"ok":True,"definition":defname,"column":coloption["id"] if coloption else None,"metrics":[{"id":m["id"],"label":m["label"]} for m in metric_details],"metric":metric_details[0]["label"] if len(metrics)==1 else f"{len(metrics)} incrementos","records":records,"processedRecords":processed,"excludedUnclassified":excluded_unclassified,"total":total,"totalsByMetric":[scaled_text(value,detail["decimals"]) for value,detail in zip(totals,metric_details)],"columnTotals":column_totals,"municipalityApplied":usemun,"municipalitySkipped":municipality_skipped,"municipalityCode":municipality or None,"municipalityName":municipality_name or None,"municipalityField":munfield if usemun else None,"appliedFilters":sum(len(state["include"])+len(state["exclude"]) for state in filters.values())+(1 if column_value else 0),"columns":display_columns,"columnDimensions":[{"id":item["id"],"label":item["label"],"field":item["field"]} for item in column_options],"availableColumns":[{"id":item["id"],"label":item["label"],"field":item["field"]} for item in cols],"additionalColumns":additional_ids,"rows":result_rows,"totalCategories":len(raw_rows),"truncated":len(raw_rows)>5000,"files":[x["source"].name for x in sources],"unclassifiedMode":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns,"crcTested":test_crc}
+    result={"ok":True,"definition":defname,"uf":sources[0]["uf"],"rowDimension":{"id":rowoption["id"],"label":rowoption["label"],"field":rowfield},"column":coloption["id"] if coloption else None,"metrics":[{"id":m["id"],"label":m["label"]} for m in metric_details],"metric":metric_details[0]["label"] if len(metrics)==1 else f"{len(metrics)} incrementos","records":records,"processedRecords":processed,"excludedUnclassified":excluded_unclassified,"total":total,"totalsByMetric":[scaled_text(value,detail["decimals"]) for value,detail in zip(totals,metric_details)],"columnTotals":column_totals,"municipalityApplied":usemun,"municipalitySkipped":municipality_skipped,"municipalityCode":municipality or None,"municipalityName":municipality_name or None,"municipalityField":munfield if usemun else None,"appliedFilters":sum(len(state["include"])+len(state["exclude"]) for state in filters.values())+(1 if column_value else 0),"columns":display_columns,"columnDimensions":[{"id":item["id"],"label":item["label"],"field":item["field"]} for item in column_options],"filterOptions":result_filter_options,"availableColumns":[{"id":item["id"],"label":item["label"],"field":item["field"]} for item in cols],"additionalColumns":additional_ids,"rows":result_rows,"totalCategories":len(raw_rows),"truncated":len(raw_rows)>5000,"files":[x["source"].name for x in sources],"unclassifiedMode":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns,"crcTested":test_crc}
     if save_records:
         if progress: progress(97,"Salvando os registros selecionados")
         token=secrets.token_hex(16)

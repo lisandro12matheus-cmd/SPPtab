@@ -8,4 +8,6 @@ Em uma pasta nova, os arquivos baixados e convertidos ficam em data, ao lado de 
 
 Para buscar bases e definições oficiais, conecte-se à internet e use a tela “Buscar arquivos”. A consulta usa HTTPS e, se necessário, tenta o FTP. Se a rede bloquear ambos, você ainda pode copiar a pasta data de outro computador e trabalhar com os arquivos já salvos.
 
+Na tela “Pacotes de dados”, escolha a UF, a competência e os módulos CNES que deseja baixar. O SPPtab mantém o arquivo original e prepara uma cópia convertida para os cruzamentos. A tabela SIGTAP também fica disponível por competência. No resultado da tabulação, use “Adicionar dados complementares” para relacionar pelo CNES, CNS profissional ou código do procedimento, conforme o pacote.
+
 Este pacote não possui assinatura digital; o Windows pode exibir um aviso de aplicativo não reconhecido na primeira execução. Confira a origem do download e compare o SHA-256 do ZIP com o arquivo SPPtab-Portable-SHA256SUM.txt da mesma versão antes de executá-lo.

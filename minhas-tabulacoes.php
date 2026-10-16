@@ -10,7 +10,7 @@
     <aside class="sidebar">
       <a class="brand" href="./" aria-label="SPPtab, início"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span><span><strong>SPPtab</strong><small>saúde em dados</small></span></a>
       <div class="nav-label">ESPAÇO DE TRABALHO</div>
-      <nav aria-label="Navegação principal"><a class="nav-item" href="index.php"><span class="nav-icon">⌕</span>Buscar arquivos</a><a class="nav-item" href="bases.php"><span class="nav-icon">▦</span>Minhas bases</a><a class="nav-item" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a><a class="nav-item active" id="savedTabulationsNav" href="minhas-tabulacoes.php" aria-current="page" hidden><span class="nav-icon">▧</span>Minhas Tabulações</a></nav>
+<nav aria-label="Navegação principal"><a class="nav-item" href="index.php"><span class="nav-icon">⌕</span>Buscar arquivos</a><a class="nav-item" href="bases.php"><span class="nav-icon">▦</span>Minhas bases</a><a class="nav-item" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a><a class="nav-item" href="pacotes.php"><span class="nav-icon">▧</span>Pacotes de dados</a><a class="nav-item active" id="savedTabulationsNav" href="minhas-tabulacoes.php" aria-current="page" hidden><span class="nav-icon">▧</span>Minhas Tabulações</a></nav>
       <div class="sidebar-foot"><span class="source-dot"></span><div><strong>Modelos locais</strong><small>Salvos neste computador</small></div></div>
     </aside>
     <main class="main-content presets-main">

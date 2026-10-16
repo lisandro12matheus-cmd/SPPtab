@@ -32,6 +32,7 @@ declare(strict_types=1);
         <a class="nav-item active" href="#busca"><span class="nav-icon">⌕</span>Buscar arquivos</a>
         <a class="nav-item" href="bases.php"><span class="nav-icon">▦</span>Minhas bases</a>
         <a class="nav-item" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a>
+        <a class="nav-item" href="pacotes.php"><span class="nav-icon">▧</span>Pacotes de dados</a>
         <a class="nav-item" id="savedTabulationsNav" href="minhas-tabulacoes.php" hidden><span class="nav-icon">▧</span>Minhas Tabulações</a>
       </nav>
       <div class="sidebar-foot">

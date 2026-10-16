@@ -7,9 +7,18 @@
   let result = null;
   let activeFilterMenu = null;
   let filterState = new Map();
-  let pendingAdditionalColumns = new Set();
-  let pendingMainColumn = '';
-  let isUpdatingColumns = false;
+  let resultFilterRows = [];
+  let isUpdatingResultFilters = false;
+  let resultFilterError = '';
+  let filterRowSequence = 0;
+  let filterRequestSequence = 0;
+  const pendingFilterValueRequests = new Map();
+  let enrichment = null;
+  let enrichmentPackages = [];
+  let enrichmentSchema = null;
+  let selectedEnrichmentFields = new Set();
+  let enrichmentBusy = false;
+  let enrichmentJobTimer = 0;
 
   const fmt = (value) => {
     const number = Number(value);
@@ -31,6 +40,11 @@
   function valueFor(row, key) {
     if (key === 'row') return String(row.label ?? '');
     if (key === 'rowtotal') return String(row.total ?? '');
+    const extra = /^enrichment:(\d+)$/.exec(key);
+    if (extra && enrichment) {
+      const field = enrichment.fields[Number(extra[1])];
+      return String(enrichment.byKey?.[String(row.key ?? '')]?.[field?.name] ?? '');
+    }
     const match = /^value:(\d+)$/.exec(key);
     return match ? String(row.values?.[Number(match[1])] ?? '') : '';
   }
@@ -102,6 +116,13 @@
         td.textContent = fmt((row.values || []).reduce((sum, value) => sum + numeric(value), 0));
         tr.append(td);
       }
+      const extra = enrichment?.byKey?.[String(row.key ?? '')] || {};
+      (enrichment?.fields || []).forEach((field) => {
+        const td = document.createElement('td');
+        td.className = 'result-enrichment-cell';
+        td.textContent = extra[field.name] || '—';
+        tr.append(td);
+      });
       body.append(tr);
     });
 
@@ -125,6 +146,12 @@
       td.textContent = fmt(total);
       totalRow.append(td);
     }
+    (enrichment?.fields || []).forEach(() => {
+      const td = document.createElement('td');
+      td.textContent = '—';
+      td.className = 'result-enrichment-total';
+      totalRow.append(td);
+    });
     foot.append(totalRow);
 
     updateFilterSummary(rows);
@@ -288,141 +315,220 @@
     tr.append(makeHeader('Linha', 'row'));
     columns.forEach((label, index) => tr.append(makeHeader(label, `value:${index}`)));
     if (showRowTotal) tr.append(makeHeader('Total da linha', 'rowtotal'));
+    (enrichment?.fields || []).forEach((field, index) => tr.append(makeHeader(field.label, `enrichment:${index}`)));
     head.replaceChildren(tr);
   }
 
-  function renderColumnOptions(query = '') {
-    const box = $('#columnOptions');
-    const available = result?.availableColumns || [];
-    const candidates = available.filter((item) => String(item.id) !== pendingMainColumn && !pendingAdditionalColumns.has(String(item.id)));
-    const normalized = query.trim().toLocaleLowerCase('pt-BR');
-    const matching = candidates.filter((item) => `${item.label} ${item.field}`.toLocaleLowerCase('pt-BR').includes(normalized));
-    box.replaceChildren();
-    if (!matching.length) {
-      const empty = document.createElement('p');
-      empty.className = 'result-column-empty';
-      empty.textContent = candidates.length ? 'Nenhuma coluna corresponde à busca.' : 'Todas as opções compatíveis já estão no resultado.';
-      box.append(empty);
-      return;
+  function resultFilterKey(optionType, option) {
+    return `${optionType}:${option}`;
+  }
+
+  function availableResultFilterOptions() {
+    const options = new Map();
+    for (const item of result?.filterOptions || []) options.set(resultFilterKey(item.optionType, item.id), item);
+    for (const row of resultFilterRows) {
+      if (row.option && row.optionType) options.set(resultFilterKey(row.optionType, row.option), row);
     }
-    matching.forEach((item) => {
-      const label = document.createElement('label');
-      label.className = 'result-column-option';
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.value = item.id;
-      checkbox.disabled = isUpdatingColumns || pendingAdditionalColumns.size >= 2;
-      const copy = document.createElement('span');
-      const name = document.createElement('strong');
-      name.textContent = item.label;
-      const field = document.createElement('small');
-      field.textContent = item.field;
-      copy.append(name, field);
-      label.append(checkbox, copy);
-      checkbox.addEventListener('change', () => {
-        if (checkbox.checked && pendingAdditionalColumns.size >= 2) {
-          checkbox.checked = false;
-          $('#columnHelp').textContent = 'O limite é de duas dimensões extras por resultado.';
-          $('#columnHelp').classList.add('is-error');
-          return;
-        }
-        pendingAdditionalColumns.add(String(item.id));
-        renderActiveColumns();
-        renderColumnOptions($('#columnSearch').value);
-        updateColumnPickerState();
-        $('#columnHelp').classList.remove('is-error');
-        $('#applyColumns').disabled = isUpdatingColumns || sameColumnSelection();
-      });
-      box.append(label);
-    });
+    return [...options.values()];
   }
 
-  function renderActiveColumns() {
-    const box = $('#activeColumns');
-    box.replaceChildren();
-    const dimensions = new Map([...(result.columnDimensions || []), ...(result.availableColumns || [])].map((item) => [String(item.id), item]));
-    const available = new Map((result.availableColumns || []).map((item) => [String(item.id), item]));
-    const activeIds = [...new Set([pendingMainColumn, ...pendingAdditionalColumns].filter(Boolean))];
-    for (const id of activeIds) {
-      const item = dimensions.get(id) || available.get(id);
-      if (!item) continue;
-      const isMain = id === pendingMainColumn;
-      const chip = document.createElement('span');
-      chip.className = 'result-active-column';
-      const name = document.createElement('strong');
-      name.textContent = item.label;
-      const detail = document.createElement('small');
-      detail.textContent = isMain && id === String(result.column || '') ? 'já parametrizada' : 'adicionada';
-      const remove = document.createElement('button');
-      remove.type = 'button';
-      remove.setAttribute('aria-label', `Remover ${item.label}`);
-      remove.textContent = 'Remover';
-      remove.disabled = isUpdatingColumns;
-      remove.addEventListener('click', () => {
-        if (id === pendingMainColumn) pendingMainColumn = '';
-        else pendingAdditionalColumns.delete(id);
-        renderActiveColumns();
-        renderColumnOptions($('#columnSearch').value);
-        updateColumnPickerState();
-        $('#columnHelp').classList.remove('is-error');
-        submitColumnChanges();
-      });
-      chip.append(name, detail, remove);
-      box.append(chip);
-    }
+  function resultFilterPayload() {
+    return resultFilterRows
+      .filter((row) => row.option && row.optionType && row.value)
+      .map((row) => ({ option: row.option, optionType: row.optionType, value: row.value, label: row.label, mode: 'include' }));
   }
 
-  function updateColumnPickerState() {
-    const count = pendingAdditionalColumns.size;
-    const measures = (result.metrics || []).length;
-    $('#columnHelp').textContent = measures > 1
-      ? `${count} de 2 dimensões extras. As categorias serão separadas por medida.`
-      : `${count} de 2 dimensões extras. O cruzamento será recalculado.`;
-    $('#applyColumns').disabled = isUpdatingColumns || sameColumnSelection();
-  }
-
-  function sameColumnSelection() {
-    return pendingMainColumn === String(result.column || '')
-      && sameColumns(pendingAdditionalColumns, result.additionalColumns || []);
-  }
-
-  function submitColumnChanges() {
-    const picker = $('#columnPicker');
-    if (!window.opener || isUpdatingColumns || pendingAdditionalColumns.size > 2) return;
-    isUpdatingColumns = true;
-    updateColumnPickerState();
-    renderActiveColumns();
-    renderColumnOptions($('#columnSearch').value);
-    picker.open = false;
-    $('#resultStatus').classList.remove('error');
-    $('#resultStatus').textContent = 'Preparando o novo cruzamento com as colunas selecionadas…';
-    window.opener.postMessage({
-      type: 'tabwin2-add-result-columns',
-      runId,
-      column: pendingMainColumn || null,
-      columns: [...pendingAdditionalColumns],
-    }, location.origin);
-  }
-
-  function sameColumns(left, right) {
-    const a = [...left].sort();
-    const b = [...right].map(String).sort();
+  function sameResultFilters(left, right) {
+    const normalize = (items) => (items || []).map((item) => `${item.optionType}:${item.option}=${item.value}`).sort();
+    const a = normalize(left);
+    const b = normalize(right);
     return a.length === b.length && a.every((value, index) => value === b[index]);
   }
 
-  function setupColumnPicker() {
-    const picker = $('#columnPicker');
-    const available = result.availableColumns || [];
-    picker.hidden = !available.length;
-    pendingMainColumn = String(result.column || '');
-    pendingAdditionalColumns = new Set((result.additionalColumns || []).map(String));
-    $('#columnSearch').value = '';
-    $('#columnSearch').oninput = () => renderColumnOptions($('#columnSearch').value);
-    $('#columnHelp').classList.remove('is-disabled', 'is-error');
-    renderActiveColumns();
-    updateColumnPickerState();
-    $('#applyColumns').onclick = submitColumnChanges;
-    renderColumnOptions();
+  function requestResultFilterValues(row) {
+    if (!window.opener || !row.option || !row.optionType || isUpdatingResultFilters) return;
+    resultFilterError = '';
+    $('#resultStatus').classList.remove('error');
+    row.loading = true;
+    row.error = '';
+    row.values = [];
+    const requestId = `${runId}-${++filterRequestSequence}`;
+    row.requestId = requestId;
+    pendingFilterValueRequests.set(requestId, row.id);
+    renderResultFilters();
+    window.opener.postMessage({
+      type: 'tabwin2-load-result-filter-values',
+      runId,
+      requestId,
+      option: row.option,
+      optionType: row.optionType,
+    }, location.origin);
+  }
+
+  function handleResultFilterValues(message) {
+    const rowId = pendingFilterValueRequests.get(message.requestId);
+    pendingFilterValueRequests.delete(message.requestId);
+    const row = resultFilterRows.find((item) => item.id === rowId);
+    if (!row || row.option !== message.option || row.optionType !== message.optionType) return;
+    row.loading = false;
+    row.error = message.error || '';
+    row.values = message.data?.values || [];
+    row.truncated = Boolean(message.data?.truncated);
+    if (!row.error) resultFilterError = '';
+    if (row.value && !row.values.some((item) => String(item.value) === row.value)) row.value = '';
+    renderResultFilters();
+  }
+
+  function addResultFilterRow(initial = null) {
+    const row = {
+      id: `result-filter-${++filterRowSequence}`,
+      option: String(initial?.option || ''),
+      optionType: String(initial?.optionType || ''),
+      label: String(initial?.label || ''),
+      field: String(initial?.field || ''),
+      value: String(initial?.value || ''),
+      values: [],
+      truncated: false,
+      loading: false,
+      error: '',
+      requestId: '',
+    };
+    resultFilterRows.push(row);
+    if (row.option && row.optionType) requestResultFilterValues(row);
+    renderResultFilters();
+    return row;
+  }
+
+  function renderResultFilters() {
+    const box = $('#resultFilterRows');
+    const builder = $('#resultFilterBuilder');
+    const addButton = $('#addResultFilter');
+    const anotherButton = $('#addAnotherResultFilter');
+    const allOptions = availableResultFilterOptions();
+    const available = result?.filterOptions || [];
+    builder.hidden = resultFilterRows.length === 0;
+    addButton.hidden = !available.length && resultFilterRows.length === 0;
+    anotherButton.hidden = !available.length;
+    anotherButton.disabled = isUpdatingResultFilters;
+    box.replaceChildren();
+
+    resultFilterRows.forEach((row) => {
+      const container = document.createElement('div');
+      container.className = 'result-filter-row';
+      const fieldLabel = document.createElement('label');
+      fieldLabel.textContent = 'Informação';
+      const fieldSelect = document.createElement('select');
+      fieldSelect.setAttribute('aria-label', 'Informação para filtrar');
+      fieldSelect.add(new Option('Escolha uma informação', ''));
+      const usedByOthers = new Set(resultFilterRows.filter((item) => item.id !== row.id && item.option && item.optionType).map((item) => resultFilterKey(item.optionType, item.option)));
+      allOptions.forEach((item) => {
+        const key = resultFilterKey(item.optionType, item.id || item.option);
+        if (usedByOthers.has(key)) return;
+        const value = resultFilterKey(item.optionType, item.id || item.option);
+        fieldSelect.add(new Option(item.label, value));
+      });
+      fieldSelect.value = row.option ? resultFilterKey(row.optionType, row.option) : '';
+      fieldSelect.disabled = isUpdatingResultFilters;
+      fieldSelect.addEventListener('change', () => {
+        resultFilterError = '';
+        $('#resultStatus').classList.remove('error');
+        const oldValue = row.value;
+        const selected = allOptions.find((item) => resultFilterKey(item.optionType, item.id || item.option) === fieldSelect.value);
+        row.option = String(selected?.id || selected?.option || '');
+        row.optionType = String(selected?.optionType || '');
+        row.label = String(selected?.label || '');
+        row.field = String(selected?.field || '');
+        row.value = '';
+        row.values = [];
+        row.truncated = false;
+        row.error = '';
+        renderResultFilters();
+        if (row.option) requestResultFilterValues(row);
+        if (oldValue) submitResultFilters();
+      });
+      fieldLabel.append(fieldSelect);
+
+      const valueLabel = document.createElement('label');
+      valueLabel.textContent = 'Categoria';
+      const valueSelect = document.createElement('select');
+      valueSelect.setAttribute('aria-label', `Categoria para ${row.label || 'o filtro'}`);
+      if (!row.option) valueSelect.add(new Option('Escolha primeiro a informação', ''));
+      else if (row.loading) valueSelect.add(new Option('Carregando categorias…', ''));
+      else if (row.error) valueSelect.add(new Option('Falha ao carregar categorias', ''));
+      else {
+        valueSelect.add(new Option(row.values.length ? 'Escolha uma categoria' : 'Nenhuma categoria disponível', ''));
+        row.values.forEach((item) => {
+          const code = String(item.value);
+          const label = item.label && item.label !== code ? `${item.label} · código ${code}` : code;
+          valueSelect.add(new Option(label, code));
+        });
+      }
+      valueSelect.value = row.value;
+      valueSelect.disabled = isUpdatingResultFilters || !row.option || row.loading || Boolean(row.error) || !row.values.length;
+      valueSelect.addEventListener('change', () => {
+        row.value = valueSelect.value;
+        submitResultFilters();
+      });
+      valueLabel.append(valueSelect);
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.textContent = 'Remover';
+      remove.disabled = isUpdatingResultFilters;
+      remove.setAttribute('aria-label', `Remover filtro ${row.label || ''}`.trim());
+      remove.addEventListener('click', () => {
+        resultFilterError = '';
+        $('#resultStatus').classList.remove('error');
+        const hadValue = Boolean(row.option && row.value);
+        resultFilterRows = resultFilterRows.filter((item) => item.id !== row.id);
+        renderResultFilters();
+        if (hadValue) submitResultFilters();
+      });
+      const status = document.createElement('p');
+      status.className = `result-filter-row__status${row.error ? ' error' : ''}`;
+      const truncatedNotice = 'A lista tem mais de 5.000 categorias; refine a consulta principal para reduzir as opções.';
+      status.textContent = row.error || (isUpdatingResultFilters ? 'Aplicando o filtro ao resultado…' : resultFilterError ? 'Não foi possível aplicar; ajuste o filtro e tente novamente.' : row.loading ? 'Carregando as categorias deste campo…' : !row.option ? 'Escolha a informação que deseja filtrar.' : !row.values.length ? 'Este campo não tem categorias disponíveis nesta base.' : row.value ? `Filtro aplicado ao resultado.${row.truncated ? ` ${truncatedNotice}` : ''}` : row.truncated ? truncatedNotice : 'Selecione uma categoria para aplicar o filtro.');
+      container.append(fieldLabel, valueLabel, remove, status);
+      box.append(container);
+    });
+
+    if (isUpdatingResultFilters) $('#resultFilterHelp').textContent = 'Recalculando a base com os filtros escolhidos…';
+    else if (!available.length && resultFilterRows.length) $('#resultFilterHelp').textContent = 'Todas as informações compatíveis já estão sendo usadas como filtro.';
+    else $('#resultFilterHelp').textContent = 'Os filtros selecionados serão aplicados à base e aos totais.';
+    if (resultFilterError) $('#resultFilterHelp').textContent = resultFilterError;
+    $('#resultFilterHelp').classList.toggle('error', Boolean(resultFilterError));
+    addButton.disabled = isUpdatingResultFilters || !available.length;
+  }
+
+  function submitResultFilters() {
+    if (!window.opener || isUpdatingResultFilters) return;
+    const filters = resultFilterPayload();
+    if (sameResultFilters(filters, result?.resultFilters || [])) return;
+    isUpdatingResultFilters = true;
+    resultFilterError = '';
+    $('#resultStatus').classList.remove('error');
+    $('#resultStatus').textContent = 'Preparando o novo cruzamento com os filtros escolhidos…';
+    renderResultFilters();
+    window.opener.postMessage({ type: 'tabwin2-result-filters', runId, filters }, location.origin);
+  }
+
+  function setupResultFilters(updating = false) {
+    if (!updating) {
+      resultFilterRows = [];
+      (result.resultFilters || []).forEach((filter) => addResultFilterRow(filter));
+    }
+    $('#addResultFilter').onclick = () => {
+      resultFilterError = '';
+      $('#resultStatus').classList.remove('error');
+      $('#resultFilterBuilder').hidden = false;
+      addResultFilterRow();
+    };
+    $('#addAnotherResultFilter').onclick = () => {
+      resultFilterError = '';
+      $('#resultStatus').classList.remove('error');
+      addResultFilterRow();
+    };
+    renderResultFilters();
   }
 
   function draw(data, updating = false) {
@@ -472,16 +578,294 @@
     $('#resultTools').hidden = false;
     $('#resultPanel').hidden = false;
     renderHeader();
-    setupColumnPicker();
+    setupResultFilters(updating);
     renderVisibleTable();
     $('#resultStatus').textContent = updating
-      ? 'Colunas e totais atualizados. O filtro de linha foi mantido; filtros de valores foram reiniciados.'
+      ? 'Resultado recalculado. Os filtros locais dos cabeçalhos foram reiniciados para refletir os novos dados.'
       : data.truncated
         ? `Exibindo ${fmt(data.rows.length)} de ${fmt(data.totalCategories)} categorias. Os filtros locais consideram as linhas desta tela.`
         : 'Tabela mapeada e totalizada. Use os cabeçalhos para filtrar.';
     $('#resultStatus').classList.remove('error');
     $('#exportCsv').disabled = false;
     $('#printTable').disabled = false;
+  }
+
+  async function packageRequest(payload) {
+    const response = await fetch('api.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(payload) });
+    const raw = await response.text();
+    let data;
+    try { data = JSON.parse(raw); } catch (_) { throw new Error(`O serviço local não respondeu corretamente (HTTP ${response.status}).`); }
+    if (!response.ok || !data.ok) throw new Error(data.error || `Não foi possível concluir (HTTP ${response.status}).`);
+    return data;
+  }
+
+  function enrichmentNotice(message, error = false) {
+    const status = $('#enrichmentStatus');
+    status.textContent = message;
+    status.classList.toggle('error', Boolean(error));
+  }
+
+  function preferredEnrichmentField(schema) {
+    const fields = schema.fields || [];
+    const rowText = `${result?.rowDimension?.field || ''} ${result?.rowDimension?.label || ''}`.toLocaleUpperCase('pt-BR');
+    const preferProfessional = schema.module === 'PF' && /CNS|PROFISSIONAL/.test(rowText);
+    const preferred = schema.module === 'SIGTAP' ? ['CO_PROCEDIMENTO'] : schema.module === 'PF' && preferProfessional ? ['CNS_PROF', 'CO_CNS', 'NU_CNS'] : ['CNES', 'CO_CNES'];
+    return preferred.find((name) => fields.some((field) => field.name === name)) || '';
+  }
+
+  function updateEnrichmentMatchCopy() {
+    const row = result?.rowDimension || {};
+    const join = $('#enrichmentJoinField').value;
+    const source = row.label ? `“${row.label}” (${row.field || 'código da linha'})` : 'o código de cada linha';
+    const target = enrichmentSchema?.fields?.find((field) => field.name === join);
+    $('#enrichmentMatchCopy').textContent = join
+      ? `Vai comparar ${source} com “${target?.label || join}” (${join}) no pacote.`
+      : `As chaves virão de ${source}. Escolha o campo de destino no pacote.`;
+  }
+
+  function renderEnrichmentFields() {
+    const box = $('#enrichmentFields');
+    const schema = enrichmentSchema;
+    box.replaceChildren();
+    if (!schema) {
+      const empty = document.createElement('span');
+      empty.className = 'result-enrichment__empty';
+      empty.textContent = 'Escolha um pacote para listar os campos disponíveis.';
+      box.append(empty);
+      return;
+    }
+    const query = $('#enrichmentFieldSearch').value.trim().toLocaleLowerCase('pt-BR');
+    const join = $('#enrichmentJoinField').value;
+    const choices = schema.fields.filter((field) => field.name !== join && `${field.label} ${field.name}`.toLocaleLowerCase('pt-BR').includes(query));
+    const profId = ['CNS_PROF', 'CO_CNS', 'NU_CNS', 'CPF_PROF', 'CO_PROFISSIONAL', 'CO_PROF'].find((name) => schema.fields.some((field) => field.name === name && name !== join));
+    const canCountProfessionals = schema.module === 'PF' && ['CNES', 'CO_CNES'].includes(join) && Boolean(profId);
+    if (canCountProfessionals && (!query || 'profissionais vinculados contagem cns distintos'.includes(query))) {
+      const label = document.createElement('label');
+      label.className = 'result-enrichment-field';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = '__PROFESSIONAL_COUNT';
+      checkbox.checked = selectedEnrichmentFields.has(checkbox.value);
+      checkbox.disabled = enrichmentBusy || (!checkbox.checked && selectedEnrichmentFields.size >= 8);
+      const copy = document.createElement('span');
+      const name = document.createElement('strong'); name.textContent = 'Profissionais vinculados';
+      const code = document.createElement('small'); code.textContent = 'Contagem de identificadores profissionais distintos por CNES';
+      copy.append(name, code); label.append(checkbox, copy); box.append(label);
+      checkbox.addEventListener('change', () => {
+        checkbox.checked ? selectedEnrichmentFields.add(checkbox.value) : selectedEnrichmentFields.delete(checkbox.value);
+        renderEnrichmentFields();
+        updateEnrichmentControls();
+      });
+    }
+    choices.forEach((field) => {
+      const label = document.createElement('label');
+      label.className = 'result-enrichment-field';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = field.name;
+      checkbox.checked = selectedEnrichmentFields.has(field.name);
+      checkbox.disabled = enrichmentBusy || (!checkbox.checked && selectedEnrichmentFields.size >= 8);
+      const copy = document.createElement('span');
+      const name = document.createElement('strong'); name.textContent = field.label;
+      const code = document.createElement('small'); code.textContent = `${field.name} · ${field.type || 'campo'}`;
+      copy.append(name, code); label.append(checkbox, copy); box.append(label);
+      checkbox.addEventListener('change', () => {
+        checkbox.checked ? selectedEnrichmentFields.add(field.name) : selectedEnrichmentFields.delete(field.name);
+        renderEnrichmentFields();
+        updateEnrichmentControls();
+      });
+    });
+    if (!choices.length && !canCountProfessionals) {
+      const empty = document.createElement('span');
+      empty.className = 'result-enrichment__empty';
+      empty.textContent = query ? 'Nenhum campo corresponde à busca.' : 'Este pacote não tem outros campos para adicionar.';
+      box.append(empty);
+    }
+  }
+
+  function updateEnrichmentControls() {
+    const hasKeys = (result?.rows || []).some((row) => String(row.key || '').trim());
+    const selected = selectedEnrichmentFields.size;
+    $('#applyEnrichment').disabled = enrichmentBusy || !enrichmentSchema || !$('#enrichmentJoinField').value || !hasKeys || !selected;
+    $('#applyEnrichment').textContent = selected ? `Cruzar e adicionar ${selected} coluna${selected === 1 ? '' : 's'}` : 'Cruzar e adicionar colunas';
+    $('#clearEnrichment').hidden = !enrichment;
+  }
+
+  async function loadEnrichmentSchema(path) {
+    enrichmentSchema = null;
+    selectedEnrichmentFields.clear();
+    const joinSelect = $('#enrichmentJoinField');
+    joinSelect.disabled = true;
+    joinSelect.replaceChildren(new Option('Carregando campos…', ''));
+    renderEnrichmentFields();
+    updateEnrichmentControls();
+    if (!path) { updateEnrichmentMatchCopy(); return; }
+    try {
+      const schema = await packageRequest({ action: 'package_schema', path });
+      enrichmentSchema = schema;
+      joinSelect.replaceChildren(new Option('Selecione o campo para cruzar', ''));
+      schema.fields.forEach((field) => joinSelect.add(new Option(`${field.label} · ${field.name}`, field.name)));
+      joinSelect.value = preferredEnrichmentField(schema);
+      joinSelect.disabled = enrichmentBusy;
+      joinSelect.onchange = () => {
+        selectedEnrichmentFields.clear();
+        renderEnrichmentFields();
+        updateEnrichmentMatchCopy();
+        updateEnrichmentControls();
+      };
+      $('#enrichmentFieldSearch').value = '';
+      const moduleHelp = schema.module === 'SIGTAP'
+        ? 'SIGTAP: relacione o código do procedimento para acrescentar descrição, complexidade e valores oficiais da competência.'
+        : schema.module === 'LT'
+        ? 'Leitos: os campos de quantidade serão somados por estabelecimento; as categorias e os demais campos serão resumidos.'
+        : schema.module === 'PF'
+          ? 'Profissionais: relacione por CNES para contar identificadores profissionais ou pelo CNS para trazer campos do cadastro.'
+        : schema.module === 'ST'
+            ? 'Estabelecimentos: relacione pelo código CNES para acrescentar dados de identificação e cadastro básico.'
+            : schema.module === 'DC'
+              ? 'Dados complementares: relacione pelo código CNES para acrescentar informações de gestão, natureza e caracterização.'
+              : schema.module === 'HB'
+                ? 'Habilitações: relacione pelo código CNES para acrescentar as habilitações registradas.'
+                : schema.module === 'EQ'
+              ? 'Equipamentos: os campos de quantidade serão somados por estabelecimento; os demais campos serão resumidos.'
+              : schema.module === 'EP'
+                ? 'Equipes: relacione pelo código CNES para acrescentar os campos das equipes cadastradas.'
+                : 'Serviços especializados: relacione pelo código CNES para acrescentar serviços e classificações.';
+      $('#enrichmentHelp').textContent = `${moduleHelp} É preciso pelo menos uma linha com código para comparar.`;
+      renderEnrichmentFields();
+      updateEnrichmentMatchCopy();
+      updateEnrichmentControls();
+      enrichmentNotice(`${schema.records.toLocaleString('pt-BR')} registros · ${schema.fields.length} campos disponíveis.`);
+    } catch (error) {
+      joinSelect.replaceChildren(new Option('Falha ao ler o pacote', ''));
+      enrichmentNotice(error.message, true);
+    }
+  }
+
+  async function loadEnrichmentPackages() {
+    const select = $('#enrichmentPackage');
+    select.disabled = true;
+    select.replaceChildren(new Option('Localizando pacotes…', ''));
+    enrichmentNotice('Procurando pacotes CNES e SIGTAP prontos neste computador…');
+    try {
+      const data = await packageRequest({ action: 'package_list', uf: result?.uf || '' });
+      enrichmentPackages = data.packages || [];
+      select.replaceChildren(new Option('Escolha um pacote CNES', ''));
+      enrichmentPackages.forEach((item) => {
+        const label = `${item.label} · ${item.uf} · ${String(item.month).padStart(2, '0')}/${item.year} · ${fmt(item.records)} registros`;
+        select.add(new Option(label, item.path));
+      });
+      select.disabled = enrichmentBusy || !enrichmentPackages.length;
+      select.onchange = () => loadEnrichmentSchema(select.value);
+      if (enrichmentPackages.length) {
+        enrichmentNotice(`${enrichmentPackages.length} pacote(s) local(is). Os pacotes de ${result?.uf || 'outra UF'} aparecem primeiro na biblioteca.`);
+      } else {
+        select.replaceChildren(new Option('Nenhum pacote neste estado', ''));
+        enrichmentNotice('Ainda não há pacote compatível neste estado. Abra Pacotes de dados e baixe os módulos CNES ou a tabela SIGTAP da competência.', true);
+      }
+    } catch (error) {
+      select.replaceChildren(new Option('Não foi possível carregar', ''));
+      enrichmentNotice(error.message, true);
+    }
+  }
+
+  function setEnrichmentBusy(value) {
+    enrichmentBusy = Boolean(value);
+    $('#enrichmentPackage').disabled = enrichmentBusy || !enrichmentPackages.length;
+    $('#enrichmentJoinField').disabled = enrichmentBusy || !enrichmentSchema;
+    $('#enrichmentFieldSearch').disabled = enrichmentBusy;
+    $('#closeEnrichment').disabled = enrichmentBusy;
+    renderEnrichmentFields();
+    updateEnrichmentControls();
+  }
+
+  function showEnrichmentProgress(state) {
+    const box = $('#enrichmentProgress');
+    box.hidden = false;
+    const progress = Math.max(1, Math.min(100, Number(state.progress) || 0));
+    $('#enrichmentProgressStage').textContent = state.stage || 'Lendo o pacote CNES';
+    $('#enrichmentProgressPercent').textContent = `${progress}%`;
+    $('#enrichmentProgressFill').style.width = `${progress}%`;
+    box.querySelector('.progress-track').setAttribute('aria-valuenow', String(progress));
+    $('#enrichmentProgressCopy').textContent = state.message || 'Comparando os códigos das linhas com o pacote local.';
+  }
+
+  async function pollEnrichment(jobId) {
+    clearTimeout(enrichmentJobTimer);
+    try {
+      const state = await packageRequest({ action: 'package_enrich_status', job_id: jobId });
+      showEnrichmentProgress(state);
+      if (state.status === 'done') {
+        const selected = state.result?.fields || [];
+        const fields = selected.map((name) => name === '__PROFESSIONAL_COUNT'
+          ? { name, label: 'Profissionais vinculados', type: 'N' }
+          : enrichmentSchema.fields.find((field) => field.name === name) || { name, label: name });
+        enrichment = { fields, byKey: state.result?.by_key || {} };
+        filterState = new Map([...filterState].filter(([key]) => !key.startsWith('enrichment:')));
+        renderHeader();
+        renderVisibleTable();
+        setEnrichmentBusy(false);
+        enrichmentNotice(`${fmt(state.result?.matched || 0)} de ${fmt(state.result?.rows || 0)} linhas encontraram dados no pacote. Os totais numéricos seguem os da consulta original.`);
+        $('#clearEnrichment').hidden = false;
+        return;
+      }
+      if (state.status === 'error') {
+        setEnrichmentBusy(false);
+        enrichmentNotice(state.message || 'Não foi possível cruzar os pacotes.', true);
+        return;
+      }
+      enrichmentJobTimer = window.setTimeout(() => pollEnrichment(jobId), 900);
+    } catch (error) {
+      setEnrichmentBusy(false);
+      enrichmentNotice(error.message, true);
+    }
+  }
+
+  async function startEnrichment() {
+    if (enrichmentBusy || !enrichmentSchema) return;
+    const keys = [...new Set((result?.rows || []).map((row) => String(row.key || '').trim()).filter(Boolean))];
+    if (!keys.length) {
+      enrichmentNotice('A dimensão de linha desta consulta não contém códigos para cruzar. Escolha uma linha com CNES ou CNS e gere novamente.', true);
+      return;
+    }
+    const fields = [...selectedEnrichmentFields];
+    if (!fields.length) return;
+    setEnrichmentBusy(true);
+    $('#enrichmentProgress').hidden = false;
+    showEnrichmentProgress({ progress: 1, stage: 'Preparando cruzamento', message: 'Abrindo o pacote local e comparando os códigos.' });
+      enrichmentNotice(`${fmt(keys.length)} códigos da tabela serão comparados com ${enrichmentSchema.name}.`);
+    try {
+      const data = await packageRequest({ action: 'package_enrich_start', path: enrichmentSchema.path, join_field: $('#enrichmentJoinField').value, fields, keys });
+      pollEnrichment(data.job_id);
+    } catch (error) {
+      setEnrichmentBusy(false);
+      enrichmentNotice(error.message, true);
+    }
+  }
+
+  function setupEnrichment() {
+    $('#addEnrichment').onclick = async () => {
+      $('#resultEnrichment').hidden = false;
+      $('#resultEnrichment').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      if (!enrichmentPackages.length) await loadEnrichmentPackages();
+      else if (!enrichmentSchema && enrichmentPackages.length === 1) {
+        $('#enrichmentPackage').value = enrichmentPackages[0].path;
+        await loadEnrichmentSchema(enrichmentPackages[0].path);
+      }
+    };
+    $('#closeEnrichment').onclick = () => { $('#resultEnrichment').hidden = true; };
+    $('#enrichmentFieldSearch').oninput = renderEnrichmentFields;
+    $('#applyEnrichment').onclick = startEnrichment;
+    $('#clearEnrichment').onclick = () => {
+      enrichment = null;
+      filterState = new Map([...filterState].filter(([key]) => !key.startsWith('enrichment:')));
+      renderHeader();
+      renderVisibleTable();
+      enrichmentNotice('As colunas complementares foram removidas.');
+      updateEnrichmentControls();
+    };
+    $('#enrichmentPackage').onchange = () => loadEnrichmentSchema($('#enrichmentPackage').value);
+    updateEnrichmentControls();
   }
 
   function escapeCsv(value) {
@@ -492,19 +876,23 @@
     if (!result) return;
     const rows = visibleRows();
     const columns = result.columns || [];
+    const extraFields = enrichment?.fields || [];
     const showRowTotal = (result.metrics || []).length === 1 && (columns.length > 1 || columns[0] !== 'Total');
     const header = ['Linha', ...columns];
     if (showRowTotal) header.push('Total da linha');
+    header.push(...extraFields.map((field) => field.label));
     const lines = [header, ...rows.map((row) => {
       const values = [row.label, ...(row.values || [])];
       if (showRowTotal) values.push((row.values || []).reduce((sum, value) => sum + numeric(value), 0));
+      const extra = enrichment?.byKey?.[String(row.key ?? '')] || {};
+      values.push(...extraFields.map((field) => extra[field.name] || ''));
       return values;
     })];
     const filtered = activeFilterCount() > 0;
     const totals = columns.map((_, index) => filtered
       ? rows.reduce((sum, row) => sum + numeric(row.values?.[index]), 0)
       : numeric(result.columnTotals?.[index]));
-    lines.push(['Total geral', ...totals, ...(showRowTotal ? [filtered ? totals.reduce((sum, value) => sum + value, 0) : result.total] : [])]);
+    lines.push(['Total geral', ...totals, ...(showRowTotal ? [filtered ? totals.reduce((sum, value) => sum + value, 0) : result.total] : []), ...extraFields.map(() => '')]);
     const blob = new Blob(['\ufeff' + lines.map((row) => row.map(escapeCsv).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -515,9 +903,7 @@
   });
 
   $('#printTable').addEventListener('click', () => window.print());
-  $('#columnPicker').addEventListener('toggle', () => {
-    if ($('#columnPicker').open) $('#columnSearch').focus({ preventScroll: true });
-  });
+  setupEnrichment();
   document.addEventListener('click', () => closeFilterMenu());
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeFilterMenu();
@@ -534,23 +920,24 @@
     const message = event.data || {};
     if (message.runId !== runId) return;
     if (message.type === 'tabwin2-result' && message.data?.ok) draw(message.data);
+    else if (message.type === 'tabwin2-filter-values') handleResultFilterValues(message);
     else if (message.type === 'tabwin2-result-update' && message.data?.ok) {
-      isUpdatingColumns = false;
+      isUpdatingResultFilters = false;
       draw(message.data, true);
     }
-    else if (message.type === 'tabwin2-column-error') {
-      isUpdatingColumns = false;
-      $('#resultStatus').textContent = message.message || 'Não foi possível atualizar as colunas.';
+    else if (message.type === 'tabwin2-filter-error') {
+      isUpdatingResultFilters = false;
+      resultFilterError = message.message || 'Não foi possível aplicar os filtros.';
+      $('#resultStatus').textContent = message.message || 'Não foi possível aplicar os filtros.';
       $('#resultStatus').classList.add('error');
-      renderActiveColumns();
-      renderColumnOptions($('#columnSearch').value);
-      $('#applyColumns').disabled = isUpdatingColumns || sameColumnSelection();
+      renderResultFilters();
     } else if (message.type === 'tabwin2-error') showError(message.message || 'Falha ao gerar a tabulação.');
     else if (message.type === 'tabwin2-progress') {
       const progress = Number(message.progress) || 0;
       $('#resultStatus').textContent = result
         ? `Atualizando o cruzamento · ${progress}% · ${message.stage || 'Lendo os dados'}`
         : `${progress}% concluído · ${message.stage || 'Lendo os dados'}`;
+      if (isUpdatingResultFilters) $('#resultFilterHelp').textContent = `Recalculando a base · ${progress}% · ${message.stage || 'Aplicando filtros'}`;
       if (!result) {
         $('#resultTitle').textContent = 'Tabulação em andamento';
         $('#resultSummary').textContent = message.stage || 'Lendo os dados…';

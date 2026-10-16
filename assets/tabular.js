@@ -28,6 +28,7 @@
   let pendingPopupMessage = null;
   let applyingPreset = false;
   let resultTabulationPayload = null;
+  let resultExtraFilters = [];
 
   function updateTabLocationTag() {
     let saved = null;
@@ -993,6 +994,11 @@
     if (message.type === 'tabwin2-result-ready' && message.runId === resultRunId) {
       popupReady = true;
       sendPopupMessage();
+    } else if (message.type === 'tabwin2-load-result-filter-values' && message.runId === resultRunId) {
+      loadResultFilterValues(message);
+    } else if (message.type === 'tabwin2-result-filters' && message.runId === resultRunId) {
+      const filters = Array.isArray(message.filters) ? message.filters : [];
+      if (filters.length <= 300 && filters.every((item) => item && typeof item.option === 'string' && typeof item.optionType === 'string' && typeof item.value === 'string')) recalculateResultFilters(filters);
     } else if (message.type === 'tabwin2-add-result-columns' && message.runId === resultRunId) {
       const columns = Array.isArray(message.columns) ? [...new Set(message.columns.map(String))] : [];
       const column = typeof message.column === 'string' ? message.column : '';
@@ -1017,13 +1023,14 @@
     button.textContent = 'Atualizando resultado…';
     notice(3, 'Refazendo o cruzamento com as novas colunas.');
     try {
-      const payload = { ...resultTabulationPayload, column, columnFilter: column ? resultTabulationPayload.columnFilter : null, additionalColumns: columns, testCrc: false, saveRecords: false };
+      const payload = { ...resultTabulationPayload, filters: [...(resultTabulationPayload.filters || []), ...resultExtraFilters], column, columnFilter: column ? resultTabulationPayload.columnFilter : null, additionalColumns: columns, testCrc: false, saveRecords: false };
       const job = await request(payload);
       while (true) {
         const state = await request({ action: 'tabulate_status', job_id: job.job_id });
         if (state.status === 'error') throw new Error(state.message || 'Não foi possível atualizar as colunas.');
         if (state.status === 'done') {
           lastResult = state.result;
+          lastResult.resultFilters = resultExtraFilters;
           pendingPopupMessage = { type: 'tabwin2-result-update', runId: resultRunId, data: lastResult };
           sendPopupMessage();
           notice(3, 'As colunas e os totais foram atualizados.', 'success');
@@ -1047,6 +1054,67 @@
     }
   }
 
+  async function loadResultFilterValues(message) {
+    const option = String(message.option || '');
+    const optionType = String(message.optionType || '');
+    const sources = resultTabulationPayload?.sources || [];
+    if (!option || !['line', 'column', 'selection'].includes(optionType) || !sources.length) return;
+    try {
+      const data = await request({ action: 'category_values', sources, option, optionType, municipalityCode: resultTabulationPayload.municipalityCode || '' });
+      if (!resultPopup || resultPopup.closed) return;
+      resultPopup.postMessage({ type: 'tabwin2-filter-values', runId: resultRunId, requestId: message.requestId, option, optionType, data }, location.origin);
+    } catch (error) {
+      if (!resultPopup || resultPopup.closed) return;
+      resultPopup.postMessage({ type: 'tabwin2-filter-values', runId: resultRunId, requestId: message.requestId, option, optionType, error: error.message }, location.origin);
+    }
+  }
+
+  async function recalculateResultFilters(filters) {
+    if (!resultTabulationPayload || !resultPopup || resultPopup.closed || isTabulating) return;
+    const cleaned = filters.map((filter) => ({ option: String(filter.option), optionType: String(filter.optionType), value: String(filter.value), label: String(filter.label || ''), mode: 'include' }));
+    if (cleaned.length + (resultTabulationPayload.filters || []).length > 300) {
+      pendingPopupMessage = { type: 'tabwin2-filter-error', runId: resultRunId, message: 'O limite de categorias filtradas foi atingido. Remova um filtro anterior e tente novamente.' };
+      sendPopupMessage();
+      return;
+    }
+    const button = $('#runButton');
+    isTabulating = true;
+    updateRunButton();
+    button.textContent = 'Atualizando filtros…';
+    notice(3, 'Aplicando os filtros ao cruzamento.');
+    try {
+      const payload = { ...resultTabulationPayload, filters: [...(resultTabulationPayload.filters || []), ...cleaned], testCrc: false, saveRecords: false };
+      const job = await request(payload);
+      while (true) {
+        const state = await request({ action: 'tabulate_status', job_id: job.job_id });
+        if (state.status === 'error') throw new Error(state.message || 'Não foi possível aplicar os filtros.');
+        if (state.status === 'done') {
+          resultExtraFilters = cleaned;
+          lastResult = state.result;
+          lastResult.resultFilters = cleaned;
+          pendingPopupMessage = { type: 'tabwin2-result-update', runId: resultRunId, data: lastResult };
+          sendPopupMessage();
+          notice(3, 'Filtros aplicados e resultado atualizado.', 'success');
+          break;
+        }
+        const progress = Number(state.progress) || 0;
+        const stage = state.stage || 'Aplicando filtros';
+        pendingPopupMessage = { type: 'tabwin2-progress', runId: resultRunId, progress, stage };
+        sendPopupMessage();
+        notice(3, `${stage} · ${progress}%`);
+        await new Promise((resolve) => setTimeout(resolve, 700));
+      }
+    } catch (error) {
+      pendingPopupMessage = { type: 'tabwin2-filter-error', runId: resultRunId, message: error.message };
+      sendPopupMessage();
+      notice(3, error.message, 'error');
+    } finally {
+      isTabulating = false;
+      button.innerHTML = 'Gerar tabulação <span aria-hidden="true">↗</span>';
+      updateRunButton();
+    }
+  }
+
   async function generate() {
     if (!schema || !$('#rowField').value || !selectedMetrics().length || isTabulating) return;
 
@@ -1060,6 +1128,7 @@
     const column = $('#columnField').value;
     const columnValue = $('#columnValue').value;
     try {
+      resultExtraFilters = [];
       resultTabulationPayload = {
         action: 'tabulate_start',
         path: selected.path,
@@ -1086,6 +1155,7 @@
         if (state.status === 'error') throw new Error(state.message || 'Não foi possível concluir a tabulação.');
         if (state.status === 'done') {
           lastResult = state.result;
+          lastResult.resultFilters = [];
           break;
         }
         const progress = Number(state.progress) || 0;
