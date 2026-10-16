@@ -651,6 +651,105 @@ def schema(relative: str):
     municipality=municipality_field(system,fieldnames)
     return {"ok":True,"file":{"path":relative,"name":path.name,"system":system,"kind":kind,"uf":filename_match.group("uf").upper()},"dbfPath":converted.relative_to(UPLOADS).as_posix(),"dbfIdentity":cache_file_identity(converted),"definition":{"name":defname,"archive":f"uploads/DEFINICOES/originais/TAB_{system}.zip","size":len(definition),"relationFiles":len(relationFiles)},"fields":fields,"lineOptions":rows,"columnOptions":cols,"selectionOptions":selections,"increments":increments,"groupField":group,"municipalityField":municipality,"recordCount":records}
 
+def preset_context(relative: str):
+    path=safe_file(relative); system,kind,match=meta(path); fields,_=dbc_header(path)
+    defname,definition=archive_def(system,kind)
+    if definition is None: raise RuntimeError("A definição oficial deste arquivo não está disponível.")
+    stable_fields=sorted(({key:str(field.get(key,"")) for key in ("name","type","length","decimals")} for field in fields),key=lambda field:field["name"].upper())
+    uf=match.group("uf").upper()
+    signature_data={"system":system,"kind":kind,"uf":uf,"definition":hashlib.sha256(definition).hexdigest(),"fields":stable_fields}
+    signature=hashlib.sha256(json.dumps(signature_data,sort_keys=True,separators=(",",":")).encode("utf-8")).hexdigest()
+    return {"signature":signature,"system":system,"kind":kind,"uf":uf,"definition":defname,"fields":fields,"file":{"path":relative,"name":path.name,"system":system,"kind":kind,"uf":uf}}
+
+def preset_store_path():
+    target=UPLOADS/".cache"/"saved-tabulations.json"
+    target.parent.mkdir(parents=True,exist_ok=True)
+    return target
+
+def read_preset_store():
+    try:
+        data=json.loads(preset_store_path().read_text(encoding="utf-8"))
+        return data if isinstance(data,dict) and isinstance(data.get("items"),list) else {"version":1,"items":[]}
+    except (OSError,ValueError,TypeError): return {"version":1,"items":[]}
+
+def write_preset_store(data):
+    target=preset_store_path(); raw=json.dumps(data,ensure_ascii=True,separators=(",",":"))
+    fd,tmp=tempfile.mkstemp(prefix="saved-tabulations-",suffix=".part",dir=str(target.parent))
+    try:
+        with os.fdopen(fd,"w",encoding="utf-8") as stream: stream.write(raw)
+        Path(tmp).replace(target)
+    finally: Path(tmp).unlink(missing_ok=True)
+
+def validated_preset_options(relative: str, supplied):
+    if not isinstance(supplied,dict): raise ValueError("A combinação não contém opções válidas.")
+    context=preset_context(relative)
+    defname,definition=archive_def(context["system"],context["kind"])
+    rows,columns,selections,increments,group=parse_def(definition,context["fields"])
+    add_sp_identifier_options(context["kind"],[field["name"] for field in context["fields"]],rows)
+    row_ids={item["id"] for item in rows}; column_ids={item["id"] for item in columns}; selection_ids={item["id"] for item in selections}
+    metric_ids={"FREQ","RECORDS",*(item["field"] for item in increments)}
+    row=str(supplied.get("row") or "")
+    column=str(supplied.get("column") or "")
+    if row not in row_ids: raise ValueError("A linha escolhida não existe na definição atual.")
+    if column and column not in column_ids: raise ValueError("A coluna escolhida não existe na definição atual.")
+    metrics=supplied.get("metrics")
+    if not isinstance(metrics,list) or not metrics or len(metrics)>50 or any(not isinstance(item,str) or item not in metric_ids for item in metrics): raise ValueError("As medidas salvas não são compatíveis com esta definição.")
+    if len(set(metrics))>1 and column: raise ValueError("Para salvar mais de uma medida, deixe Colunas como Não ativa.")
+    filters=supplied.get("filters",[])
+    if not isinstance(filters,list) or len(filters)>300: raise ValueError("A combinação excede o limite de categorias selecionadas.")
+    clean_filters=[]
+    for item in filters:
+        if not isinstance(item,dict): raise ValueError("Uma seleção salva está inválida.")
+        option=str(item.get("option") or ""); value=str(item.get("value") or ""); mode=str(item.get("mode") or "")
+        if option not in selection_ids or not value or len(value)>120 or mode not in {"include","exclude"}: raise ValueError("Uma seleção salva não é compatível com esta definição.")
+        clean_filters.append({"option":option,"value":value,"mode":mode})
+    column_filter=supplied.get("columnFilter")
+    clean_column_filter=None
+    if column_filter:
+        if not isinstance(column_filter,dict): raise ValueError("O filtro de coluna salvo está inválido.")
+        option=str(column_filter.get("option") or ""); value=str(column_filter.get("value") or "")
+        if option!=column or option not in column_ids or not value or len(value)>120: raise ValueError("O filtro de coluna não é compatível com esta definição.")
+        clean_column_filter={"option":option,"value":value}
+    unclassified=str(supplied.get("unclassified") or "ignore")
+    if unclassified not in {"ignore","include","discriminate"}: unclassified="ignore"
+    clean={"row":row,"column":column,"metrics":list(dict.fromkeys(metrics)),"filters":clean_filters,"columnFilter":clean_column_filter,"suppressRows":bool(supplied.get("suppressRows",True)),"suppressColumns":bool(supplied.get("suppressColumns",True)),"testCrc":bool(supplied.get("testCrc",False)),"saveRecords":bool(supplied.get("saveRecords",False)),"unclassified":unclassified,"municipalityFilter":bool(supplied.get("municipalityFilter",False))}
+    option_by_id={item["id"]:item for group_items in (rows,columns,selections) for item in group_items}
+    metric_labels={"FREQ":f"Frequência · {group.get('field') if group else 'registros'}","RECORDS":"Número de registros"}
+    metric_labels.update({item["field"]:item["label"] for item in increments})
+    return context,clean,{"rowLabel":option_by_id[row]["label"],"columnLabel":option_by_id[column]["label"] if column else "Não ativa","metricLabels":[metric_labels.get(item,item) for item in clean["metrics"]],"filterCount":len(clean_filters)}
+
+def saved_presets(relative: str):
+    context=preset_context(relative)
+    items=[item for item in read_preset_store()["items"] if isinstance(item,dict) and item.get("signature")==context["signature"]]
+    items.sort(key=lambda item:float(item.get("updatedAt",item.get("createdAt",0)) or 0),reverse=True)
+    return {"ok":True,"file":context["file"],"system":context["system"],"kind":context["kind"],"uf":context["uf"],"definition":context["definition"],"presets":items[:250]}
+
+def save_preset(payload):
+    relative=str(payload.get("path") or ""); name=" ".join(str(payload.get("name") or "").split())
+    if not name or len(name)>80: raise ValueError("Dê um nome com até 80 caracteres para a combinação.")
+    context,options,summary=validated_preset_options(relative,payload.get("options"))
+    store=read_preset_store(); items=[item for item in store["items"] if isinstance(item,dict)]
+    if len(items)>=250: raise ValueError("O limite de 250 combinações salvas foi atingido.")
+    now=time.time()
+    item={"id":secrets.token_hex(12),"name":name,"createdAt":now,"updatedAt":now,"signature":context["signature"],"system":context["system"],"kind":context["kind"],"uf":context["uf"],"definition":context["definition"],"options":options,**summary}
+    items.append(item); write_preset_store({"version":1,"items":items})
+    return {"ok":True,"preset":item}
+
+def get_preset(payload):
+    context=preset_context(str(payload.get("path") or "")); preset_id=str(payload.get("preset_id") or "")
+    item=next((entry for entry in read_preset_store()["items"] if isinstance(entry,dict) and entry.get("id")==preset_id and entry.get("signature")==context["signature"]),None)
+    if not item: raise ValueError("Esta combinação não é compatível com o arquivo selecionado ou foi removida.")
+    _,options,_=validated_preset_options(str(payload.get("path") or ""),item.get("options"))
+    return {"ok":True,"preset":{"id":item["id"],"name":item["name"],"options":options}}
+
+def delete_preset(payload):
+    context=preset_context(str(payload.get("path") or "")); preset_id=str(payload.get("preset_id") or "")
+    store=read_preset_store(); items=[item for item in store["items"] if isinstance(item,dict)]
+    kept=[item for item in items if not (item.get("id")==preset_id and item.get("signature")==context["signature"])]
+    if len(kept)==len(items): raise ValueError("A combinação não foi encontrada para este tipo de arquivo.")
+    write_preset_store({"version":1,"items":kept})
+    return {"ok":True,"deleted":1}
+
 def category_values(payload):
     relative=payload.get("path",""); source=safe_file(relative); path=safe_dbf(payload.get("dbfPath") or converted_relative(relative)); system,kind,_=meta(source)
     _,_,_,fields=dbf_layout(path)
@@ -915,6 +1014,10 @@ def tabwin_handle(payload):
     if action=="catalog": return catalog()
     if action=="delete_file": return delete_library_file(payload)
     if action=="schema": return schema(payload.get("path",""))
+    if action=="preset_list": return saved_presets(payload.get("path",""))
+    if action=="preset_save": return save_preset(payload)
+    if action=="preset_get": return get_preset(payload)
+    if action=="preset_delete": return delete_preset(payload)
     if action=="column_values": return column_values(payload)
     if action=="category_values": return category_values(payload)
     if action=="tabulate": return tabulate(payload)

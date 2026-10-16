@@ -167,7 +167,7 @@ try {
 finally {
     $archive.Dispose()
 }
-$requiredEntries = @('SPPtab.exe', 'runtime/php/php.exe', 'runtime/php/php.ini', 'runtime/python/python.exe', 'app/api.php', 'app/packaging/router.php')
+$requiredEntries = @('SPPtab.exe', 'runtime/php/php.exe', 'runtime/php/php.ini', 'runtime/python/python.exe', 'app/api.php', 'app/minhas-tabulacoes.php', 'app/assets/presets.css', 'app/assets/saved-tabulations.js', 'app/assets/tabulations-nav.js', 'app/packaging/router.php')
 $archiveCheck = [IO.Compression.ZipFile]::OpenRead($PayloadZip)
 try {
     $actualEntries = @($archiveCheck.Entries | ForEach-Object { $_.FullName })
@@ -195,7 +195,7 @@ finally {
 $portableCheck = [IO.Compression.ZipFile]::OpenRead($PortableOutput)
 try {
     $portableEntries = @($portableCheck.Entries | ForEach-Object { $_.FullName })
-    foreach ($entry in @('SPPtab/SPPtab.exe', 'SPPtab/runtime/php/php.exe', 'SPPtab/runtime/python/python.exe', 'SPPtab/app/index.php', 'SPPtab/app/assets/app.css', 'SPPtab/LEIA-ME.txt')) {
+    foreach ($entry in @('SPPtab/SPPtab.exe', 'SPPtab/runtime/php/php.exe', 'SPPtab/runtime/python/python.exe', 'SPPtab/app/index.php', 'SPPtab/app/minhas-tabulacoes.php', 'SPPtab/app/assets/app.css', 'SPPtab/app/assets/presets.css', 'SPPtab/app/assets/saved-tabulations.js', 'SPPtab/app/assets/tabulations-nav.js', 'SPPtab/LEIA-ME.txt')) {
         if ($portableEntries -notcontains $entry) { throw "A pasta portátil não contém o componente obrigatório: $entry" }
     }
 }

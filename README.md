@@ -18,6 +18,8 @@ O pacote portátil ainda não possui assinatura digital. O Windows pode mostrar 
 
 O resultado abre em uma nova aba, que mostra o andamento enquanto a tabulação roda em segundo plano. Ao terminar, exibe colunas e rótulos mapeados, totais por linha e total geral, exportação CSV e opção para baixar o DBF dos registros selecionados. É possível escolher várias medidas se as colunas estiverem como “Não ativa”. A tabulação pode considerar o município escolhido na busca ou todos os municípios da UF.
 
+Na tela de tabulação, use **Salvar combinação** para nomear e guardar linhas, colunas, medidas, filtros e opções do resultado. A área **Minhas Tabulações** aparece na navegação depois que um DBC é selecionado. Os modelos ficam disponíveis para outras competências do mesmo estado e tipo quando os campos e a definição oficial são compatíveis; a competência e o município escolhido não são gravados. As combinações ficam em `uploads/.cache/saved-tabulations.json` (ou dentro da pasta de dados da versão portátil) e acompanham a biblioteca local.
+
 As tabulações leem apenas os campos selecionados no DBF e descartam os registros fora do município escolhido antes de decodificar os demais campos. A busca reutiliza por alguns minutos a lista anual do DATASUS por UF; a biblioteca guarda em `uploads/.cache/` os municípios, as listas de valores, os rótulos oficiais e os resultados recentes. Repetir a mesma configuração retorna o resultado do cache. Os arquivos DBF gerados pela opção “Salvar registros” ficam em `uploads/RESULTADOS/` e são entregues pela rota protegida de download.
 
 ## Fontes e organização

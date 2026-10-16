@@ -6,6 +6,8 @@
   const BROWSER_CACHE_PREFIX = 'spptab-tabulation-v1:';
   const BROWSER_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
   const LOCATION_KEY = 'spptab-location-v1';
+  const ACTIVE_FILE_KEY = 'spptab-active-file-v1';
+  const PENDING_PRESET_KEY = 'spptab-pending-preset-v1';
   const stateNames = {AC:'Acre',AL:'Alagoas',AP:'Amapá',AM:'Amazonas',BA:'Bahia',CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',MA:'Maranhão',MT:'Mato Grosso',MS:'Mato Grosso do Sul',MG:'Minas Gerais',PA:'Pará',PB:'Paraíba',PR:'Paraná',PE:'Pernambuco',PI:'Piauí',RJ:'Rio de Janeiro',RN:'Rio Grande do Norte',RS:'Rio Grande do Sul',RO:'Rondônia',RR:'Roraima',SC:'Santa Catarina',SP:'São Paulo',SE:'Sergipe',TO:'Tocantins'};
 
   let files = [];
@@ -24,6 +26,7 @@
   let resultRunId = '';
   let popupReady = false;
   let pendingPopupMessage = null;
+  let applyingPreset = false;
 
   function updateTabLocationTag() {
     let saved = null;
@@ -138,6 +141,14 @@
     if (stage === 3) loadSchema();
   }
 
+  function updateSavedTabulationsNav() {
+    const link = $('#savedTabulationsNav');
+    if (link) {
+      link.hidden = !selected;
+      window.dispatchEvent(new Event('spptab-active-file-change'));
+    }
+  }
+
   function formatBytes(value) {
     let number = Number(value) || 0;
     let unit = 0;
@@ -172,6 +183,20 @@
       $('#sourceDetails').textContent = files.length
         ? `${files.length.toLocaleString('pt-BR')} ${files.length === 1 ? 'arquivo disponível' : 'arquivos disponíveis'} na biblioteca.`
         : 'Importe primeiro um arquivo na etapa Buscar arquivos.';
+      let activePath = '';
+      try { activePath = localStorage.getItem(ACTIVE_FILE_KEY) || ''; } catch (_) {}
+      const remembered = files.find((file) => file.path === activePath);
+      if (remembered) {
+        fileSelect.value = remembered.path;
+        chooseFile();
+        const query = new URLSearchParams(location.search);
+        let pendingPresetId = '';
+        try { pendingPresetId = localStorage.getItem(PENDING_PRESET_KEY) || ''; } catch (_) {}
+        if (remembered.converted && (query.get('stage') === '3' || pendingPresetId)) setStage(3);
+      } else if (activePath) {
+        try { localStorage.removeItem(ACTIVE_FILE_KEY); } catch (_) {}
+        updateSavedTabulationsNav();
+      }
       updateTabLocationTag();
     } catch (error) {
       fileSelect.replaceChildren(new Option('Falha ao abrir biblioteca', ''));
@@ -181,6 +206,11 @@
 
   function chooseFile() {
     selected = files.find((file) => file.path === fileSelect.value) || null;
+    try {
+      if (selected) localStorage.setItem(ACTIVE_FILE_KEY, selected.path);
+      else localStorage.removeItem(ACTIVE_FILE_KEY);
+    } catch (_) {}
+    updateSavedTabulationsNav();
     updateTabLocationTag();
     schema = null;
     dbfPath = selected?.dbf_path || null;
@@ -400,6 +430,7 @@
 
   function updateRunButton() {
     $('#runButton').disabled = isTabulating || !schema?.lineOptions.length || !$('#rowField').value || !selectedMetrics().length;
+    $('#savePresetButton').disabled = !schema || !selected || !schema.lineOptions.length;
   }
 
   function renderIncrements() {
@@ -438,6 +469,114 @@
     column.title = multi ? 'Com mais de um incremento, mantenha Colunas como Não ativa.' : '';
     $('#columnValueFilter').hidden = multi || !column.value;
     updateRunButton();
+  }
+
+  function currentPresetOptions() {
+    const column = $('#columnField').value;
+    const columnValue = $('#columnValue').value;
+    return {
+      row: $('#rowField').value,
+      column,
+      metrics: selectedMetrics(),
+      filters: activeFilters.map((filter) => ({ option: filter.option, value: filter.value, mode: filter.mode })),
+      columnFilter: column && columnValue ? { option: column, value: columnValue } : null,
+      suppressRows: $('#suppressRows').checked,
+      suppressColumns: $('#suppressColumns').checked,
+      testCrc: $('#testCrc').checked,
+      saveRecords: $('#saveRecords').checked,
+      unclassified: document.querySelector('input[name="unclassified"]:checked')?.value || 'ignore',
+      municipalityFilter: $('#municipalityFilter').checked,
+    };
+  }
+
+  async function saveCurrentPreset(event) {
+    event.preventDefault();
+    if (!selected || !schema) return;
+    const submit = $('#confirmPreset');
+    submit.disabled = true;
+    submit.textContent = 'Salvando…';
+    const presetNotice = $('#presetNotice');
+    presetNotice.hidden = true;
+    try {
+      const data = await request({ action: 'preset_save', path: selected.path, name: $('#presetName').value, options: currentPresetOptions() });
+      $('#presetDialog').close();
+      notice(3, `Combinação “${data.preset.name}” salva. Ela já aparece em Minhas Tabulações para arquivos compatíveis.`, 'success');
+    } catch (error) {
+      presetNotice.textContent = error.message;
+      presetNotice.className = 'notice error';
+      presetNotice.hidden = false;
+    } finally {
+      submit.disabled = false;
+      submit.textContent = 'Salvar combinação';
+    }
+  }
+
+  async function applyPendingPreset() {
+    if (applyingPreset || !selected || !schema) return;
+    let presetId = '';
+    try { presetId = localStorage.getItem(PENDING_PRESET_KEY) || ''; } catch (_) {}
+    if (!presetId) return;
+    applyingPreset = true;
+    try {
+      const data = await request({ action: 'preset_get', path: selected.path, preset_id: presetId });
+      const preset = data.preset;
+      const options = preset.options;
+      const lineExists = schema.lineOptions.some((item) => item.id === options.row);
+      const columnExists = !options.column || schema.columnOptions.some((item) => item.id === options.column);
+      if (!lineExists || !columnExists) throw new Error('Esta combinação não corresponde às linhas e colunas disponíveis no arquivo escolhido.');
+
+      $('#rowField').value = options.row;
+      const validMetrics = new Set(metricChoices().map((item) => item.id));
+      document.querySelectorAll('#incrementOptions input').forEach((input) => { input.checked = options.metrics.includes(input.value) && validMetrics.has(input.value); });
+      updateMetricRules();
+
+      let missingColumnCategory = false;
+      $('#columnField').value = options.column || '';
+      if (options.column && selectedMetrics().length === 1) {
+        $('#columnValueFilter').hidden = false;
+        const values = await loadCategoryValues(options.column, $('#columnValue'), $('#columnValuesStatus'));
+        if (options.columnFilter) {
+          const available = (values || []).some((item) => String(item.value) === String(options.columnFilter.value));
+          if (available) $('#columnValue').value = options.columnFilter.value;
+          else missingColumnCategory = true;
+        }
+      } else {
+        $('#columnField').value = '';
+        $('#columnValueFilter').hidden = true;
+        $('#columnValue').replaceChildren(new Option('Todas as categorias', ''));
+      }
+
+      const selectionOptions = new Map(schema.selectionOptions.map((item) => [item.id, item]));
+      activeFilters = options.filters.map((filter) => {
+        const definition = selectionOptions.get(filter.option);
+        return {
+          option: filter.option,
+          field: definition?.field || filter.option,
+          label: definition?.label || filter.option,
+          value: String(filter.value),
+          categoryLabel: String(filter.value),
+          mode: filter.mode,
+        };
+      });
+      drawFilters();
+      $('#suppressRows').checked = options.suppressRows;
+      $('#suppressColumns').checked = options.suppressColumns;
+      $('#testCrc').checked = options.testCrc;
+      $('#saveRecords').checked = options.saveRecords;
+      const unclassified = document.querySelector(`input[name="unclassified"][value="${options.unclassified}"]`);
+      if (unclassified) unclassified.checked = true;
+      const municipalityAvailable = Boolean(schema.municipalityField && currentLocationSelection());
+      $('#municipalityFilter').checked = Boolean(options.municipalityFilter && municipalityAvailable);
+      updateMetricRules();
+      updateRunButton();
+      try { localStorage.removeItem(PENDING_PRESET_KEY); } catch (_) {}
+      notice(3, `Combinação “${preset.name}” aplicada. Confira as categorias selecionadas para esta competência antes de gerar.${missingColumnCategory ? ' Uma categoria de coluna não existe neste arquivo e foi deixada em “Todas as categorias”.' : ''}`, 'success');
+    } catch (error) {
+      try { localStorage.removeItem(PENDING_PRESET_KEY); } catch (_) {}
+      notice(3, error.message, 'error');
+    } finally {
+      applyingPreset = false;
+    }
   }
 
   async function loadCategoryValues(option, select, status) {
@@ -496,7 +635,7 @@
       return;
     }
     wrapper.hidden = false;
-    loadCategoryValues(option, select, $('#columnValuesStatus'));
+    return loadCategoryValues(option, select, $('#columnValuesStatus'));
     updateRunButton();
   }
 
@@ -797,6 +936,7 @@
     } else {
       $('#notice3').hidden = true;
     }
+    applyPendingPreset();
   }
 
   async function loadSchema() {
@@ -1037,6 +1177,17 @@
   });
   $('#addFile').addEventListener('click', addFile);
   $('#runButton').addEventListener('click', generate);
+  $('#savePresetButton').addEventListener('click', () => {
+    if (!schema || !selected) return;
+    $('#presetName').value = '';
+    $('#presetNotice').hidden = true;
+    $('#presetDialogContext').textContent = `${selected.system} · ${selected.kind} · ${schema.definition.name}. A competência e a localidade não serão incluídas.`;
+    $('#presetDialog').showModal();
+    $('#presetName').focus();
+  });
+  $('#closePresetDialog').addEventListener('click', () => $('#presetDialog').close());
+  $('#cancelPreset').addEventListener('click', () => $('#presetDialog').close());
+  $('#presetForm').addEventListener('submit', saveCurrentPreset);
   $('#exportCsv').addEventListener('click', exportCsv);
   document.querySelectorAll('.wizard-step').forEach((button) => {
     button.addEventListener('click', () => {

@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8">
   <title>Minhas bases · SPPtab</title>
-  <link rel="stylesheet" href="assets/app.css?v=10"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/tabular-refine.css?v=10"><link rel="stylesheet" href="assets/bases.css?v=2">
+  <link rel="stylesheet" href="assets/app.css?v=12"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/tabular-refine.css?v=11"><link rel="stylesheet" href="assets/bases.css?v=2">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
       <a class="brand" href="./" aria-label="SPPtab, início"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span><span><strong>SPPtab</strong><small>saúde em dados</small></span></a>
       <div class="nav-label">ESPAÇO DE TRABALHO</div>
-      <nav aria-label="Navegação principal"><a class="nav-item" href="index.php"><span class="nav-icon">⌕</span>Buscar arquivos</a><a class="nav-item active" href="bases.php" aria-current="page"><span class="nav-icon">▦</span>Minhas bases</a><a class="nav-item" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a></nav>
+      <nav aria-label="Navegação principal"><a class="nav-item" href="index.php"><span class="nav-icon">⌕</span>Buscar arquivos</a><a class="nav-item active" href="bases.php" aria-current="page"><span class="nav-icon">▦</span>Minhas bases</a><a class="nav-item" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a><a class="nav-item" id="savedTabulationsNav" href="minhas-tabulacoes.php" hidden><span class="nav-icon">▧</span>Minhas Tabulações</a></nav>
       <div class="sidebar-foot"><span class="source-dot"></span><div><strong>Biblioteca local</strong><small>Arquivos deste computador</small></div></div>
     </aside>
     <main class="main-content bases-main">
@@ -51,6 +51,6 @@
     <div class="remove-dialog-error" id="removeError" role="alert" hidden></div>
     <div class="remove-dialog-actions"><button class="button-secondary" id="cancelRemove" type="button">Manter arquivo</button><button class="button remove-confirm" id="confirmRemove" type="button">Remover arquivo</button></div>
   </dialog>
-  <script src="assets/bases.js?v=2" defer></script>
+      <script src="assets/bases.js?v=3" defer></script><script src="assets/tabulations-nav.js?v=1" defer></script>
 </body>
 </html>

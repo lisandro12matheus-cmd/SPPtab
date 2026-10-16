@@ -96,3 +96,4 @@
 @media(max-width:520px){.main-content.location-main{padding-left:14px;padding-right:14px}.location-main .intro h1{font-size:30px;letter-spacing:-1.2px}.location-step-screen .location-picker{padding:10px;gap:13px}.location-step-screen .map-panel{min-height:330px;padding:13px 12px 11px}.location-step-screen .map-frame{min-height:245px}.location-step-screen .brazil-map-svg{max-width:270px;max-height:270px}.location-step-screen .location-controls{padding:8px 4px 4px}.location-step-screen .location-controls .field select,.location-step-screen .location-controls .field input{height:43px}}
 @media(max-width:760px){.sidebar nav .nav-item:not(.active){display:flex}.sidebar nav .nav-item{font-size:0;justify-content:center;padding:0}.sidebar nav .nav-icon{font-size:20px}}
 
+.nav-item[hidden]{display:none!important}

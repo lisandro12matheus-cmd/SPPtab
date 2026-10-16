@@ -107,9 +107,15 @@
     const actionsCell = makeCell('bases-actions-cell');
     const tabulate = document.createElement('a');
     tabulate.className = 'bases-action-link';
-    tabulate.href = 'tabular.php';
+    tabulate.href = file.converted ? 'tabular.php?stage=3' : 'tabular.php';
     tabulate.textContent = 'Tabular';
     tabulate.setAttribute('aria-label', `Selecionar ${file.name} para tabular`);
+    tabulate.addEventListener('click', () => {
+      try {
+        localStorage.setItem('spptab-active-file-v1', file.path);
+        window.dispatchEvent(new Event('spptab-active-file-change'));
+      } catch (_) {}
+    });
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'bases-remove-button';
@@ -183,6 +189,10 @@
     try {
       const result = await request({action:'delete_file', path:pendingFile.path});
       files = Array.isArray(result.files) ? result.files : files.filter((file) => file.path !== pendingFile.path);
+      try {
+        if (localStorage.getItem('spptab-active-file-v1') === pendingFile.path) localStorage.removeItem('spptab-active-file-v1');
+        window.dispatchEvent(new Event('spptab-active-file-change'));
+      } catch (_) {}
       if (dialog.open) dialog.close();
       setNotice(`${pendingFile.name} foi removido da biblioteca e do computador.`, 'success');
       pendingFile = null;
