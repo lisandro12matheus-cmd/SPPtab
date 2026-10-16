@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="460" viewBox="0 0 640 460" fill="none">
+  <defs>
+    <linearGradient id="wash" x1="82" y1="48" x2="549" y2="408" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FBFF"/>
+      <stop offset="1" stop-color="#E5EFFC"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="425" y1="320" x2="425" y2="200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1D66C2"/>
+      <stop offset="1" stop-color="#78B5FF"/>
+    </linearGradient>
+    <filter id="shadow" x="68" y="44" width="510" height="370" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="12"/>
+      <feGaussianBlur stdDeviation="14"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix values="0 0 0 0 0.09 0 0 0 0 0.19 0 0 0 0 0.35 0 0 0 0.12 0"/>
+      <feBlend in2="BackgroundImageFix" result="effect1_dropShadow"/>
+      <feBlend in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
+    </filter>
+  </defs>
+  <circle cx="325" cy="230" r="204" fill="url(#wash)"/>
+  <circle cx="531" cy="92" r="34" fill="#EAF3FF"/>
+  <g opacity=".9">
+    <rect x="508" y="68" width="18" height="18" rx="5" fill="#1766C2"/>
+    <rect x="530" y="68" width="18" height="18" rx="5" fill="#4D8EE6"/>
+    <rect x="552" y="68" width="18" height="18" rx="5" fill="#8FC1FF"/>
+    <rect x="530" y="90" width="18" height="18" rx="5" fill="#2D79D4"/>
+    <rect x="530" y="112" width="18" height="18" rx="5" fill="#66A7F0"/>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="96" y="77" width="420" height="292" rx="18" fill="white"/>
+    <rect x="96.5" y="77.5" width="419" height="291" rx="17.5" stroke="#DCE6F2"/>
+    <circle cx="119" cy="101" r="4" fill="#C4D1E1"/>
+    <circle cx="133" cy="101" r="4" fill="#D5DFEC"/>
+    <circle cx="147" cy="101" r="4" fill="#E3EAF2"/>
+    <path d="M97 119H515" stroke="#E8EDF4"/>
+    <text x="120" y="151" fill="#1B315A" font-family="Arial,sans-serif" font-size="13" font-weight="700" letter-spacing="1.1">DADOS DE SAÚDE</text>
+    <text x="120" y="171" fill="#7B8BA2" font-family="Arial,sans-serif" font-size="10">Informações organizadas para análise</text>
+    <rect x="120" y="194" width="218" height="142" rx="10" fill="#F7F9FC"/>
+    <rect x="134" y="207" width="190" height="22" rx="5" fill="#EAF1FA"/>
+    <rect x="145" y="215" width="66" height="5" rx="2.5" fill="#A8B9CE"/>
+    <rect x="239" y="215" width="31" height="5" rx="2.5" fill="#A8B9CE"/>
+    <rect x="289" y="215" width="23" height="5" rx="2.5" fill="#A8B9CE"/>
+    <rect x="134" y="237" width="190" height="23" rx="5" fill="#EAF3FF"/>
+    <rect x="145" y="246" width="60" height="5" rx="2.5" fill="#5A8FD1"/>
+    <rect x="239" y="246" width="31" height="5" rx="2.5" fill="#5A8FD1"/>
+    <rect x="289" y="246" width="23" height="5" rx="2.5" fill="#5A8FD1"/>
+    <rect x="134" y="268" width="190" height="23" rx="5" fill="white"/>
+    <rect x="145" y="277" width="74" height="5" rx="2.5" fill="#C1CCDA"/>
+    <rect x="239" y="277" width="24" height="5" rx="2.5" fill="#C1CCDA"/>
+    <rect x="289" y="277" width="29" height="5" rx="2.5" fill="#C1CCDA"/>
+    <rect x="134" y="299" width="190" height="23" rx="5" fill="white"/>
+    <rect x="145" y="308" width="51" height="5" rx="2.5" fill="#C1CCDA"/>
+    <rect x="239" y="308" width="34" height="5" rx="2.5" fill="#C1CCDA"/>
+    <rect x="289" y="308" width="20" height="5" rx="2.5" fill="#C1CCDA"/>
+    <rect x="354" y="194" width="138" height="142" rx="10" fill="#F7F9FC"/>
+    <text x="371" y="216" fill="#71829A" font-family="Arial,sans-serif" font-size="9" font-weight="700" letter-spacing=".6">TOTAIS</text>
+    <path d="M371 303.5H476" stroke="#DCE5F0"/>
+    <rect x="376" y="269" width="16" height="34" rx="4" fill="#A8CEF7"/>
+    <rect x="400" y="246" width="16" height="57" rx="4" fill="#79B4F2"/>
+    <rect x="424" y="257" width="16" height="46" rx="4" fill="#91C2F5"/>
+    <rect x="448" y="226" width="16" height="77" rx="4" fill="url(#bar)"/>
+    <circle cx="371" cy="321" r="3" fill="#1766C2"/>
+    <text x="380" y="324" fill="#7B8BA2" font-family="Arial,sans-serif" font-size="8">SIA/SUS</text>
+    <circle cx="439" cy="321" r="3" fill="#7BA9E0"/>
+    <text x="448" y="324" fill="#7B8BA2" font-family="Arial,sans-serif" font-size="8">SIH/SUS</text>
+  </g>
+</svg>

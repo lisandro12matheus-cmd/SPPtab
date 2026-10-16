@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="620" height="420" viewBox="0 0 620 420" fill="none">
+  <rect width="620" height="420" rx="22" fill="#EFF5FD"/>
+  <circle cx="496" cy="79" r="87" fill="#E2EEFC"/>
+  <rect x="86" y="60" width="448" height="300" rx="18" fill="white" stroke="#DAE5F2"/>
+  <path d="M87 105H533" stroke="#E6ECF3"/>
+  <circle cx="111" cy="83" r="5" fill="#C5D2E1"/><circle cx="128" cy="83" r="5" fill="#D4DEEA"/><circle cx="145" cy="83" r="5" fill="#E1E8F0"/>
+  <rect x="132" y="137" width="112" height="112" rx="27" fill="#EAF3FF"/>
+  <path d="M157 178.5C157 173.8 160.8 170 165.5 170H205.5C210.2 170 214 173.8 214 178.5V219.5C214 224.2 210.2 228 205.5 228H165.5C160.8 228 157 224.2 157 219.5V178.5Z" fill="#347FD5"/>
+  <path d="M180 184V207M180 207L170 197M180 207L190 197M168 214H192" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="273" y="164" fill="#1D326F" font-family="Arial,sans-serif" font-size="19" font-weight="700">Baixe o SPPtab</text>
+  <text x="273" y="190" fill="#73839A" font-family="Arial,sans-serif" font-size="12">Pacote portátil para Windows</text>
+  <rect x="273" y="209" width="171" height="35" rx="8" fill="#1766C2"/>
+  <text x="294" y="231" fill="white" font-family="Arial,sans-serif" font-size="11" font-weight="700">Baixar arquivo ZIP</text>
+  <rect x="133" y="279" width="354" height="47" rx="9" fill="#F6F8FB"/>
+  <rect x="151" y="292" width="22" height="21" rx="5" fill="#DCEBFC"/>
+  <path d="M158 298H166M158 303H166M158 308H164" stroke="#367CC9" stroke-width="1.5" stroke-linecap="round"/>
+  <text x="186" y="299" fill="#425671" font-family="Arial,sans-serif" font-size="11" font-weight="700">SPPtab-Portable.zip</text>
+  <text x="186" y="314" fill="#8A98AA" font-family="Arial,sans-serif" font-size="9">Windows 64 bits</text>
+  <rect x="443" y="296" width="20" height="14" rx="4" fill="#DCEBFC"/>
+  <rect x="486" y="43" width="15" height="15" rx="4" fill="#1766C2"/>
+  <rect x="505" y="43" width="15" height="15" rx="4" fill="#4D8EE6"/>
+  <rect x="505" y="62" width="15" height="15" rx="4" fill="#8FC1FF"/>
+</svg>

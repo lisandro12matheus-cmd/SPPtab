@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="620" height="420" viewBox="0 0 620 420" fill="none">
+  <rect width="620" height="420" rx="22" fill="#EFF5FD"/>
+  <circle cx="505" cy="316" r="83" fill="#E2EEFC"/>
+  <rect x="70" y="59" width="480" height="302" rx="16" fill="white" stroke="#D8E3F0"/>
+  <path d="M71 105H549" stroke="#E5EBF3"/>
+  <circle cx="96" cy="82" r="5" fill="#C5D2E1"/><circle cx="113" cy="82" r="5" fill="#D4DEEA"/><circle cx="130" cy="82" r="5" fill="#E1E8F0"/>
+  <rect x="88" y="126" width="94" height="212" rx="9" fill="#F6F8FB"/>
+  <rect x="111" y="159" width="48" height="48" rx="13" fill="#E4EFFF"/>
+  <rect x="122" y="170" width="11" height="11" rx="3" fill="#1766C2"/>
+  <rect x="136" y="170" width="11" height="11" rx="3" fill="#4D8EE6"/>
+  <rect x="136" y="184" width="11" height="11" rx="3" fill="#8FC1FF"/>
+  <text x="103" y="225" fill="#36506F" font-family="Arial,sans-serif" font-size="9" font-weight="700">SPPtab.exe</text>
+  <rect x="205" y="126" width="324" height="212" rx="11" fill="#FCFDFE" stroke="#E2E9F2"/>
+  <rect x="206" y="127" width="322" height="36" rx="10" fill="#F4F7FB"/>
+  <circle cx="224" cy="145" r="4" fill="#BCCADB"/><circle cx="237" cy="145" r="4" fill="#D1DCE8"/><circle cx="250" cy="145" r="4" fill="#DFE7EF"/>
+  <rect x="270" y="137" width="222" height="16" rx="8" fill="white" stroke="#E1E8F1"/>
+  <circle cx="282" cy="145" r="3" fill="#56B98B"/>
+  <text x="291" y="148" fill="#8796A9" font-family="Arial,sans-serif" font-size="7">127.0.0.1 · SPPtab</text>
+  <text x="230" y="190" fill="#71829A" font-family="Arial,sans-serif" font-size="8" font-weight="700" letter-spacing=".8">DADOS PÚBLICOS · DATASUS</text>
+  <text x="230" y="213" fill="#1D326F" font-family="Arial,sans-serif" font-size="17" font-weight="700">Tabulação de dados</text>
+  <text x="230" y="232" fill="#1D326F" font-family="Arial,sans-serif" font-size="17" font-weight="700">públicos de saúde</text>
+  <rect x="230" y="251" width="74" height="28" rx="6" fill="#1766C2"/>
+  <text x="247" y="269" fill="white" font-family="Arial,sans-serif" font-size="8" font-weight="700">Buscar bases</text>
+  <rect x="230" y="296" width="82" height="8" rx="4" fill="#E9EEF5"/>
+  <rect x="230" y="312" width="128" height="8" rx="4" fill="#E9EEF5"/>
+  <rect x="467" y="188" width="13" height="13" rx="4" fill="#1766C2"/>
+  <rect x="483" y="188" width="13" height="13" rx="4" fill="#4D8EE6"/>
+  <rect x="483" y="204" width="13" height="13" rx="4" fill="#8FC1FF"/>
+  <rect x="483" y="220" width="13" height="13" rx="4" fill="#2D79D4"/>
+</svg>

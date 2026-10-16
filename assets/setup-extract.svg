@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="620" height="420" viewBox="0 0 620 420" fill="none">
+  <rect width="620" height="420" rx="22" fill="#EFF5FD"/>
+  <circle cx="113" cy="327" r="89" fill="#E2EEFC"/>
+  <rect x="70" y="61" width="480" height="298" rx="16" fill="white" stroke="#D8E3F0"/>
+  <path d="M71 105H549" stroke="#E5EBF3"/>
+  <circle cx="96" cy="83" r="5" fill="#C5D2E1"/><circle cx="113" cy="83" r="5" fill="#D4DEEA"/><circle cx="130" cy="83" r="5" fill="#E1E8F0"/>
+  <rect x="88" y="126" width="102" height="211" rx="8" fill="#F7F9FC"/>
+  <rect x="105" y="147" width="67" height="8" rx="4" fill="#C8D3E1"/>
+  <rect x="105" y="173" width="56" height="7" rx="3.5" fill="#DFE6EF"/>
+  <rect x="105" y="194" width="61" height="7" rx="3.5" fill="#DFE6EF"/>
+  <rect x="105" y="215" width="52" height="7" rx="3.5" fill="#DFE6EF"/>
+  <rect x="105" y="236" width="58" height="7" rx="3.5" fill="#DFE6EF"/>
+  <rect x="105" y="257" width="49" height="7" rx="3.5" fill="#DFE6EF"/>
+  <rect x="105" y="278" width="63" height="7" rx="3.5" fill="#DFE6EF"/>
+  <text x="218" y="139" fill="#78889D" font-family="Arial,sans-serif" font-size="10">Downloads</text>
+  <path d="M218 153H528" stroke="#E8EDF4"/>
+  <rect x="218" y="171" width="310" height="68" rx="10" fill="#F4F8FE" stroke="#D8E8FA"/>
+  <rect x="235" y="188" width="34" height="34" rx="8" fill="#E1EEFC"/>
+  <path d="M244 197H260V213H244V197Z" fill="#3E85D6"/>
+  <path d="M248 193H256V197H248V193Z" fill="#3E85D6"/>
+  <text x="282" y="199" fill="#304762" font-family="Arial,sans-serif" font-size="11" font-weight="700">SPPtab-Portable.zip</text>
+  <text x="282" y="216" fill="#8493A6" font-family="Arial,sans-serif" font-size="9">Arquivo compactado</text>
+  <rect x="218" y="262" width="171" height="38" rx="8" fill="#1766C2"/>
+  <path d="M237 275H253M237 281H253M237 287H248" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+  <text x="262" y="286" fill="white" font-family="Arial,sans-serif" font-size="10" font-weight="700">Extrair tudo</text>
+  <path d="M405 281H475" stroke="#8CB8EA" stroke-width="2" stroke-linecap="round" stroke-dasharray="5 6"/>
+  <path d="M469 274L477 281L469 288" stroke="#8CB8EA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="483" y="269" width="39" height="30" rx="7" fill="#E5F1FF"/>
+  <path d="M490 279H515V293H490V279Z" fill="#5593D9"/>
+  <path d="M490 279V276C490 274.9 490.9 274 492 274H499L502 277H513C514.1 277 515 277.9 515 279V281" fill="#78ABE5"/>
+</svg>

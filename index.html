@@ -4,15 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f5f7fa">
-  <meta name="description" content="SPPtab organiza a busca, conversão e tabulação de dados públicos ambulatoriais e hospitalares do DATASUS.">
+  <meta name="description" content="SPPtab organiza dados públicos de saúde do DATASUS. Aplicativo para computadores Windows 64 bits.">
   <title>SPPtab — Dados públicos de saúde para análise</title>
-  <link rel="preload" as="image" href="assets/hero-public-health.jpg" fetchpriority="high">
   <style>
     :root{color-scheme:light;--navy:#1d326f;--deep:#142653;--blue:#1766c2;--mid:#4d8ee6;--ink:#172746;--muted:#687792;--line:#e5eaf1;--wash:#f5f7fa;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
     *{box-sizing:border-box}body{min-width:320px;margin:0;color:var(--ink);background:#fff}a{color:inherit}.wrap{width:min(1240px,calc(100% - 56px));margin-inline:auto}
     .header{display:flex;min-height:84px;align-items:center;gap:30px}.brand{display:inline-flex;flex:none;align-items:center}.brand img{display:block;width:142px;height:auto}.nav{display:flex;justify-content:center;gap:clamp(20px,3vw,42px);margin-left:auto}.nav a{color:#65718a;font-size:12px;font-weight:650;text-decoration:none;transition:color .18s}.nav a:hover{color:var(--blue)}
     .button{display:inline-flex;min-height:48px;align-items:center;justify-content:center;gap:10px;padding:0 19px;border:1px solid transparent;border-radius:10px;background:var(--blue);box-shadow:0 7px 18px #1766c229;color:#fff;font:inherit;font-size:13px;font-weight:720;text-decoration:none;transition:transform .2s,background .2s,box-shadow .2s}.button:hover{transform:translateY(-2px);background:#1055a6;box-shadow:0 12px 24px #1766c23b}.button svg{width:17px;height:17px;flex:none}.button-small{min-height:42px;padding-inline:16px;border-radius:9px;font-size:12px}:focus-visible{outline:3px solid #7db2f7;outline-offset:4px}
-    .hero{position:relative;isolation:isolate;display:flex;min-height:590px;align-items:center;overflow:hidden;margin-top:8px;padding:70px clamp(38px,6vw,82px);border:1px solid #e3eaf2;border-radius:26px;background:#edf3fa url("assets/hero-public-health.jpg") center 51%/cover no-repeat;box-shadow:0 22px 56px #162b4f1a}
+    .hero{position:relative;isolation:isolate;display:flex;min-height:590px;align-items:center;overflow:hidden;margin-top:8px;padding:70px clamp(38px,6vw,82px);border:1px solid #e3eaf2;border-radius:26px;background:#f5f8fc;box-shadow:0 22px 56px #162b4f1a}
     .hero:before{position:absolute;z-index:-1;inset:0;background:linear-gradient(90deg,#fffffff9 0%,#fffffff7 29%,#ffffffe3 43%,#ffffff73 58%,#ffffff08 78%);content:""}.hero:after{position:absolute;z-index:-1;right:6.5%;bottom:7%;width:220px;height:220px;border:1px solid #ffffffb3;border-radius:24px;box-shadow:0 0 0 16px #ffffff2e,0 0 0 34px #ffffff21;content:"";transform:rotate(11deg)}
     .hero-copy{width:min(100%,600px)}.eyebrow{display:flex;align-items:center;gap:10px;margin:0 0 20px;color:var(--blue);font-size:10px;font-weight:800;letter-spacing:.15em;line-height:1.4;text-transform:uppercase}.pixels{display:inline-grid;width:19px;height:19px;flex:none;grid-template-columns:repeat(2,7px);grid-template-rows:repeat(2,7px);gap:3px}.pixels i{border-radius:2px;background:#1766c2;animation:pulse 2.7s ease-in-out infinite}.pixels i:nth-child(2){background:#4d8ee6;animation-delay:.18s}.pixels i:nth-child(3){background:#8fc1ff;animation-delay:.36s}.pixels i:nth-child(4){background:#3288ef;animation-delay:.54s}
     h1,h2,h3,p{margin-top:0}h1{max-width:575px;margin-bottom:18px;color:var(--deep);font-size:clamp(43px,4.8vw,62px);font-weight:760;letter-spacing:-.065em;line-height:1.03}h1 span{color:var(--blue)}.hero-copy>p:not(.eyebrow){max-width:515px;margin-bottom:25px;color:#586883;font-size:15px;line-height:1.75}.hero-actions{display:flex;align-items:center;flex-wrap:wrap;gap:22px}.hero-actions .button{min-height:53px;padding-inline:21px}.text-link{display:inline-flex;min-height:44px;align-items:center;gap:8px;color:#334867;font-size:12px;font-weight:720;text-decoration:none}.text-link svg{width:16px;height:16px;transition:transform .18s}.text-link:hover svg{transform:translateX(3px)}
@@ -32,13 +31,91 @@
     @keyframes rise-mobile{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
     @media(max-width:430px){.wrap{width:calc(100% - 30px)}.brand img{width:106px}.button-small{padding-inline:10px;font-size:10px}.hero{min-height:640px;padding:37px 21px 204px;border-radius:19px}h1{font-size:41px}.hero-copy>p:not(.eyebrow){font-size:12px}.hero-actions{align-items:stretch;flex-direction:column;gap:7px}.hero-actions .button{width:100%}.text-link{justify-content:center}.hero-meta{align-items:flex-start;flex-direction:column;gap:8px}.version{width:100%;flex-wrap:wrap}.hero-label{right:13px;bottom:13px}.benefits{grid-template-columns:1fr 1fr}.benefit{min-height:108px;align-items:flex-start;flex-direction:column;gap:8px}.benefit-copy small{font-size:8px}.section{padding-block:64px}h2{font-size:34px}.feature-card{grid-template-columns:1fr}.feature-image{height:auto;min-height:0;aspect-ratio:1.8}.feature-content{padding:17px 18px 19px}.feature-content p{min-height:0}.preview-main{grid-template-columns:1fr}.preview-chart{height:94px}.data-preview{padding:14px}.scope{padding-block:57px}.scope-stats{gap:7px}.scope-stat{padding:11px 9px}.scope-stat strong{font-size:18px}.scope-stat small{font-size:8px}.closing{padding-block:56px 60px}.closing-panel{padding:27px 21px}.closing-action .button{min-height:49px;padding-inline:15px;font-size:11px}.footer-links{gap:16px}}
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
-  </style>
+    /* A quieter hero and a short, usable setup carousel. */
+    .hero{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(260px,.92fr);gap:30px;min-height:470px;padding:48px clamp(32px,5vw,66px);background:linear-gradient(112deg,#fbfdff 0%,#f3f7fd 58%,#eaf2fc 100%);box-shadow:0 18px 46px #162b4f12}
+    .hero:before,.hero:after{display:none}
+    .hero-copy{position:relative;z-index:1;width:auto;max-width:590px}
+    .hero-visual{display:block;width:100%;max-width:520px;justify-self:end}
+    .hero-visual img{display:block;width:100%;height:auto}
+    .hero-label{display:none}
+    .hero-actions .button{min-height:51px}
+    .setup-section{padding-block:74px 82px}
+    .setup-heading{display:flex;align-items:end;justify-content:space-between;gap:32px;margin-bottom:24px}
+    .setup-heading .eyebrow{margin-bottom:13px}
+    .setup-heading h2{margin-bottom:0}
+    .platform-note{display:flex;max-width:420px;align-items:flex-start;gap:11px;padding:13px 15px;border:1px solid #dbe8f7;border-radius:11px;background:#f5f9ff;color:#536782}
+    .platform-note svg{width:19px;height:19px;flex:none;margin-top:1px;color:var(--blue)}
+    .platform-note span{font-size:11px;line-height:1.6}
+    .platform-note strong{display:block;margin-bottom:2px;color:#24446a;font-size:11px}
+    .setup-carousel{position:relative;overflow:hidden;border:1px solid #e1e8f1;border-radius:17px;background:#fff;box-shadow:0 14px 38px #1b32610d}
+    .setup-slide{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);min-height:330px;animation:setup-appear .24s ease both}
+    .setup-slide[hidden]{display:none}
+    .setup-art{display:grid;min-height:330px;place-items:center;overflow:hidden;padding:18px;border-right:1px solid #e7edf5;background:#f2f7fd}
+    .setup-art img{display:block;width:100%;max-width:560px;height:auto}
+    .setup-copy{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:clamp(26px,4vw,48px)}
+    .setup-step{display:inline-flex;align-items:center;gap:9px;margin-bottom:16px;color:#4478b7;font-size:9px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+    .setup-step .pixels{width:15px;height:15px;grid-template-columns:repeat(2,5px);grid-template-rows:repeat(2,5px);gap:2px}
+    .setup-copy h3{max-width:390px;margin-bottom:11px;color:var(--deep);font-size:clamp(25px,3vw,34px);font-weight:740;letter-spacing:-.045em;line-height:1.1}
+    .setup-copy p{max-width:420px;margin-bottom:20px;color:var(--muted);font-size:12px;line-height:1.8}
+    .setup-copy .button{min-height:43px;padding-inline:15px;font-size:11px}
+    .setup-copy .button svg{width:15px;height:15px}
+    .setup-file-hint{display:inline-flex;align-items:center;gap:7px;margin-top:13px;color:#71839a;font-size:9px;line-height:1.5}
+    .setup-file-hint svg{width:15px;height:15px;flex:none;color:#6f94c5}
+    .setup-controls{display:flex;min-height:68px;align-items:center;justify-content:space-between;gap:14px;padding:12px 18px;border-top:1px solid #e9eef5;background:#fff}
+    .carousel-arrow{display:inline-flex;min-width:94px;min-height:44px;align-items:center;justify-content:center;gap:7px;padding:0 11px;border:1px solid #dfe7f1;border-radius:9px;background:#fff;color:#405775;font:inherit;font-size:10px;font-weight:700;cursor:pointer;transition:background .18s,border .18s,color .18s}
+    .carousel-arrow:hover:not(:disabled){border-color:#b9d1ef;background:#f4f8fe;color:var(--blue)}
+    .carousel-arrow:disabled{opacity:.43;cursor:not-allowed}
+    .carousel-arrow svg{width:15px;height:15px}
+    .setup-dots{display:flex;align-items:center;justify-content:center;gap:7px}
+    .setup-dot{min-width:40px;height:40px;padding:0 9px;border:1px solid transparent;border-radius:8px;background:transparent;color:#8593a7;font:inherit;font-size:9px;font-weight:750;cursor:pointer}
+    .setup-dot:hover{background:#f2f6fb;color:#385c88}
+    .setup-dot[aria-current="step"]{border-color:#d9e8fa;background:#edf5ff;color:#1b65b9}
+    .carousel-status{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    @keyframes setup-appear{from{opacity:.35;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+    @media(max-width:980px){
+      .hero{min-height:430px;grid-template-columns:minmax(0,1.05fr) minmax(230px,.85fr);gap:20px;padding-inline:36px}
+      .hero-copy{max-width:100%}
+      .setup-heading{align-items:flex-start;flex-direction:column;gap:17px}
+      .platform-note{max-width:560px}
+    }
+    @media(max-width:720px){
+      .hero{min-height:0;grid-template-columns:1fr;gap:8px;padding:30px 24px 22px;border-radius:20px;background:linear-gradient(145deg,#fbfdff 0%,#f0f6fd 100%)}
+      .hero-copy{order:0}
+      .hero-visual{width:min(100%,400px);justify-self:center;order:1;margin-top:2px}
+      .hero .hero-actions{gap:9px}
+      .setup-section{padding-block:59px 66px}
+      .setup-heading{margin-bottom:19px}
+      .setup-slide{grid-template-columns:1fr}
+      .setup-art{min-height:0;padding:12px;border-right:0;border-bottom:1px solid #e7edf5}
+      .setup-art img{width:min(100%,510px)}
+      .setup-copy{padding:25px 23px 27px}
+      .setup-copy h3{font-size:27px}
+      .setup-controls{min-height:62px;padding:10px 12px}
+      .carousel-arrow{min-width:44px;width:44px;min-height:44px;padding:0}
+      .carousel-arrow span{display:none}
+      .setup-dots{gap:3px}
+      .setup-dot{min-width:40px;height:40px;padding-inline:7px}
+      .platform-note{width:100%;padding:12px}
+    }
+    @media(max-width:430px){
+      .hero{padding:27px 19px 18px}
+      .hero h1{font-size:clamp(36px,10vw,41px)}
+      .hero .hero-actions{align-items:stretch;flex-direction:column}
+      .hero .hero-actions .button{width:100%}
+      .hero .text-link{justify-content:center}
+      .hero .hero-meta{align-items:flex-start;flex-direction:column}
+      .setup-section{padding-block:52px 58px}
+      .setup-copy{padding:22px 19px 24px}
+      .setup-controls{padding-inline:9px}
+      .setup-dot{min-width:38px;padding-inline:5px}
+    }
+</style>
 </head>
 <body>
   <header class="header wrap">
     <a class="brand" href="#inicio" aria-label="SPPtab — início"><img src="assets/spptab-logo.svg" alt="SPPtab"></a>
-    <nav class="nav" aria-label="Navegação principal"><a href="#recursos">Recursos</a><a href="#fluxo">Como funciona</a><a href="#escopo">Escopo atual</a></nav>
-    <a class="button button-small" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable.zip" aria-label="Baixar SPPtab para Windows 64 bits">Baixar SPPtab <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 16v2.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <nav class="nav" aria-label="Navegação principal"><a href="#recursos">Recursos</a><a href="#como-instalar">Como instalar</a><a href="#escopo">Escopo atual</a></nav>
+    <a class="button button-small" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable.zip" aria-label="Baixar SPPtab para Windows 64 bits">Baixar para Windows <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 16v2.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
   </header>
   <main>
     <section class="hero wrap" id="inicio" aria-labelledby="hero-title">
@@ -47,18 +124,44 @@
         <h1 id="hero-title">Tabulação de dados<br><span>públicos de saúde.</span></h1>
         <p>Uma forma mais direta de buscar arquivos ambulatoriais e hospitalares, preparar as bases e criar tabulações com as definições oficiais.</p>
         <div class="hero-actions">
-          <a class="button" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable.zip"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.75v10.5m0 0 4.25-4.25M12 14.25l-4.25-4.25M5 16.25v2.5A1.25 1.25 0 0 0 6.25 20h11.5A1.25 1.25 0 0 0 19 18.75v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Baixar SPPtab</a>
-          <a class="text-link" href="#fluxo">Conhecer a plataforma <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m0 0-4.5-4.5M15 10l-4.5 4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          <a class="button" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable.zip"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.75v10.5m0 0 4.25-4.25M12 14.25l-4.25-4.25M5 16.25v2.5A1.25 1.25 0 0 0 6.25 20h11.5A1.25 1.25 0 0 0 19 18.75v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Baixar para Windows</a>
+          <a class="text-link" href="#como-instalar">Como começar <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m0 0-4.5-4.5M15 10l-4.5 4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
         </div>
         <div class="hero-meta"><span class="meta-dot"><i></i> Dados públicos do DATASUS</span><span class="version"><strong id="releaseVersion" aria-live="polite">Consultando versão…</strong><a href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest" target="_blank" rel="noreferrer">Ver versões ↗</a></span></div>
       </div>
-      <div class="hero-label"><i aria-hidden="true"></i> SIA/SUS · SIH/SUS · PARÁ</div>
+      <div class="hero-visual"><img src="assets/hero-data-visual.svg" width="640" height="460" alt="Ilustração simples de dados de saúde organizados em tabela e gráfico" fetchpriority="high"></div>
     </section>
     <section class="benefits wrap" aria-label="Destaques do SPPtab">
       <article class="benefit"><span class="benefit-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="18" cy="18" r="2" stroke="currentColor" stroke-width="1.7"/></svg></span><span class="benefit-copy"><strong>Busca automatizada</strong><small>Arquivos por sistema e competência.</small></span></article>
       <article class="benefit"><span class="benefit-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M5 7h5v5H5zM14 12h5v5h-5zM10 9h4a2 2 0 0 1 2 2v1M14 15h-4a2 2 0 0 1-2-2v-1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="benefit-copy"><strong>Conversão acompanhada</strong><small>Progresso visível de DBC para DBF.</small></span></article>
       <article class="benefit"><span class="benefit-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M5 4.5h14v15H5zM8 8h8M8 12h8M8 16h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="benefit-copy"><strong>Definições oficiais</strong><small>Rótulos e categorias dos arquivos DEF.</small></span></article>
       <article class="benefit"><span class="benefit-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M7 6v6m10-6v12M4 18h16M7 12h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="7" cy="12" r="2" fill="white" stroke="currentColor" stroke-width="1.7"/><circle cx="17" cy="18" r="2" fill="white" stroke="currentColor" stroke-width="1.7"/></svg></span><span class="benefit-copy"><strong>Tabulação configurável</strong><small>Linhas, colunas, medidas e totais.</small></span></article>
+    </section>
+    <section class="setup-section wrap" id="como-instalar" aria-labelledby="setup-title" aria-roledescription="carrossel">
+      <div class="setup-heading">
+        <div><p class="eyebrow"><span class="pixels" aria-hidden="true"><i></i><i></i><i></i><i></i></span> Primeiros passos</p><h2 id="setup-title">Comece em três passos.</h2></div>
+        <div class="platform-note" role="note"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="12" rx="1.5" stroke="currentColor" stroke-width="1.7"/><path d="M8 20h8m-4-3.5V20" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M7 8h4m-4 3h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span><strong>Aplicativo para computador</strong>Funciona em Windows 64 bits. Ainda não há uma versão para celular.</span></div>
+      </div>
+      <div class="setup-carousel" data-setup-carousel aria-label="Instalação do SPPtab">
+        <article class="setup-slide" role="group" aria-roledescription="etapa" aria-label="1 de 3">
+          <div class="setup-art"><img src="assets/setup-download.svg" width="620" height="420" alt="" aria-hidden="true"></div>
+          <div class="setup-copy"><span class="setup-step"><span class="pixels" aria-hidden="true"><i></i><i></i><i></i><i></i></span> Passo 01</span><h3>Baixe o arquivo ZIP.</h3><p>O pacote portátil é feito para computadores com Windows 64 bits. Salve o arquivo na pasta Downloads ou em outro local de sua preferência.</p><a class="button" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable.zip"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.75v10.5m0 0 4.25-4.25M12 14.25l-4.25-4.25M5 16.25v2.5A1.25 1.25 0 0 0 6.25 20h11.5A1.25 1.25 0 0 0 19 18.75v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Baixar SPPtab para Windows</a><span class="setup-file-hint"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3.75h8l4 4v12.5H6zM14 3.75v4h4M9 13h6m-6 3h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Um arquivo ZIP · Windows 64 bits</span></div>
+        </article>
+        <article class="setup-slide" role="group" aria-roledescription="etapa" aria-label="2 de 3" hidden>
+          <div class="setup-art"><img src="assets/setup-extract.svg" width="620" height="420" alt="" aria-hidden="true"></div>
+          <div class="setup-copy"><span class="setup-step"><span class="pixels" aria-hidden="true"><i></i><i></i><i></i><i></i></span> Passo 02</span><h3>Extraia o arquivo.</h3><p>Abra a pasta onde o ZIP foi salvo. Clique com o botão direito em <strong>SPPtab-Portable.zip</strong>, escolha <strong>Extrair Tudo</strong> e confirme a pasta de destino.</p><span class="setup-file-hint"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3.75 7.5h6l1.75 2h8.75v9.75H3.75zM3.75 7.5V5.75h6l1.75 1.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Você pode extrair em Downloads ou na Área de Trabalho.</span></div>
+        </article>
+        <article class="setup-slide" role="group" aria-roledescription="etapa" aria-label="3 de 3" hidden>
+          <div class="setup-art"><img src="assets/setup-run.svg" width="620" height="420" alt="" aria-hidden="true"></div>
+          <div class="setup-copy"><span class="setup-step"><span class="pixels" aria-hidden="true"><i></i><i></i><i></i><i></i></span> Passo 03</span><h3>Execute o SPPtab.exe.</h3><p>Abra a pasta extraída e dê dois cliques em <strong>SPPtab.exe</strong>. O sistema inicia no navegador padrão. Para consultar o DATASUS, o computador precisa estar conectado à internet.</p><span class="setup-file-hint"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M4 9h16m-12 5 2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Não precisa instalar XAMPP, PHP ou Python.</span></div>
+        </article>
+        <div class="setup-controls">
+          <button class="carousel-arrow" type="button" data-setup-prev aria-label="Mostrar o passo anterior" disabled><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M15.5 10H4.5m0 0L9 5.5M4.5 10 9 14.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Anterior</span></button>
+          <div class="setup-dots" role="group" aria-label="Escolher passo"><button class="setup-dot" type="button" data-setup-to="0" aria-label="Ir para o passo 1: Baixe o arquivo ZIP" aria-current="step">01</button><button class="setup-dot" type="button" data-setup-to="1" aria-label="Ir para o passo 2: Extraia o arquivo">02</button><button class="setup-dot" type="button" data-setup-to="2" aria-label="Ir para o passo 3: Execute o SPPtab">03</button></div>
+          <button class="carousel-arrow" type="button" data-setup-next aria-label="Mostrar o próximo passo"><span>Próximo</span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4.5 10h11m0 0L11 5.5m4.5 4.5L11 14.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <span class="carousel-status" data-setup-status aria-live="polite">Passo 1 de 3: Baixe o arquivo ZIP.</span>
+      </div>
     </section>
     <section class="section wrap" id="recursos" aria-labelledby="features-title">
       <div class="section-head"><div><p class="eyebrow"><span class="pixels" aria-hidden="true"><i></i><i></i><i></i><i></i></span> Recursos da plataforma</p><h2 id="features-title">Uma rotina mais simples,<br>da busca à tabulação.</h2></div><p>As principais etapas do trabalho ficam organizadas em um só lugar, com informações claras para acompanhar cada arquivo.</p></div>
@@ -80,6 +183,30 @@
   <footer class="footer wrap"><div class="footer-left"><div class="footer-brand">SPPtab · Saúde em dados</div><div class="footer-owner"><strong>Lisandro Ribeiro</strong><a href="mailto:lisandrowork1@gmail.com">lisandrowork1@gmail.com</a></div></div><div class="footer-links"><a href="https://github.com/lisandro12matheus-cmd/SPPtab" target="_blank" rel="noreferrer">Código no GitHub</a><a href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest" target="_blank" rel="noreferrer">Versões</a></div></footer>
   <script>
     (function(){var version=document.getElementById('releaseVersion');fetch('https://api.github.com/repos/lisandro12matheus-cmd/SPPtab/releases/latest',{headers:{Accept:'application/vnd.github+json'}}).then(function(response){if(!response.ok)throw new Error('Versão indisponível');return response.json()}).then(function(release){if(!release||typeof release.tag_name!=='string')throw new Error('Versão indisponível');var date=release.published_at?new Date(release.published_at):null;var published=date&&!Number.isNaN(date.getTime())?new Intl.DateTimeFormat('pt-BR',{day:'numeric',month:'short',year:'numeric',timeZone:'America/Sao_Paulo'}).format(date):'';version.textContent=published?release.tag_name+' · '+published:release.tag_name}).catch(function(){version.textContent='Consulte as versões no GitHub'})}());
+  </script>
+  <script>
+    (function(){
+      var carousel=document.querySelector('[data-setup-carousel]');
+      if(!carousel)return;
+      var slides=Array.from(carousel.querySelectorAll('.setup-slide'));
+      var dots=Array.from(carousel.querySelectorAll('[data-setup-to]'));
+      var previous=carousel.querySelector('[data-setup-prev]');
+      var next=carousel.querySelector('[data-setup-next]');
+      var status=carousel.querySelector('[data-setup-status]');
+      var active=0;
+      function show(index){
+        active=Math.max(0,Math.min(slides.length-1,index));
+        slides.forEach(function(slide,i){slide.hidden=i!==active;});
+        dots.forEach(function(dot,i){if(i===active)dot.setAttribute('aria-current','step');else dot.removeAttribute('aria-current');});
+        previous.disabled=active===0;
+        next.disabled=active===slides.length-1;
+        var title=slides[active].querySelector('h3').textContent.trim();
+        status.textContent='Passo '+(active+1)+' de '+slides.length+': '+title;
+      }
+      previous.addEventListener('click',function(){show(active-1);});
+      next.addEventListener('click',function(){show(active+1);});
+      dots.forEach(function(dot){dot.addEventListener('click',function(){show(Number(dot.getAttribute('data-setup-to')));});});
+    }());
   </script>
 </body>
 </html>
