@@ -13,7 +13,7 @@ if ($path === '/__tabwin2_health') {
     return true;
 }
 
-if ($path === '/' || preg_match('~^/(?:index|api|tabular|resultado|download)\.php$~i', $path)) {
+if ($path === '/' || preg_match('~^/(?:index|api|bases|tabular|resultado|download)\.php$~i', $path)) {
     return false;
 }
 
