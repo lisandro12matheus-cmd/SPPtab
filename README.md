@@ -16,9 +16,9 @@ O pacote portátil ainda não possui assinatura digital. O Windows pode mostrar 
 2. **Converter para DBF:** converte o DBC selecionado para `uploads/CONVERTIDOS/...`. A tela acompanha o tamanho gravado e atualiza a barra de progresso enquanto o trabalho continua no servidor.
 3. **Tabular dados:** a tela mostra listas pesquisáveis para linhas e colunas, além das medidas que podem ser calculadas. Na seleção por categoria, marque uma ou mais categorias e use **Incluir** ou **Excluir**; as regras ativas ficam visíveis ao lado. As opções de linhas e colunas zeradas, conferência de integridade, salvamento dos registros e tratamento de categorias sem descrição aparecem na mesma tela. “Juntar competências” reúne arquivos convertidos da mesma família e tipo, após conferir se possuem os mesmos campos.
 
-O resultado abre em uma nova aba, com colunas e rótulos mapeados, totais por linha e total geral, exportação CSV e opção para baixar o DBF dos registros selecionados. É possível escolher várias medidas se as colunas estiverem como “Não ativa”. O filtro de Belém permanece disponível na tela principal.
+O resultado abre em uma nova aba, que mostra o andamento enquanto a tabulação roda em segundo plano. Ao terminar, exibe colunas e rótulos mapeados, totais por linha e total geral, exportação CSV e opção para baixar o DBF dos registros selecionados. É possível escolher várias medidas se as colunas estiverem como “Não ativa”. O filtro de Belém permanece disponível na tela principal.
 
-As tabulações leem apenas os campos selecionados no DBF e guardam em `uploads/.cache/` as listas de valores e os resultados recentes. Repetir a mesma configuração retorna o resultado do cache. Os arquivos DBF gerados pela opção “Salvar registros” ficam em `uploads/RESULTADOS/` e são entregues pela rota protegida de download.
+As tabulações leem apenas os campos selecionados no DBF e descartam os registros fora de Belém antes de decodificar os demais campos. A busca reutiliza por alguns minutos a lista anual recebida do DATASUS; a biblioteca guarda em `uploads/.cache/` as listas de valores, os rótulos oficiais e os resultados recentes. Repetir a mesma configuração retorna o resultado do cache. Os arquivos DBF gerados pela opção “Salvar registros” ficam em `uploads/RESULTADOS/` e são entregues pela rota protegida de download.
 
 ## Fontes e organização
 

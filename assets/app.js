@@ -110,7 +110,11 @@
       month.disabled = false;
       const selected = data.months.includes(Number(preferredMonth)) ? Number(preferredMonth) : data.months[data.months.length - 1];
       month.value = String(selected).padStart(2, '0');
-      await searchFiles();
+      if (Array.isArray(data.files)) {
+        showFileResults({...data, files: data.files.filter((file) => Number(file.month) === selected)});
+      } else {
+        await searchFiles();
+      }
     } catch (error) {
       month.innerHTML = '<option value="">Indisponível</option>';
       setEmpty('Não foi possível consultar o DATASUS', 'Confira sua conexão e tente buscar novamente.');
@@ -165,6 +169,21 @@
     return `${value.toLocaleString('pt-BR', {maximumFractionDigits:1})} ${units[i]}`;
   }
 
+  function showFileResults(data) {
+    if (!data.files.length) {
+      currentFiles = [];
+      setEmpty('Nenhum arquivo encontrado', 'Esta competência ainda não tem arquivos publicados para a base selecionada.');
+      showNotice('Tente outra competência ou outro conjunto de dados.', 'info');
+    } else {
+      renderFiles(data.files);
+      if (data.source_mode === 'local') {
+        showNotice('O DATASUS está inacessível nesta rede. Mostrando os arquivos já salvos na biblioteca deste computador.', 'info');
+      } else if (data.source_mode === 'stale-cache') {
+        showNotice('O DATASUS não respondeu agora. Mostrando a última lista de arquivos salva neste computador.', 'info');
+      }
+    }
+  }
+
   async function searchFiles() {
     if (!month.value) return;
     clearNotice();
@@ -177,16 +196,7 @@
     ]);
     try {
       const data = await request({action:'files', system:system.value, year:Number(year.value), month:Number(month.value)});
-      if (!data.files.length) {
-        currentFiles = [];
-        setEmpty('Nenhum arquivo encontrado', 'Esta competência ainda não tem arquivos publicados para a base selecionada.');
-        showNotice('Tente outra competência ou outro conjunto de dados.', 'info');
-      } else {
-        renderFiles(data.files);
-        if (data.source_mode === 'local') {
-          showNotice('O DATASUS está inacessível nesta rede. Mostrando os arquivos já salvos na biblioteca deste computador.', 'info');
-        }
-      }
+      showFileResults(data);
     } catch (error) {
       setEmpty('Não foi possível buscar os arquivos', 'Tente novamente em instantes.');
       showNotice(error.message, 'error');

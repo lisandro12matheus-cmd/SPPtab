@@ -742,8 +742,8 @@
     const column = $('#columnField').value;
     const columnValue = $('#columnValue').value;
     try {
-      lastResult = await request({
-        action: 'tabulate',
+      const job = await request({
+        action: 'tabulate_start',
         path: selected.path,
         dbfPath,
         sources: tabFiles.map((file) => ({ path: file.path, dbfPath: file.dbf_path })),
@@ -759,6 +759,24 @@
         saveRecords: $('#saveRecords').checked,
         unclassified: document.querySelector('input[name="unclassified"]:checked')?.value || 'ignore',
       });
+
+      while (true) {
+        const state = await request({ action: 'tabulate_status', job_id: job.job_id });
+        if (state.status === 'error') throw new Error(state.message || 'Não foi possível concluir a tabulação.');
+        if (state.status === 'done') {
+          lastResult = state.result;
+          break;
+        }
+        const progress = Number(state.progress) || 0;
+        const stage = state.stage || 'Lendo a base';
+        button.textContent = `Tabulando… ${progress}%`;
+        notice(3, `${stage} · ${progress}%`);
+        if (popup && !popup.closed) {
+          pendingPopupMessage = { type: 'tabwin2-progress', runId: resultRunId, progress, stage };
+          sendPopupMessage();
+        }
+        await new Promise((resolve) => setTimeout(resolve, 700));
+      }
 
       if (popup && !popup.closed) {
         pendingPopupMessage = { type: 'tabwin2-result', runId: resultRunId, data: lastResult };

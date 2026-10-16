@@ -39,15 +39,15 @@ if (!is_array($payload)) {
 }
 
 $action = $payload['action'] ?? '';
-if (!in_array($action, ['competencies', 'files', 'download', 'catalog', 'schema', 'column_values', 'category_values', 'tabulate', 'convert_start', 'convert_status'], true)) {
+if (!in_array($action, ['competencies', 'files', 'download', 'catalog', 'schema', 'column_values', 'category_values', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status'], true)) {
     respond(['ok' => false, 'error' => 'Ação não reconhecida.'], 400);
 }
 
-if (in_array($action, ['catalog', 'schema', 'column_values', 'category_values', 'tabulate', 'convert_start', 'convert_status'], true)) {
+if (in_array($action, ['catalog', 'schema', 'column_values', 'category_values', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status'], true)) {
     $payload['action'] = $action;
 }
 
-if (!in_array($action, ['catalog', 'schema', 'column_values', 'category_values', 'tabulate', 'convert_start', 'convert_status'], true)) {
+if (!in_array($action, ['catalog', 'schema', 'column_values', 'category_values', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status'], true)) {
 if (!in_array($payload['system'] ?? '', ['sia', 'sih'], true)) {
     respond(['ok' => false, 'error' => 'Selecione uma base válida.'], 400);
 }
@@ -87,7 +87,7 @@ $candidates = array_filter([
     ...($localPython ?: []),
     'python',
 ]);
-$script = __DIR__ . DIRECTORY_SEPARATOR . 'engine' . DIRECTORY_SEPARATOR . (in_array($action, ['catalog', 'schema', 'column_values', 'category_values', 'tabulate', 'convert_start', 'convert_status'], true) ? 'tabulation.py' : 'datasus.py');
+$script = __DIR__ . DIRECTORY_SEPARATOR . 'engine' . DIRECTORY_SEPARATOR . (in_array($action, ['catalog', 'schema', 'column_values', 'category_values', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status'], true) ? 'tabulation.py' : 'datasus.py');
 $lastError = '';
 
 foreach ($candidates as $binary) {

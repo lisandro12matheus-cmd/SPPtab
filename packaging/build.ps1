@@ -1,3 +1,4 @@
+param([switch]$SkipSelfTests)
 $ErrorActionPreference = 'Stop'
 
 $PackagingRoot = $PSScriptRoot
@@ -116,32 +117,36 @@ Para buscar bases e definições oficiais, conecte-se à internet e use a tela �
 Este pacote não possui assinatura digital; o Windows pode exibir um aviso de aplicativo não reconhecido na primeira execução. Confira a origem do download e compare o SHA-256 do ZIP com o arquivo SPPtab-Portable-SHA256SUM.txt da mesma versão antes de executá-lo.
 '@ | Set-Content -LiteralPath (Join-Path $AppPayload 'LEIA-ME.txt') -Encoding UTF8
 
-Write-Host 'Verificando os runtimes e montando o executável…'
-$phpExe = Join-Path $PhpPayload 'php.exe'
-$phpTest = & $phpExe -c (Join-Path $PhpPayload 'php.ini') -r "echo PHP_VERSION . '|' . (function_exists('proc_open') ? 'proc_open-ok' : 'proc_open-falhou') . '|' . json_encode(['ok' => true]);"
-if ($LASTEXITCODE -ne 0 -or $phpTest -notmatch 'proc_open-ok' -or $phpTest -notmatch '"ok":true') { throw 'O PHP empacotado não passou pela verificação básica.' }
+Write-Host 'Montando o executável…'
+if (-not $SkipSelfTests) {
+    $phpExe = Join-Path $PhpPayload 'php.exe'
+    $phpTest = & $phpExe -c (Join-Path $PhpPayload 'php.ini') -r "echo PHP_VERSION . '|' . (function_exists('proc_open') ? 'proc_open-ok' : 'proc_open-falhou') . '|' . json_encode(['ok' => true]);"
+    if ($LASTEXITCODE -ne 0 -or $phpTest -notmatch 'proc_open-ok' -or $phpTest -notmatch '"ok":true') { throw 'O PHP empacotado não passou pela verificação básica.' }
 
-$embeddedPython = Join-Path $PythonPayload 'python.exe'
-$vendorPath = Join-Path $AppFiles 'engine\vendor'
-$enginePath = Join-Path $AppFiles 'engine'
-$dataPathSmoke = Join-Path $BuildRoot 'data-path-selftest'
-$pythonSmoke = "import os, sys, ftplib, json, zipfile; os.environ['TABWIN2_DATA_DIR']=r'$dataPathSmoke'; sys.path.insert(0, r'$vendorPath'); sys.path.insert(0, r'$enginePath'); import dbfread, dbctodbf, datasus; assert datasus.library_folder('sia', 2026, 7) == 'uploads/SIA/2026/07'; print('python-ok')"
-$pythonTest = & $embeddedPython -c $pythonSmoke
-if ($LASTEXITCODE -ne 0 -or $pythonTest -notmatch 'python-ok') { throw 'O Python portátil ou as bibliotecas DBF não passaram pela verificação.' }
+    $embeddedPython = Join-Path $PythonPayload 'python.exe'
+    $vendorPath = Join-Path $AppFiles 'engine\vendor'
+    $enginePath = Join-Path $AppFiles 'engine'
+    $dataPathSmoke = Join-Path $BuildRoot 'data-path-selftest'
+    $pythonSmoke = "import os, sys, ftplib, json, zipfile; os.environ['TABWIN2_DATA_DIR']=r'$dataPathSmoke'; sys.path.insert(0, r'$vendorPath'); sys.path.insert(0, r'$enginePath'); import dbfread, dbctodbf, datasus; assert datasus.library_folder('sia', 2026, 7) == 'uploads/SIA/2026/07'; print('python-ok')"
+    $pythonTest = & $embeddedPython -c $pythonSmoke
+    if ($LASTEXITCODE -ne 0 -or $pythonTest -notmatch 'python-ok') { throw 'O Python portátil ou as bibliotecas DBF não passaram pela verificação.' }
+}
 
 $launcherExe = Join-Path $AppPayload 'SPPtab.exe'
 $launcherArgs = @('/nologo', '/target:winexe', '/platform:x64', '/optimize+', ('/out:' + $launcherExe), '/reference:System.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll', $LauncherSource)
 & $Compiler @launcherArgs
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $launcherExe)) { throw 'Não foi possível compilar o iniciador do SPPtab.' }
 
-& $launcherExe --self-test
-if ($LASTEXITCODE -ne 0) {
+if (-not $SkipSelfTests) {
+    & $launcherExe --self-test
+    if ($LASTEXITCODE -ne 0) {
+        $selfTestLog = Join-Path $env:TEMP 'TabWin2-selftest.log'
+        if (Test-Path -LiteralPath $selfTestLog) { Get-Content -LiteralPath $selfTestLog }
+        throw 'A verificação local do app falhou; consulte a mensagem acima.'
+    }
     $selfTestLog = Join-Path $env:TEMP 'TabWin2-selftest.log'
-    if (Test-Path -LiteralPath $selfTestLog) { Get-Content -LiteralPath $selfTestLog }
-    throw 'A verificação local do app falhou; consulte a mensagem acima.'
+    if (Test-Path -LiteralPath $selfTestLog) { Get-Content -LiteralPath $selfTestLog; Remove-Item -LiteralPath $selfTestLog -Force }
 }
-$selfTestLog = Join-Path $env:TEMP 'TabWin2-selftest.log'
-if (Test-Path -LiteralPath $selfTestLog) { Get-Content -LiteralPath $selfTestLog; Remove-Item -LiteralPath $selfTestLog -Force }
 
 if (Test-Path -LiteralPath $PayloadZip) { Remove-Item -LiteralPath $PayloadZip -Force }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -204,28 +209,30 @@ $installerArgs = @(
 & $Compiler @installerArgs
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $SetupOutput)) { throw 'Não foi possível gerar o instalador do SPPtab.' }
 
-$installerTest = New-Object System.Diagnostics.Process
-$installerTest.StartInfo.FileName = $SetupOutput
-$installerTest.StartInfo.Arguments = '--self-test-package'
-$installerTest.StartInfo.UseShellExecute = $false
-$installerTest.StartInfo.CreateNoWindow = $true
-if (-not $installerTest.Start()) { throw 'Não foi possível executar a verificação do instalador.' }
-if (-not $installerTest.WaitForExit(60000)) {
-    $installerTest.Kill()
-    throw 'A verificação do instalador excedeu 60 segundos.'
+if (-not $SkipSelfTests) {
+    $installerTest = New-Object System.Diagnostics.Process
+    $installerTest.StartInfo.FileName = $SetupOutput
+    $installerTest.StartInfo.Arguments = '--self-test-package'
+    $installerTest.StartInfo.UseShellExecute = $false
+    $installerTest.StartInfo.CreateNoWindow = $true
+    if (-not $installerTest.Start()) { throw 'Não foi possível executar a verificação do instalador.' }
+    if (-not $installerTest.WaitForExit(60000)) {
+        $installerTest.Kill()
+        throw 'A verificação do instalador excedeu 60 segundos.'
+    }
+    $installerExitCode = $installerTest.ExitCode
+    $installerTest.Dispose()
+    $installerTestLog = Join-Path $env:TEMP 'TabWin2-installer-selftest.log'
+    if ($installerExitCode -ne 0) {
+        if (Test-Path -LiteralPath $installerTestLog) { Get-Content -LiteralPath $installerTestLog }
+        throw 'O instalador não passou pela verificação de extração e inicialização.'
+    }
+    if (-not (Test-Path -LiteralPath $installerTestLog)) { throw 'O instalador não deixou o resultado da sua verificação.' }
+    $installerTestResult = Get-Content -LiteralPath $installerTestLog -Raw
+    if ($installerTestResult -notmatch 'instalador abriu, extraiu os arquivos') { throw 'O executável não testou a extração do pacote: ' + $installerTestResult }
+    Write-Host $installerTestResult.Trim()
+    Remove-Item -LiteralPath $installerTestLog -Force
 }
-$installerExitCode = $installerTest.ExitCode
-$installerTest.Dispose()
-$installerTestLog = Join-Path $env:TEMP 'TabWin2-installer-selftest.log'
-if ($installerExitCode -ne 0) {
-    if (Test-Path -LiteralPath $installerTestLog) { Get-Content -LiteralPath $installerTestLog }
-    throw 'O instalador não passou pela verificação de extração e inicialização.'
-}
-if (-not (Test-Path -LiteralPath $installerTestLog)) { throw 'O instalador não deixou o resultado da sua verificação.' }
-$installerTestResult = Get-Content -LiteralPath $installerTestLog -Raw
-if ($installerTestResult -notmatch 'instalador abriu, extraiu os arquivos') { throw 'O executável não testou a extração do pacote: ' + $installerTestResult }
-Write-Host $installerTestResult.Trim()
-Remove-Item -LiteralPath $installerTestLog -Force
 
 $file = Get-Item -LiteralPath $SetupOutput
 $hash = (Get-FileHash -LiteralPath $SetupOutput -Algorithm SHA256).Hash

@@ -8,6 +8,7 @@ import os
 import re
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from ftplib import FTP
 from pathlib import Path
@@ -57,37 +58,76 @@ class SourceError(Exception):
 
 
 def connect() -> FTP:
-    ftp = FTP(HOST, timeout=12)
+    ftp = FTP(HOST, timeout=8)
     ftp.login()
     ftp.set_pasv(True)
     return ftp
 
 
-def select_files(system: str, year: int, month: int | None = None, include_metadata: bool = True) -> list[dict[str, Any]]:
+def source_cache(system: str, year: int) -> Path:
+    folder = UPLOADS / ".cache" / "source-files"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder / f"{system}-{year}.json"
+
+
+def cached_source(path: Path) -> dict[str, Any] | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, dict) and isinstance(data.get("names"), list) and all(isinstance(name, str) and FILENAME_PATTERN.fullmatch(name) for name in data["names"]) and isinstance(data.get("fetched_at"), (int, float)):
+            return data
+    except (OSError, ValueError, TypeError):
+        pass
+    return None
+
+
+def select_files(system: str, year: int, month: int | None = None) -> list[dict[str, Any]]:
     directory = REMOTE[system]
     ftp = None
-    source_mode = "https"
-    try:
-        names = [directory + "/" + name for name in portal_list_files(system, year, month)]
-    except Exception as https_error:
+    cache_path = source_cache(system, year)
+    cached = cached_source(cache_path)
+    freshness = 600 if year == datetime.now().year else 86400
+    if cached and time.time() - cached["fetched_at"] < freshness:
+        names = [directory + "/" + name for name in cached["names"]]
+        source_mode = "cache"
+    else:
+        source_mode = "https"
         try:
-            ftp = connect()
-            names = ftp.nlst(directory)
-            source_mode = "ftp"
-        except Exception as ftp_error:
-            if ftp is not None:
-                ftp.close()
-                ftp = None
-            local_root = UPLOADS / system.upper() / str(year)
-            local_names = [path.name for path in local_root.rglob("*") if path.is_file() and path.suffix.lower() == ".dbc"] if local_root.is_dir() else []
-            if not local_names:
-                raise SourceError(
-                    "Não foi possível consultar o DATASUS por HTTPS nem FTP. "
-                    "Confira a conexão com a internet ou tente outra rede. "
-                    f"HTTPS: {https_error}; FTP: {ftp_error}"
-                ) from ftp_error
-            names = [directory + "/" + name for name in local_names]
-            source_mode = "local"
+            names = [directory + "/" + name for name in portal_list_files(system, year, None) if name == name.rsplit("/", 1)[-1] and FILENAME_PATTERN.fullmatch(name)]
+            temporary_cache = cache_path.with_suffix(".json.part")
+            try:
+                temporary_cache.write_text(json.dumps({"fetched_at": time.time(), "names": [name.rsplit("/", 1)[-1] for name in names]}), encoding="utf-8")
+                os.replace(temporary_cache, cache_path)
+            except OSError:
+                temporary_cache.unlink(missing_ok=True)
+        except Exception as https_error:
+            if cached:
+                names = [directory + "/" + name for name in cached["names"]]
+                source_mode = "stale-cache"
+            else:
+                try:
+                    ftp = connect()
+                    names = ftp.nlst(directory)
+                    source_mode = "ftp"
+                    temporary_cache = cache_path.with_suffix(".json.part")
+                    try:
+                        temporary_cache.write_text(json.dumps({"fetched_at": time.time(), "names": [name.rsplit("/", 1)[-1] for name in names if FILENAME_PATTERN.fullmatch(name.rsplit("/", 1)[-1])]}), encoding="utf-8")
+                        os.replace(temporary_cache, cache_path)
+                    except OSError:
+                        temporary_cache.unlink(missing_ok=True)
+                except Exception as ftp_error:
+                    if ftp is not None:
+                        ftp.close()
+                        ftp = None
+                    local_root = UPLOADS / system.upper() / str(year)
+                    local_names = [path.name for path in local_root.rglob("*") if path.is_file() and path.suffix.lower() == ".dbc"] if local_root.is_dir() else []
+                    if not local_names:
+                        raise SourceError(
+                            "Não foi possível consultar o DATASUS por HTTPS nem FTP. "
+                            "Confira a conexão com a internet ou tente outra rede. "
+                            f"HTTPS: {https_error}; FTP: {ftp_error}"
+                        ) from ftp_error
+                    names = [directory + "/" + name for name in local_names]
+                    source_mode = "local"
 
     try:
         found: list[dict[str, Any]] = []
@@ -104,15 +144,6 @@ def select_files(system: str, year: int, month: int | None = None, include_metad
             kind = match.group("kind").upper()
             size = None
             modified = None
-            if include_metadata and ftp is not None:
-                try:
-                    size = ftp.size(remote_path)
-                except Exception:
-                    pass
-                try:
-                    modified = ftp.sendcmd(f"MDTM {remote_path}").split()[-1]
-                except Exception:
-                    pass
             found.append({
                 "name": filename,
                 "kind": kind,
@@ -253,13 +284,15 @@ def main() -> int:
             raise SourceError("Base ou ano inválido.")
 
         if action in {"competencies", "files", "download"}:
-            files = select_files(system, year, month if action != "competencies" else None, include_metadata=action != "competencies")
+            files = select_files(system, year, month if action != "competencies" else None)
         else:
             raise SourceError("Ação não reconhecida.")
 
         if action == "competencies":
             months = sorted({item["month"] for item in files})
-            output: dict[str, Any] = {"ok": True, "system": system, "year": year, "months": months, "files_count": len(files), "source_mode": files[0]["source_mode"] if files else "https"}
+            for item in files:
+                item["size_label"] = safe_size(item["size"])
+            output: dict[str, Any] = {"ok": True, "system": system, "year": year, "months": months, "files_count": len(files), "files": files, "source_mode": files[0]["source_mode"] if files else "https"}
         elif action == "files":
             for item in files:
                 item["size_label"] = safe_size(item["size"])

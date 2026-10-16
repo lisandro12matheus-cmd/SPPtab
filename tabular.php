@@ -94,4 +94,4 @@
 <section class="workspace tab-result" id="resultPanel" hidden>
   <div class="results-head"><div><div class="results-title"><h3>Resultado da tabulação</h3><span class="count-badge" id="resultCount">0</span></div><p id="resultSummary"></p></div><button class="text-button" id="exportCsv" type="button">Exportar CSV</button></div>
   <div class="file-table-wrap"><table class="file-table result-table"><thead id="resultHead"></thead><tbody id="resultBody"></tbody><tfoot id="resultFoot"></tfoot></table></div>
-</section><footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> tabulação em 3 etapas</span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer></main></div><script src="assets/tabular.js?v=23" defer></script></body></html>
+</section><footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> tabulação em 3 etapas</span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer></main></div><script src="assets/tabular.js?v=24" defer></script></body></html>

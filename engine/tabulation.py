@@ -70,18 +70,34 @@ def dbf_layout(path: Path):
     if header_len+count*record_len>path.stat().st_size: raise ValueError("O DBF está incompleto.")
     return count,header_len,record_len,fields
 
-def iter_dbf_fields(path: Path, names: list[str], with_index: bool=False):
+def iter_dbf_fields(path: Path, names: list[str], with_index: bool=False, pre_filter: tuple[str,str] | None=None, processed_counter: list[int] | None=None, scan_callback=None):
     count,header_len,record_len,fields=dbf_layout(path)
     ordered=list(dict.fromkeys(name.upper() for name in names))
     missing=[name for name in ordered if name not in fields]
     if missing: raise ValueError("Campo não encontrado no DBF: "+", ".join(missing))
     slices=[(fields[name]["offset"],fields[name]["length"]) for name in ordered]
+    filter_slice=None
+    filter_value=b""
+    if pre_filter:
+        filter_name,filter_text=pre_filter
+        if filter_name.upper() not in fields: raise ValueError("Campo de filtro não encontrado no DBF.")
+        filter_slice=(fields[filter_name.upper()]["offset"],fields[filter_name.upper()]["length"])
+        filter_value=filter_text.encode("ascii")
     with path.open("rb") as stream:
         mapped=mmap.mmap(stream.fileno(),0,access=mmap.ACCESS_READ)
         try:
+            next_report=50000
             for index in range(count):
                 start=header_len+index*record_len
                 if mapped[start]==0x2A: continue
+                if processed_counter is not None:
+                    processed_counter[0]+=1
+                    if scan_callback is not None and processed_counter[0]>=next_report:
+                        scan_callback(processed_counter[0],count)
+                        next_report+=50000
+                if filter_slice is not None:
+                    offset,length=filter_slice
+                    if mapped[start+offset:start+offset+length].strip(b" \x00").lstrip(b"0")!=filter_value: continue
                 values=tuple(mapped[start+offset:start+offset+length].decode("latin1").strip() for offset,length in slices)
                 yield (index,values) if with_index else values
         finally:
@@ -329,6 +345,76 @@ def run_conversion_worker(job_id: str):
         temporary_output.unlink(missing_ok=True)
         state.update(status="error",stage="Não foi possível converter",message=str(exc)); write_job(job_id,state)
 
+def tabulation_jobfile(job_id: str) -> Path:
+    if not re.fullmatch(r"[a-f0-9]{32}",str(job_id)): raise ValueError("Identificador de tabulação inválido.")
+    folder=UPLOADS/".jobs"/"tabulations"; folder.mkdir(parents=True,exist_ok=True)
+    return folder/(job_id+".json")
+
+def write_tabulation_job(job_id: str, state: dict[str,Any]):
+    target=tabulation_jobfile(job_id)
+    temporary=target.with_name(target.stem+f".{os.getpid()}.part")
+    try:
+        temporary.write_text(json.dumps(state,ensure_ascii=True),encoding="utf-8")
+        for attempt in range(8):
+            try:
+                os.replace(temporary,target)
+                break
+            except PermissionError:
+                if attempt==7: raise
+                time.sleep(.04*(attempt+1))
+    finally:
+        temporary.unlink(missing_ok=True)
+
+def start_tabulation(payload: dict[str,Any]):
+    if len(json.dumps(payload,ensure_ascii=True))>100000: raise ValueError("A configuração da tabulação é grande demais.")
+    job_id=secrets.token_hex(16)
+    write_tabulation_job(job_id,{"id":job_id,"status":"queued","progress":1,"stage":"Preparando tabulação","payload":payload})
+    command=[sys.executable,str(Path(__file__).resolve()),"--tabulate-worker",job_id]
+    flags=getattr(subprocess,"DETACHED_PROCESS",0x00000008)|getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0x00000200) if os.name=="nt" else 0
+    try:
+        subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=flags,start_new_session=os.name!="nt",cwd=str(ROOT))
+    except Exception:
+        tabulation_jobfile(job_id).unlink(missing_ok=True)
+        raise
+    return {"ok":True,"job_id":job_id,"status":"queued","progress":1,"stage":"Preparando tabulação"}
+
+def tabulation_status(job_id: str):
+    path=tabulation_jobfile(job_id)
+    if not path.is_file(): raise ValueError("Tabulação não encontrada.")
+    state=json.loads(path.read_text(encoding="utf-8"))
+    if state.get("status") in {"queued","running"} and time.time()-path.stat().st_mtime>300:
+        state.update(status="error",stage="Tabulação interrompida",message="A leitura parou de atualizar. Inicie a tabulação novamente.")
+        state.pop("payload",None)
+        write_tabulation_job(job_id,state)
+    output={key:state.get(key) for key in ("id","status","progress","stage","message")}
+    if state.get("status")=="done":
+        result_path=path.with_suffix(".result.json")
+        if not result_path.is_file(): raise ValueError("O resultado da tabulação não foi encontrado.")
+        output["result"]=json.loads(result_path.read_text(encoding="utf-8"))
+    return {"ok":True,**output}
+
+def run_tabulation_worker(job_id: str):
+    path=tabulation_jobfile(job_id)
+    state=json.loads(path.read_text(encoding="utf-8"))
+    payload=state.pop("payload")
+    try:
+        def progress(pct,stage):
+            state.update(status="running",progress=pct,stage=stage)
+            write_tabulation_job(job_id,state)
+        result=tabulate(payload,progress)
+        result_path=path.with_suffix(".result.json")
+        temporary=result_path.with_suffix(".json.part")
+        try:
+            temporary.write_text(json.dumps(result,ensure_ascii=True,default=str),encoding="utf-8")
+            os.replace(temporary,result_path)
+        finally:
+            temporary.unlink(missing_ok=True)
+        state.update(status="done",progress=100,stage="Tabulação concluída",message="Resultado pronto.")
+        write_tabulation_job(job_id,state)
+    except Exception as exc:
+        state.update(status="error",stage="Não foi possível tabular",message=str(exc))
+        write_tabulation_job(job_id,state)
+
 def ensure_archive(system: str) -> Path:
     folder=UPLOADS/"DEFINICOES"/"originais"; folder.mkdir(parents=True,exist_ok=True)
     path=folder/f"TAB_{system}.zip"
@@ -364,7 +450,7 @@ def archive_def(system: str, kind: str):
         data=z.read(matches[0])
     dest=UPLOADS/"DEFINICOES"/system/name
     dest.parent.mkdir(parents=True,exist_ok=True)
-    if not dest.exists() or dest.read_bytes()!=data: dest.write_bytes(data)
+    if not dest.exists() or dest.stat().st_size!=len(data): dest.write_bytes(data)
     return name,data
 
 def parse_def(data: bytes, fields: list[dict[str,Any]]):
@@ -427,34 +513,15 @@ def cnv_label(mapping: dict[str,Any], code: str):
             if len(start)==len(end)==len(code) and start<=code<=end: return label
     return code
 
-def load_relations(system: str, definition: bytes, parsed):
-    refs={}; seen=set()
-    for collection in parsed[:4]:
-        for item in collection:
-            relation=item.get("relation","")
-            if not relation.lower().endswith(".cnv"): continue
-            if relation.lower() in seen: continue
-            seen.add(relation.lower())
-            rel=PurePosixPath(relation.replace("\\","/"))
-            if rel.is_absolute() or ".." in rel.parts: continue
-            with zipfile.ZipFile(UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip") as z:
-                match=next((n for n in z.namelist() if PurePosixPath(n).as_posix().lower()==rel.as_posix().lower()),None)
-                if not match:
-                    match=next((n for n in z.namelist() if PurePosixPath(n).name.lower()==rel.name.lower()),None)
-                if not match: continue
-                data=z.read(match)
-            out=UPLOADS/"DEFINICOES"/system/"referencias"/"CNV"/Path(*PurePosixPath(match).parts[1:])
-            out.parent.mkdir(parents=True,exist_ok=True)
-            if not out.exists() or out.read_bytes()!=data: out.write_bytes(data)
-            refs[relation.lower()]=cnv_values(data)
-    return refs
-
 def relation_mapping(system: str, option):
     relation=(option or {}).get("relation","")
     if not relation: return {}
     rel=PurePosixPath(relation.replace("\\","/"))
     if rel.is_absolute() or ".." in rel.parts: return {}
     archive=UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip"
+    target=cache_target("relation-mappings",{"archive":cache_file_identity(archive),"relation":relation.lower(),"descField":(option or {}).get("descField","")})
+    cached=cache_read(target)
+    if isinstance(cached,dict) and isinstance(cached.get("mapping"),dict): return cached["mapping"]
     with zipfile.ZipFile(archive) as z:
         member=next((n for n in z.namelist() if PurePosixPath(n).as_posix().lower()==rel.as_posix().lower()),None)
         if member is None: member=next((n for n in z.namelist() if PurePosixPath(n).name.lower()==rel.name.lower()),None)
@@ -463,8 +530,11 @@ def relation_mapping(system: str, option):
         raw=z.read(member)
     out=UPLOADS/"DEFINICOES"/system/"referencias"/Path(*PurePosixPath(member).parts)
     out.parent.mkdir(parents=True,exist_ok=True)
-    if not out.is_file() or out.read_bytes()!=raw: out.write_bytes(raw)
-    if rel.suffix.lower()==".cnv": return cnv_values(raw)
+    if not out.is_file() or out.stat().st_size!=len(raw): out.write_bytes(raw)
+    if rel.suffix.lower()==".cnv":
+        mapping=cnv_values(raw)
+        cache_write(target,{"mapping":mapping},max_bytes=20_000_000)
+        return mapping
     if rel.suffix.lower()==".dbf":
         try:
             DBF=dbf_reader(); lookup=DBF(str(out),load=False,encoding="latin1",char_decode_errors="replace",ignore_missing_memofile=True)
@@ -472,7 +542,9 @@ def relation_mapping(system: str, option):
             keyfield=lookup.fields[0].name
             desc=option.get("descField") or (lookup.fields[1].name if len(lookup.fields)>1 else keyfield)
             if desc.upper() not in {f.name.upper() for f in lookup.fields}: return {}
-            return {str(row.get(keyfield) or "").strip():str(row.get(desc) or "").strip() for row in lookup}
+            mapping={str(row.get(keyfield) or "").strip():str(row.get(desc) or "").strip() for row in lookup}
+            cache_write(target,{"mapping":mapping},max_bytes=20_000_000)
+            return mapping
         except Exception: return {}
     return {}
 
@@ -483,7 +555,7 @@ def schema(relative: str):
     defname,definition=archive_def(system,kind)
     if definition is None: raise RuntimeError(f"A definição {defname or 'do arquivo'} não foi encontrada no pacote oficial {system}.")
     rows,cols,selections,increments,group=parse_def(definition,fields)
-    relationFiles=load_relations(system,definition,(rows,cols,selections,increments))
+    relationFiles={item.get("relation", "").lower() for collection in (rows,cols,selections,increments) for item in collection if item.get("relation", "").lower().endswith(".cnv")}
     fieldnames={f["name"].upper() for f in fields}
     municipality="PA_UFMUN" if system=="SIA" else "MUNIC_MOV"
     if municipality not in fieldnames: municipality=""
@@ -508,11 +580,10 @@ def category_values(payload):
     target=cache_target("category-values",identity)
     cached=cache_read(target)
     if cached is not None: return cached
-    names=[field]+([munfield] if usemun else [])
+    names=[field]
     values=set(); truncated=False
-    for record in iter_dbf_fields(path,names):
+    for record in iter_dbf_fields(path,names,pre_filter=(munfield,"150140") if usemun else None):
         value=record[0]
-        if usemun and record[1].lstrip("0")!="150140": continue
         if not value: continue
         if value not in values:
             if len(values)>=5000: truncated=True
@@ -578,7 +649,8 @@ def save_dbf_records(source_dbfs: list[Path], indexes_by_file: list[list[int]], 
             out.write(b"\x1a")
     return target
 
-def tabulate(payload):
+def tabulate(payload, progress=None):
+    if progress: progress(2,"Conferindo os arquivos e as opções")
     raw_sources=payload.get("sources")
     if not isinstance(raw_sources,list) or not raw_sources:
         relative=payload.get("path",""); raw_sources=[{"path":relative,"dbfPath":payload.get("dbfPath") or converted_relative(relative)}]
@@ -644,21 +716,26 @@ def tabulate(payload):
     target=cache_target("tabulations",identity)
     if not save_records and not test_crc:
         cached=cache_read(target)
-        if cached is not None: return cached
-    requested=[rowfield]+([colfield] if colfield else [])+[detail["field"] for detail in metric_details if detail["field"]]+([munfield] if usemun else [])+[field for field,_ in filter_specs]
+        if cached is not None:
+            if progress: progress(98,"Abrindo tabulação já calculada")
+            return cached
+    requested=[rowfield]+([colfield] if colfield else [])+[detail["field"] for detail in metric_details if detail["field"]]+[field for field,_ in filter_specs]
     names=list(dict.fromkeys(requested)); positions={name:index for index,name in enumerate(names)}
     row_index=positions[rowfield]; col_index=positions[colfield] if colfield else None
-    mun_index=positions[munfield] if usemun else None
     filter_indexes=[(positions[field],conditions) for field,conditions in filter_specs]
     metric_indexes=[positions[detail["field"]] if detail["field"] else None for detail in metric_details]
     agg=defaultdict(int); rowtot=defaultdict(int); coltot=defaultdict(int); rowset=set(); colset=set(); totals=[0 for _ in metrics]
-    records=0; excluded_unclassified=0; processed=0; indexes_by_file=[]
+    records=0; excluded_unclassified=0; processed=0; indexes_by_file=[]; classified_cache={}
+    total_to_scan=sum(dbf_layout(item["dbf"])[0] for item in sources)
+    if progress: progress(5,"Lendo os registros")
     for item in sources:
         if test_crc: verify_dbc_against_dbf(item["source"],item["dbf"])
-        selected_indexes=[]
-        for record_index,record in iter_dbf_fields(item["dbf"],names,with_index=True):
-            processed+=1
-            if usemun and record[mun_index].lstrip("0")!="150140": continue
+        selected_indexes=[] if save_records else None
+        processed_file=[0]
+        def scan_update(file_processed,_file_total):
+            if progress and total_to_scan:
+                progress(min(94,5+int(89*(processed+file_processed)/total_to_scan)),f"Lendo os registros · {processed+file_processed:,} de {total_to_scan:,}".replace(",","."))
+        for record_index,record in iter_dbf_fields(item["dbf"],names,with_index=True,pre_filter=(munfield,"150140") if usemun else None,processed_counter=processed_file,scan_callback=scan_update if progress else None):
             passed=True
             for index,condition in filter_indexes:
                 value=record[index]
@@ -667,7 +744,10 @@ def tabulate(payload):
             if not passed: continue
             if column_value and record[col_index]!=column_value: continue
             raw_key=record[row_index] or "(vazio)"
-            classified=category_is_classified(rowlabels,raw_key)
+            classified=classified_cache.get(raw_key)
+            if classified is None:
+                classified=category_is_classified(rowlabels,raw_key)
+                classified_cache[raw_key]=classified
             if not classified and unclassified_mode=="ignore":
                 excluded_unclassified+=1; continue
             key="\x00UNCLASSIFIED" if not classified and unclassified_mode=="include" else raw_key
@@ -677,14 +757,19 @@ def tabulate(payload):
                 if detail["id"]=="RECORDS" or (detail["id"]=="FREQ" and not groupfield): value=1
                 else: value=scaled_integer(record[index],detail["decimals"])
                 values.append(value)
-            rowset.add(key); colset.add(col); selected_indexes.append(record_index); records+=1
+            rowset.add(key); colset.add(col)
+            if selected_indexes is not None: selected_indexes.append(record_index)
+            records+=1
             for metric_index,value in enumerate(values):
                 metric=metrics[metric_index]
                 cell=(key,col,metric)
                 if cell not in agg and len(agg)>=500000: raise ValueError("A combinação cria mais de 500 mil células. Escolha menos categorias ou remova a coluna.")
                 agg[cell]+=value; rowtot[(key,metric)]+=value; coltot[(col,metric)]+=value; totals[metric_index]+=value
             if len(rowset)>50000 or len(colset)>250: raise ValueError("A tabulação ultrapassou o limite prático de linhas ou colunas. Escolha outra combinação.")
-        indexes_by_file.append(selected_indexes)
+        processed+=processed_file[0]
+        if selected_indexes is not None: indexes_by_file.append(selected_indexes)
+        if progress and total_to_scan: progress(min(94,5+int(89*processed/total_to_scan)),f"Lendo os registros · {processed:,} de {total_to_scan:,}".replace(",","."))
+    if progress: progress(95,"Montando a tabela e os totais")
     def ordered_codes(mapping,observed,suppress):
         values=set(observed)
         if not suppress and mapping: values.update(code for code in mapping.keys() if code!="\x00ranges")
@@ -720,10 +805,12 @@ def tabulate(payload):
         column_totals=[scaled_text(totals[0],metric_details[0]["decimals"])]; total=scaled_text(totals[0],metric_details[0]["decimals"])
     result={"ok":True,"definition":defname,"metrics":[{"id":m["id"],"label":m["label"]} for m in metric_details],"metric":metric_details[0]["label"] if len(metrics)==1 else f"{len(metrics)} incrementos","records":records,"processedRecords":processed,"excludedUnclassified":excluded_unclassified,"total":total,"totalsByMetric":[scaled_text(value,detail["decimals"]) for value,detail in zip(totals,metric_details)],"columnTotals":column_totals,"municipalityApplied":usemun,"municipalityField":munfield if usemun else None,"appliedFilters":sum(len(state["include"])+len(state["exclude"]) for state in filters.values())+(1 if column_value else 0),"columns":display_columns,"rows":result_rows,"totalCategories":len(raw_rows),"truncated":len(raw_rows)>5000,"files":[x["source"].name for x in sources],"unclassifiedMode":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns,"crcTested":test_crc}
     if save_records:
+        if progress: progress(97,"Salvando os registros selecionados")
         token=secrets.token_hex(16)
         saved=save_dbf_records([x["dbf"] for x in sources],indexes_by_file,token)
         result["savedRecords"]={"url":"download.php?token="+token,"name":saved.name,"count":records}
     if not save_records and not test_crc: cache_write(target,result,max_bytes=10_000_000)
+    if progress: progress(99,"Preparando o resultado")
     return result
 
 def tabwin_handle(payload):
@@ -733,6 +820,8 @@ def tabwin_handle(payload):
     if action=="column_values": return column_values(payload)
     if action=="category_values": return category_values(payload)
     if action=="tabulate": return tabulate(payload)
+    if action=="tabulate_start": return start_tabulation(payload)
+    if action=="tabulate_status": return tabulation_status(payload.get("job_id",""))
     if action=="convert_start": return start_conversion(payload.get("path",""))
     if action=="convert_status": return conversion_status(payload.get("job_id",""))
     raise ValueError("Ação de tabulação inválida.")
@@ -741,6 +830,8 @@ if __name__ == "__main__":
     import sys
     if len(sys.argv)>2 and sys.argv[1]=="--worker":
         run_conversion_worker(sys.argv[2]); raise SystemExit(0)
+    if len(sys.argv)>2 and sys.argv[1]=="--tabulate-worker":
+        run_tabulation_worker(sys.argv[2]); raise SystemExit(0)
     try:
         request=json.load(sys.stdin)
         result=tabwin_handle(request)
