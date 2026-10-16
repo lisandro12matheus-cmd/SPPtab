@@ -1,7 +1,7 @@
 """Tabulação local de arquivos DATASUS usando definições oficiais do TabWin."""
 from __future__ import annotations
 
-import json, os, re, subprocess, tempfile, zipfile, secrets, threading, time, sys, mmap, hashlib
+import json, os, re, subprocess, tempfile, zipfile, secrets, threading, time, sys, mmap, hashlib, stat
 from ftplib import FTP
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
@@ -360,17 +360,31 @@ def jobfile(job_id: str) -> Path:
     folder=UPLOADS/".jobs"; folder.mkdir(parents=True,exist_ok=True)
     return folder/(job_id+".json")
 
+def atomic_job_write(target: Path, data: dict[str,Any]):
+    target.parent.mkdir(parents=True,exist_ok=True)
+    descriptor,temp_name=tempfile.mkstemp(prefix=f".{target.stem}.{os.getpid()}.{threading.get_ident()}.",suffix=".part",dir=str(target.parent))
+    temporary=Path(temp_name)
+    try:
+        with os.fdopen(descriptor,"w",encoding="utf-8") as stream:
+            stream.write(json.dumps(data,ensure_ascii=True))
+            stream.flush()
+        for attempt in range(80):
+            try:
+                os.replace(temporary,target)
+                return
+            except PermissionError:
+                if os.name=="nt" and attempt==0 and target.exists():
+                    try: os.chmod(target,target.stat().st_mode|stat.S_IWRITE)
+                    except OSError: pass
+                if attempt==79: raise
+                time.sleep(min(.12,.025*(attempt+1)))
+    finally:
+        temporary.unlink(missing_ok=True)
+
 def write_job(job_id: str, data: dict[str,Any]):
     target=jobfile(job_id)
     with JOB_WRITE_LOCK:
-        temp=target.with_name(target.stem+f".{threading.get_ident()}.part")
-        temp.write_text(json.dumps(data,ensure_ascii=True),encoding="utf-8")
-        for attempt in range(8):
-            try:
-                temp.replace(target); break
-            except PermissionError:
-                if attempt==7: raise
-                time.sleep(.04*(attempt+1))
+        atomic_job_write(target,data)
 
 def start_conversion(source_relative: str):
     source=safe_file(source_relative); system,kind,_=meta(source); fields,records=dbc_header(source)
@@ -434,18 +448,8 @@ def tabulation_jobfile(job_id: str) -> Path:
 
 def write_tabulation_job(job_id: str, state: dict[str,Any]):
     target=tabulation_jobfile(job_id)
-    temporary=target.with_name(target.stem+f".{os.getpid()}.part")
-    try:
-        temporary.write_text(json.dumps(state,ensure_ascii=True),encoding="utf-8")
-        for attempt in range(8):
-            try:
-                os.replace(temporary,target)
-                break
-            except PermissionError:
-                if attempt==7: raise
-                time.sleep(.04*(attempt+1))
-    finally:
-        temporary.unlink(missing_ok=True)
+    with JOB_WRITE_LOCK:
+        atomic_job_write(target,state)
 
 def start_tabulation(payload: dict[str,Any]):
     if len(json.dumps(payload,ensure_ascii=True))>100000: raise ValueError("A configuração da tabulação é grande demais.")
