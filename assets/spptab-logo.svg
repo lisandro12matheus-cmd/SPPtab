@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 180" role="img" aria-labelledby="title">
+  <title id="title">SPPtab</title>
+  <text x="0" y="151" fill="#20346f" font-family="Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif" font-size="154" font-weight="900" letter-spacing="-5" textLength="230" lengthAdjust="spacingAndGlyphs">SPP</text>
+  <g aria-hidden="true">
+    <rect x="245" y="72" width="23" height="23" rx="4" fill="#1760bd"/>
+    <rect x="272" y="72" width="23" height="23" rx="4" fill="#4b86df"/>
+    <rect x="299" y="72" width="23" height="23" rx="4" fill="#3288f5"/>
+    <rect x="272" y="99" width="23" height="23" rx="4" fill="#1760bd"/>
+    <rect x="272" y="126" width="23" height="23" rx="4" fill="#3288f5"/>
+  </g>
+  <text x="323" y="149" fill="#4b88e7" font-family="Arial, Helvetica, sans-serif" font-size="74" font-weight="300" letter-spacing="-4">ab</text>
+</svg>

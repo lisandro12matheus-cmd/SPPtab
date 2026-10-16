@@ -1,0 +1,4 @@
+Options -Indexes
+<FilesMatch "^(manifest\.json|.*\.part)$">
+  Require all denied
+</FilesMatch>

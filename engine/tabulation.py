@@ -1,0 +1,739 @@
+"""Tabulação local de arquivos DATASUS usando definições oficiais do TabWin."""
+from __future__ import annotations
+
+import json, os, re, subprocess, tempfile, zipfile, secrets, threading, time, sys, mmap, hashlib
+from ftplib import FTP
+from collections import defaultdict
+from decimal import Decimal, InvalidOperation
+from pathlib import Path, PurePosixPath
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+UPLOADS = Path(os.environ.get("TABWIN2_DATA_DIR", ROOT / "uploads")).expanduser().resolve()
+UPLOADS.mkdir(parents=True, exist_ok=True)
+VENDOR = Path(__file__).resolve().parent / "vendor"
+FTP_BASE = "https://ftp.datasus.gov.br/dissemin/publicos"
+AUX = {"SIA": f"{FTP_BASE}/SIASUS/200801_/Auxiliar/TAB_SIA.zip", "SIH": f"{FTP_BASE}/SIHSUS/200801_/Auxiliar/TAB_SIH.zip"}
+DEF_MAP = {
+ "PA":"Producao_Ambulatorial.DEF", "BI":"Producao_Ambulatorial.DEF", "AB":"APAC_Cirurgia_Bariatica.DEF",
+ "ABO":"APAC_Pos_Cirurgia_Bariatica.def", "ACF":"APAC_Confeccao_de_Fistula.DEF", "AD":"APAC_Laudos_Diversos.DEF",
+ "AM":"APAC_Medicamentos.DEF", "AMP":"APAC_Dados_Comuns.DEF", "AN":"APAC_Nefrologia.DEF", "AQ":"APAC_Quimioterapia.DEF",
+ "AR":"APAC_Radioterapia.DEF", "ATD":"APAC_Tratamento_Dialitico.DEF", "PS":"RAAS_Psicossocial.def", "SAD":"Atencao_Domiciliar.def",
+ "RD":"RD2008.DEF", "RJ":"RJ2008.DEF", "SP":"SP2008.DEF", "ER":"Motivo_de_Erro.DEF", "CH":"RD2008.DEF", "CM":"RD2008.DEF"
+}
+FILENAME = re.compile(r"^(?P<kind>[A-Z]{2,4})PA(?P<yy>\d{2})(?P<mm>\d{2})(?:[A-Z])?\.DBC$", re.I)
+JOB_WRITE_LOCK = threading.Lock()
+SLOW_FALLBACK_LIMIT = 8 * 1024 * 1024
+NATIVE_TIMEOUT_SECONDS = 120
+
+def dbf_reader():
+    import sys
+    sys.path.insert(0, str(VENDOR))
+    from dbfread import DBF
+    return DBF
+
+def safe_file(relative: str) -> Path:
+    if not isinstance(relative, str) or "\x00" in relative:
+        raise ValueError("Arquivo inválido.")
+    path = (UPLOADS / relative.replace("\\", "/")).resolve()
+    if not path.is_relative_to(UPLOADS) or path.suffix.lower() != ".dbc" or not path.is_file():
+        raise ValueError("O arquivo não existe na biblioteca ou o caminho é inválido.")
+    return path
+
+def safe_dbf(relative: str) -> Path:
+    if not isinstance(relative,str) or "\x00" in relative: raise ValueError("Arquivo DBF inválido.")
+    path=(UPLOADS/relative.replace("\\","/")).resolve()
+    if not path.is_relative_to(UPLOADS) or path.suffix.lower()!=".dbf" or not path.is_file() or "CONVERTIDOS" not in path.parts:
+        raise ValueError("O DBF convertido não existe na biblioteca.")
+    return path
+
+def dbf_layout(path: Path):
+    with path.open("rb") as stream:
+        header=stream.read(32)
+        if len(header)<32: raise ValueError("Cabeçalho DBF incompleto.")
+        count=int.from_bytes(header[4:8],"little")
+        header_len=int.from_bytes(header[8:10],"little")
+        record_len=int.from_bytes(header[10:12],"little")
+        if header_len<33 or record_len<2: raise ValueError("Estrutura DBF inválida.")
+        stream.seek(0); raw=stream.read(header_len)
+    fields={}; offset=1; pos=32
+    while pos+32<=len(raw) and raw[pos]!=0x0D:
+        desc=raw[pos:pos+32]
+        name=desc[:11].split(b"\0",1)[0].decode("ascii","replace").strip().upper()
+        length=desc[16]
+        if not name or length<1: break
+        fields[name]={"offset":offset,"length":length,"type":chr(desc[11]),"decimals":desc[17]}
+        offset+=length; pos+=32
+    if not fields or offset>record_len: raise ValueError("Campos DBF incompatíveis com o tamanho dos registros.")
+    if header_len+count*record_len>path.stat().st_size: raise ValueError("O DBF está incompleto.")
+    return count,header_len,record_len,fields
+
+def iter_dbf_fields(path: Path, names: list[str], with_index: bool=False):
+    count,header_len,record_len,fields=dbf_layout(path)
+    ordered=list(dict.fromkeys(name.upper() for name in names))
+    missing=[name for name in ordered if name not in fields]
+    if missing: raise ValueError("Campo não encontrado no DBF: "+", ".join(missing))
+    slices=[(fields[name]["offset"],fields[name]["length"]) for name in ordered]
+    with path.open("rb") as stream:
+        mapped=mmap.mmap(stream.fileno(),0,access=mmap.ACCESS_READ)
+        try:
+            for index in range(count):
+                start=header_len+index*record_len
+                if mapped[start]==0x2A: continue
+                values=tuple(mapped[start+offset:start+offset+length].decode("latin1").strip() for offset,length in slices)
+                yield (index,values) if with_index else values
+        finally:
+            mapped.close()
+
+def cache_target(namespace: str, identity: dict[str,Any]):
+    digest=hashlib.sha256(json.dumps(identity,sort_keys=True,ensure_ascii=True,separators=(",",":")).encode("utf-8")).hexdigest()
+    folder=UPLOADS/".cache"/namespace
+    folder.mkdir(parents=True,exist_ok=True)
+    return folder/(digest+".json")
+
+def cache_read(target: Path):
+    try: return json.loads(target.read_text(encoding="utf-8"))
+    except (OSError,ValueError,TypeError): return None
+
+def cache_write(target: Path, value: dict[str,Any], max_bytes: int|None=None, keep: int=50):
+    raw=json.dumps(value,ensure_ascii=True,separators=(",",":"))
+    if max_bytes is not None and len(raw.encode("utf-8"))>max_bytes: return
+    fd,tmp=tempfile.mkstemp(prefix="cache-",suffix=".part",dir=str(target.parent))
+    try:
+        with os.fdopen(fd,"w",encoding="utf-8") as stream: stream.write(raw)
+        Path(tmp).replace(target)
+    finally: Path(tmp).unlink(missing_ok=True)
+    cached=sorted(target.parent.glob("*.json"),key=lambda p:p.stat().st_mtime,reverse=True)
+    for old in cached[keep:]: old.unlink(missing_ok=True)
+
+def cache_file_identity(path: Path):
+    stat=path.stat()
+    return {"path":path.relative_to(UPLOADS).as_posix(),"size":stat.st_size,"mtime":stat.st_mtime_ns}
+
+def scaled_integer(value: str, decimals: int) -> int:
+    value=value.strip()
+    if not value: return 0
+    try:
+        if "e" in value.lower(): return int(Decimal(value)*Decimal(10**decimals))
+        negative=value.startswith("-")
+        unsigned=value[1:] if value[:1] in {"-","+"} else value
+        whole,sep,fraction=unsigned.partition(".")
+        digits=(whole or "0")+(fraction[:decimals].ljust(decimals,"0") if decimals else "")
+        result=int(digits or "0")
+        return -result if negative else result
+    except (ValueError,InvalidOperation): return 0
+
+def scaled_text(value: int, decimals: int) -> str:
+    return str(value) if decimals==0 else format(Decimal(value).scaleb(-decimals),"f")
+
+def decompress(path: Path, progress=None, expected_size=0, output_path: Path | None = None, method_callback=None):
+    exe = VENDOR / "dbc_reader" / "bin" / ("blast-dbf.exe" if os.name == "nt" else "blast-dbf-linux")
+    if not exe.exists(): raise RuntimeError("O descompactador DBC não está disponível.")
+    if output_path is None:
+        fd, tmp = tempfile.mkstemp(suffix=".dbf", prefix="tabwin2-"); os.close(fd)
+    else:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = str(output_path)
+        Path(tmp).unlink(missing_ok=True)
+    stop=threading.Event()
+    def watch():
+        while not stop.wait(.35):
+            try:
+                size=Path(tmp).stat().st_size
+                pct=min(94,max(3,int(size*90/max(1,expected_size))))
+                if progress: progress(pct,size)
+            except OSError: pass
+    monitor=threading.Thread(target=watch,daemon=True); monitor.start()
+    try:
+        if method_callback: method_callback("rápido", "Usando o conversor rápido incluído no aplicativo.")
+        native_error = None
+        try:
+            # blast-dbf seeks within the DBC header, so it must open the source
+            # by filename. Feeding it through stdin makes it fail and triggers
+            # the much slower pure-Python fallback.
+            creationflags = 0
+            if os.name == "nt":
+                creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            proc = subprocess.run([str(exe), str(path), tmp], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=NATIVE_TIMEOUT_SECONDS, creationflags=creationflags)
+            output_size = Path(tmp).stat().st_size if Path(tmp).exists() else 0
+            if proc.returncode or output_size < 32:
+                detail = proc.stderr.decode("latin1", "replace").strip()[:300]
+                exit_code = proc.returncode & 0xFFFFFFFF
+                if exit_code == 0xC000013A:
+                    native_error = "o Windows interrompeu o conversor (CTRL+C)"
+                else:
+                    native_error = detail or f"o conversor rápido encerrou com o código {proc.returncode}"
+        except subprocess.TimeoutExpired:
+            native_error = f"o conversor rápido excedeu o limite de {NATIVE_TIMEOUT_SECONDS} segundos"
+        except OSError as exc:
+            native_error = str(exc)
+
+        if native_error:
+            if path.stat().st_size > SLOW_FALLBACK_LIMIT:
+                raise RuntimeError(
+                    "O conversor rápido não conseguiu abrir este arquivo. "
+                    "Para evitar uma espera de vários minutos, o modo lento não foi iniciado. "
+                    f"Detalhe: {native_error}"
+                )
+            if method_callback: method_callback("compatibilidade", "Usando o modo de compatibilidade para um arquivo pequeno.")
+            import sys
+            sys.path.insert(0, str(VENDOR))
+            from dbctodbf import DBCDecompress
+            DBCDecompress().decompressFile(str(path), tmp)
+        if Path(tmp).stat().st_size < 32:
+            raise RuntimeError("O arquivo não produziu um DBF válido ao descompactar.")
+        stop.set(); monitor.join(timeout=1)
+        if progress: progress(96,Path(tmp).stat().st_size)
+        return tmp
+    except Exception:
+        stop.set(); monitor.join(timeout=1)
+        Path(tmp).unlink(missing_ok=True); raise
+
+def open_dbf(path: Path):
+    tmp = decompress(path)
+    try:
+        DBF = dbf_reader()
+        table = DBF(tmp, load=False, encoding="latin1", char_decode_errors="replace", ignore_missing_memofile=True)
+        fields = [{"name":f.name, "type":f.type, "length":f.length, "decimals":f.decimal_count} for f in table.fields]
+        return tmp, table, fields
+    except Exception:
+        Path(tmp).unlink(missing_ok=True); raise
+
+def dbc_header(path: Path):
+    # O cabeçalho DBF (incluindo os campos) é preservado sem compressão no DBC.
+    with path.open("rb") as stream:
+        head=stream.read(32)
+        if len(head)<32: raise ValueError("Cabeçalho DBC incompleto.")
+        records=int.from_bytes(head[4:8],"little")
+        header_len=int.from_bytes(head[8:10],"little")
+        if header_len<33 or header_len>65535: raise ValueError("Cabeçalho DBF inválido dentro do DBC.")
+        stream.seek(0); raw=stream.read(header_len)
+    fields=[]; offset=32
+    while offset+32<=len(raw) and raw[offset]!=0x0D:
+        desc=raw[offset:offset+32]
+        name=desc[:11].split(b"\0",1)[0].decode("ascii","replace").strip()
+        if not name: break
+        fields.append({"name":name,"type":chr(desc[11]),"length":desc[16],"decimals":desc[17]})
+        offset+=32
+    if not fields: raise ValueError("O DBC não contém descritores de campos DBF válidos.")
+    return fields,records
+
+def meta(path: Path):
+    match = FILENAME.match(path.name)
+    if not match: raise ValueError("Nome de arquivo DBC fora do padrão esperado.")
+    rel = path.relative_to(UPLOADS)
+    system = rel.parts[0].upper()
+    kind = match.group("kind").upper()
+    return system, kind, match
+
+def catalog():
+    files=[]; manifest={}; active_jobs={}
+    try:
+        items=json.loads((UPLOADS/"manifest.json").read_text(encoding="utf-8"))
+        if isinstance(items,list): manifest={x.get("path"):x for x in items if isinstance(x,dict)}
+    except Exception: pass
+    jobs=UPLOADS/".jobs"
+    if jobs.is_dir():
+        for statefile in sorted(jobs.glob("*.json"),key=lambda p:p.stat().st_mtime,reverse=True):
+            try:
+                state=json.loads(statefile.read_text(encoding="utf-8"))
+                source=state.get("source_path")
+                if source and source not in active_jobs and state.get("status") in {"queued","running"} and time.time()-statefile.stat().st_mtime < 20:
+                    active_jobs[source]={"id":state.get("id"),"status":state.get("status"),"progress":state.get("progress",1),"stage":state.get("stage","Conversão em andamento"),"bytes_written":state.get("bytes_written",0),"temporary_path":state.get("temporary_path"),"converter":state.get("converter")}
+            except Exception: pass
+    for p in UPLOADS.glob("**/*.dbc"):
+        try:
+            sysname,kind,m=meta(p); rel=p.relative_to(UPLOADS).as_posix(); info=manifest.get(rel,{})
+            converted=converted_relative(rel)
+            dbf=UPLOADS/converted
+            files.append({"path":rel,"name":p.name,"system":sysname,"kind":kind,"year":2000+int(m.group("yy")),"month":int(m.group("mm")),"size":p.stat().st_size,"downloaded_at":info.get("downloaded_at"),"converted":dbf.is_file(),"dbf_path":converted if dbf.is_file() else None,"conversion":active_jobs.get(rel)})
+        except Exception: continue
+    files.sort(key=lambda x:(x["system"],-x["year"],-x["month"],x["name"]))
+    return {"ok":True,"files":files,"library_root":str(UPLOADS)}
+
+def converted_relative(source_relative: str) -> str:
+    rel=Path(source_relative)
+    return (Path("CONVERTIDOS")/rel.parent/(rel.stem+".dbf")).as_posix()
+
+def jobfile(job_id: str) -> Path:
+    if not re.fullmatch(r"[a-f0-9]{32}",str(job_id)): raise ValueError("Identificador de conversão inválido.")
+    folder=UPLOADS/".jobs"; folder.mkdir(parents=True,exist_ok=True)
+    return folder/(job_id+".json")
+
+def write_job(job_id: str, data: dict[str,Any]):
+    target=jobfile(job_id)
+    with JOB_WRITE_LOCK:
+        temp=target.with_name(target.stem+f".{threading.get_ident()}.part")
+        temp.write_text(json.dumps(data,ensure_ascii=True),encoding="utf-8")
+        for attempt in range(8):
+            try:
+                temp.replace(target); break
+            except PermissionError:
+                if attempt==7: raise
+                time.sleep(.04*(attempt+1))
+
+def start_conversion(source_relative: str):
+    source=safe_file(source_relative); system,kind,_=meta(source); fields,records=dbc_header(source)
+    expected=32+32*len(fields)+1+records*(1+sum(f["length"] for f in fields))+1
+    target=UPLOADS/converted_relative(source_relative); target.parent.mkdir(parents=True,exist_ok=True)
+    if target.is_file() and target.stat().st_size==expected:
+        return {"ok":True,"done":True,"progress":100,"dbf_path":target.relative_to(UPLOADS).as_posix(),"message":"Este DBC já está convertido."}
+    jobs=UPLOADS/".jobs"
+    if jobs.exists():
+        for statefile in jobs.glob("*.json"):
+            try:
+                active=json.loads(statefile.read_text(encoding="utf-8"))
+                if active.get("source_path")==source_relative and active.get("status") in {"queued","running"}:
+                    if time.time()-statefile.stat().st_mtime < 20:
+                        return {"ok":True,"done":False,"job_id":active["id"],"progress":active.get("progress",1),"stage":active.get("stage","Conversão em andamento")}
+                    active.update(status="error",stage="Conversão interrompida",message="A conversão anterior parou de atualizar. Inicie novamente para continuar.")
+                    write_job(active["id"],active)
+            except Exception: pass
+    job_id=secrets.token_hex(16)
+    dbf_relative=converted_relative(source_relative)
+    temporary_relative=dbf_relative+f".{job_id}.part"
+    write_job(job_id,{"id":job_id,"status":"queued","progress":1,"stage":"Preparando a conversão","message":"O arquivo entrou na fila.","source_path":source_relative,"expected_size":expected,"dbf_path":dbf_relative,"temporary_path":temporary_relative})
+    command=[sys.executable,str(Path(__file__).resolve()),"--worker",job_id]
+    flags=getattr(subprocess,"DETACHED_PROCESS",0x00000008)|getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0x00000200) if os.name=="nt" else 0
+    subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=flags,start_new_session=os.name!="nt",cwd=str(ROOT))
+    return {"ok":True,"done":False,"job_id":job_id,"progress":1,"stage":"Preparando a conversão"}
+
+def conversion_status(job_id: str):
+    path=jobfile(job_id)
+    if not path.is_file(): raise ValueError("Conversão não encontrada.")
+    state=json.loads(path.read_text(encoding="utf-8"))
+    if state.get("status") in {"queued","running"} and time.time()-path.stat().st_mtime >= 20:
+        state.update(status="error",stage="Conversão interrompida",message="A conversão parou de atualizar. Tente iniciar novamente.")
+        write_job(job_id,state)
+    return {"ok":True,**state}
+
+def run_conversion_worker(job_id: str):
+    state=json.loads(jobfile(job_id).read_text(encoding="utf-8")); source_rel=state["source_path"]
+    source=safe_file(source_rel); target=UPLOADS/converted_relative(source_rel); target.parent.mkdir(parents=True,exist_ok=True)
+    temporary_output=target.with_name(target.name+f".{job_id}.part")
+    try:
+        state.update(status="running",stage="Descompactando o DBC",progress=2,message="A conversão está em andamento."); write_job(job_id,state)
+        def progress(pct,size):
+            state.update(progress=pct,bytes_written=size,stage="Descompactando o DBC",status="running"); write_job(job_id,state)
+        def method_changed(method,message):
+            state.update(converter=method,message=message); write_job(job_id,state)
+        dbc_header_info,records=dbc_header(source)
+        expected=32+32*len(dbc_header_info)+1+records*(1+sum(f["length"] for f in dbc_header_info))+1
+        decompressed=decompress(source,progress,expected,temporary_output,method_changed)
+        state.update(stage="Salvando o DBF",progress=98); write_job(job_id,state)
+        os.replace(decompressed,target)
+        state.update(status="done",stage="Conversão concluída",progress=100,dbf_path=target.relative_to(UPLOADS).as_posix(),bytes_written=target.stat().st_size,message="DBF pronto para tabulação."); write_job(job_id,state)
+    except Exception as exc:
+        temporary_output.unlink(missing_ok=True)
+        state.update(status="error",stage="Não foi possível converter",message=str(exc)); write_job(job_id,state)
+
+def ensure_archive(system: str) -> Path:
+    folder=UPLOADS/"DEFINICOES"/"originais"; folder.mkdir(parents=True,exist_ok=True)
+    path=folder/f"TAB_{system}.zip"
+    if not path.exists() or path.stat().st_size < 1000:
+        tmp=path.with_suffix(".zip.part")
+        remote=f"/dissemin/publicos/{'SIASUS' if system=='SIA' else 'SIHSUS'}/200801_/Auxiliar/TAB_{system}.zip"
+        ftp=FTP("ftp.datasus.gov.br",timeout=90); ftp.login(); ftp.set_pasv(True)
+        try:
+            with tmp.open("wb") as out: ftp.retrbinary(f"RETR {remote}",out.write,blocksize=1024*1024)
+        finally:
+            try: ftp.quit()
+            except Exception: ftp.close()
+        if tmp.stat().st_size < 1000: raise RuntimeError("O pacote oficial de definições chegou incompleto.")
+        tmp.replace(path)
+    return path
+
+def archive_def(system: str, kind: str):
+    name=DEF_MAP.get(kind)
+    if not name: return None,None
+    archive=ensure_archive(system)
+    with zipfile.ZipFile(archive) as z:
+        matches=[n for n in z.namelist() if PurePosixPath(n).name.lower()==name.lower()]
+        if not matches: return name,None
+        data=z.read(matches[0])
+    dest=UPLOADS/"DEFINICOES"/system/name
+    dest.parent.mkdir(parents=True,exist_ok=True)
+    if not dest.exists() or dest.read_bytes()!=data: dest.write_bytes(data)
+    return name,data
+
+def parse_def(data: bytes, fields: list[dict[str,Any]]):
+    text=data.decode("cp1252","replace")
+    names={f["name"].upper() for f in fields}; rows=[]; increments=[]; selections=[]; group=None
+    import csv, io
+    for line_no,row in enumerate(csv.reader(io.StringIO(text), delimiter=",")):
+        if not row: continue
+        head=row[0].strip().lstrip("\ufeff")
+        if not head or head.startswith((";","?","/")) or head.upper().startswith("ADADOS"): continue
+        cmd=head[:1].upper(); label=head[1:].strip().strip('"')
+        if len(row)==1 and cmd=="G":
+            field=head[1:].strip().strip('"').upper()
+            if field in names: group={"id":field,"label":field,"field":field,"command":"G"}
+            continue
+        if len(row)<2: continue
+        field=row[1].strip().strip('"').upper()
+        if cmd not in {"L","C","S","D","T","I","G"} or not field or field not in names: continue
+        item={"id":f"{cmd}:{line_no}","label":label or field,"field":field,"command":cmd,"descField":row[2].strip().strip('"') if len(row)>2 else "","relation":row[3].strip().strip('"') if len(row)>3 else ""}
+        if cmd in {"L","D","T"}: rows.append(item)
+        if cmd=="I": increments.append(item)
+        if cmd=="S": selections.append(item)
+        if cmd=="G": group=item
+    # Column definitions are C and T (T also line); increment fields are I.
+    cols=[]
+    for line_no,row in enumerate(csv.reader(io.StringIO(text), delimiter=",")):
+        if row and row[0].strip() and row[0].strip()[:1].upper() in {"C","T"} and len(row)>=2:
+            field=row[1].strip().strip('"').upper()
+            if field in names: cols.append({"id":f"{row[0].strip()[:1].upper()}:{line_no}","label":row[0].strip()[1:].strip().strip('"') or field,"field":field,"command":row[0].strip()[:1].upper(),"descField":row[2].strip().strip('"') if len(row)>2 else "","relation":row[3].strip().strip('"') if len(row)>3 else ""})
+    return rows,cols,selections,increments,group
+
+def cnv_values(raw: bytes) -> dict[str,str]:
+    lines=raw.decode("cp1252","replace").splitlines()
+    result={}; ranges=[]
+    for line in lines[1:]:
+        if not line.strip(): continue
+        label=line[9:59].strip() if len(line)>9 else ""
+        codepart=line[60:].strip() if len(line)>60 else ""
+        codes=[part.strip() for part in re.split(r"[,;]",codepart) if part.strip()]
+        if not codes:
+            tokens=line.split()
+            codes=tokens[2:] if len(tokens)>2 else []
+            label=" ".join(tokens[1:2]) if not label and len(tokens)>1 else label
+        for code in codes:
+            code=code.strip()
+            match=re.fullmatch(r"([A-Za-z0-9]+)\s*-\s*([A-Za-z0-9]+)",code)
+            if match:
+                ranges.append((match.group(1),match.group(2),label or code)); continue
+            result.setdefault(code,label or code)
+            if len(code)>1: result.setdefault(code[:1],label or code)
+    result["\x00ranges"]=ranges
+    return result
+
+def cnv_label(mapping: dict[str,Any], code: str):
+    if code in mapping: return mapping[code]
+    for start,end,label in mapping.get("\x00ranges",[]):
+        try:
+            if int(start)<=int(code)<=int(end): return label
+        except ValueError:
+            if len(start)==len(end)==len(code) and start<=code<=end: return label
+    return code
+
+def load_relations(system: str, definition: bytes, parsed):
+    refs={}; seen=set()
+    for collection in parsed[:4]:
+        for item in collection:
+            relation=item.get("relation","")
+            if not relation.lower().endswith(".cnv"): continue
+            if relation.lower() in seen: continue
+            seen.add(relation.lower())
+            rel=PurePosixPath(relation.replace("\\","/"))
+            if rel.is_absolute() or ".." in rel.parts: continue
+            with zipfile.ZipFile(UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip") as z:
+                match=next((n for n in z.namelist() if PurePosixPath(n).as_posix().lower()==rel.as_posix().lower()),None)
+                if not match:
+                    match=next((n for n in z.namelist() if PurePosixPath(n).name.lower()==rel.name.lower()),None)
+                if not match: continue
+                data=z.read(match)
+            out=UPLOADS/"DEFINICOES"/system/"referencias"/"CNV"/Path(*PurePosixPath(match).parts[1:])
+            out.parent.mkdir(parents=True,exist_ok=True)
+            if not out.exists() or out.read_bytes()!=data: out.write_bytes(data)
+            refs[relation.lower()]=cnv_values(data)
+    return refs
+
+def relation_mapping(system: str, option):
+    relation=(option or {}).get("relation","")
+    if not relation: return {}
+    rel=PurePosixPath(relation.replace("\\","/"))
+    if rel.is_absolute() or ".." in rel.parts: return {}
+    archive=UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip"
+    with zipfile.ZipFile(archive) as z:
+        member=next((n for n in z.namelist() if PurePosixPath(n).as_posix().lower()==rel.as_posix().lower()),None)
+        if member is None: member=next((n for n in z.namelist() if PurePosixPath(n).name.lower()==rel.name.lower()),None)
+        if member is None: return {}
+        if PurePosixPath(member).is_absolute() or ".." in PurePosixPath(member).parts: return {}
+        raw=z.read(member)
+    out=UPLOADS/"DEFINICOES"/system/"referencias"/Path(*PurePosixPath(member).parts)
+    out.parent.mkdir(parents=True,exist_ok=True)
+    if not out.is_file() or out.read_bytes()!=raw: out.write_bytes(raw)
+    if rel.suffix.lower()==".cnv": return cnv_values(raw)
+    if rel.suffix.lower()==".dbf":
+        try:
+            DBF=dbf_reader(); lookup=DBF(str(out),load=False,encoding="latin1",char_decode_errors="replace",ignore_missing_memofile=True)
+            if not lookup.fields: return {}
+            keyfield=lookup.fields[0].name
+            desc=option.get("descField") or (lookup.fields[1].name if len(lookup.fields)>1 else keyfield)
+            if desc.upper() not in {f.name.upper() for f in lookup.fields}: return {}
+            return {str(row.get(keyfield) or "").strip():str(row.get(desc) or "").strip() for row in lookup}
+        except Exception: return {}
+    return {}
+
+def schema(relative: str):
+    path=safe_file(relative); system,kind,_=meta(path); fields,records=dbc_header(path)
+    converted=UPLOADS/converted_relative(relative)
+    if not converted.is_file(): raise ValueError("Converta este DBC para DBF na etapa 2 antes de abrir a tabulação.")
+    defname,definition=archive_def(system,kind)
+    if definition is None: raise RuntimeError(f"A definição {defname or 'do arquivo'} não foi encontrada no pacote oficial {system}.")
+    rows,cols,selections,increments,group=parse_def(definition,fields)
+    relationFiles=load_relations(system,definition,(rows,cols,selections,increments))
+    fieldnames={f["name"].upper() for f in fields}
+    municipality="PA_UFMUN" if system=="SIA" else "MUNIC_MOV"
+    if municipality not in fieldnames: municipality=""
+    return {"ok":True,"file":{"path":relative,"name":path.name,"system":system,"kind":kind},"dbfPath":converted.relative_to(UPLOADS).as_posix(),"definition":{"name":defname,"archive":f"uploads/DEFINICOES/originais/TAB_{system}.zip","size":len(definition),"relationFiles":len(relationFiles)},"fields":fields,"lineOptions":rows,"columnOptions":cols,"selectionOptions":selections,"increments":increments,"groupField":group,"municipalityField":municipality,"municipalityCode":"150140","recordCount":records}
+
+def category_values(payload):
+    relative=payload.get("path",""); source=safe_file(relative); path=safe_dbf(payload.get("dbfPath") or converted_relative(relative)); system,kind,_=meta(source)
+    _,_,_,fields=dbf_layout(path)
+    defname,definition=archive_def(system,kind)
+    if definition is None: raise RuntimeError("Definição oficial indisponível para este arquivo.")
+    lines,columns,selections,_,_=parse_def(definition,[{"name":name,**info} for name,info in fields.items()])
+    groups={"line":lines,"column":columns,"selection":selections}
+    option_type=str(payload.get("optionType","column"))
+    if option_type not in groups: raise ValueError("Tipo de categoria inválido.")
+    option=next((item for item in groups[option_type] if item["id"]==payload.get("option")),None)
+    if not option: raise ValueError("Escolha uma variável disponível na definição.")
+    field=option["field"]
+    munfield="PA_UFMUN" if system=="SIA" else "MUNIC_MOV"
+    usemun=bool(payload.get("belem",True)) and munfield in fields
+    archive=UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip"
+    identity={"cacheVersion":2,"dbf":cache_file_identity(path),"option":option["id"],"type":option_type,"belem":usemun,"definition":cache_file_identity(archive) if archive.is_file() else defname}
+    target=cache_target("category-values",identity)
+    cached=cache_read(target)
+    if cached is not None: return cached
+    names=[field]+([munfield] if usemun else [])
+    values=set(); truncated=False
+    for record in iter_dbf_fields(path,names):
+        value=record[0]
+        if usemun and record[1].lstrip("0")!="150140": continue
+        if not value: continue
+        if value not in values:
+            if len(values)>=5000: truncated=True
+            else: values.add(value)
+    mapping=relation_mapping(system,option)
+    ordered=sorted(values,key=lambda value:(cnv_label(mapping,value).casefold(),value))
+    result={"ok":True,"option":option["id"],"optionType":option_type,"field":field,"values":[{"value":value,"label":cnv_label(mapping,value)} for value in ordered],"truncated":truncated}
+    cache_write(target,result)
+    return result
+
+def column_values(payload):
+    payload={**payload,"optionType":"column"}
+    return category_values(payload)
+
+def category_is_classified(mapping: dict[str,Any], code: str) -> bool:
+    if not mapping: return True
+    if code in mapping: return True
+    for start,end,_label in mapping.get("\x00ranges",[]):
+        try:
+            if int(start)<=int(code)<=int(end): return True
+        except ValueError:
+            if len(start)==len(end)==len(code) and start<=code<=end: return True
+    return False
+
+def verify_dbc_against_dbf(source: Path, dbf: Path):
+    """Re-expand a DBC and compare the DBF records to the converted copy."""
+    import hashlib
+    expanded=Path(decompress(source))
+    try:
+        _,head_a,record_a,_=dbf_layout(expanded)
+        _,head_b,record_b,_=dbf_layout(dbf)
+        if head_a!=head_b or record_a!=record_b: raise ValueError(f"A verificação de integridade falhou para {source.name}: estrutura DBF diferente.")
+        def digest(path,offset):
+            value=hashlib.sha256()
+            with path.open("rb") as stream:
+                stream.seek(offset)
+                for chunk in iter(lambda:stream.read(1024*1024),b""): value.update(chunk)
+            return value.digest()
+        if digest(expanded,head_a)!=digest(dbf,head_b): raise ValueError(f"A verificação de integridade falhou para {source.name}: os registros do DBC não correspondem ao DBF convertido.")
+    finally: expanded.unlink(missing_ok=True)
+
+def save_dbf_records(source_dbfs: list[Path], indexes_by_file: list[list[int]], token: str):
+    target=UPLOADS/"RESULTADOS"/(token+".dbf")
+    target.parent.mkdir(parents=True,exist_ok=True)
+    total_records=sum(map(len,indexes_by_file))
+    with source_dbfs[0].open("rb") as inp:
+        header=bytearray(inp.read(32))
+        header_len=int.from_bytes(header[8:10],"little")
+        record_len=int.from_bytes(header[10:12],"little")
+        inp.seek(0); full_header=bytearray(inp.read(header_len))
+        full_header[4:8]=total_records.to_bytes(4,"little")
+        with target.open("wb") as out:
+            out.write(full_header)
+            for dbf,indexes in zip(source_dbfs,indexes_by_file):
+                with dbf.open("rb") as current:
+                    _,current_header,current_record,_=dbf_layout(dbf)
+                    if current_header!=header_len or current_record!=record_len: raise ValueError("Os DBFs selecionados não têm a mesma estrutura.")
+                    for index in indexes:
+                        current.seek(header_len+index*record_len)
+                        record=current.read(record_len)
+                        if len(record)!=record_len: raise ValueError("Não foi possível salvar todos os registros selecionados.")
+                        out.write(record)
+            out.write(b"\x1a")
+    return target
+
+def tabulate(payload):
+    raw_sources=payload.get("sources")
+    if not isinstance(raw_sources,list) or not raw_sources:
+        relative=payload.get("path",""); raw_sources=[{"path":relative,"dbfPath":payload.get("dbfPath") or converted_relative(relative)}]
+    if len(raw_sources)>50: raise ValueError("É possível tabular até 50 arquivos na mesma execução.")
+    sources=[]
+    for item in raw_sources:
+        if not isinstance(item,dict): raise ValueError("A lista de arquivos é inválida.")
+        source=safe_file(item.get("path","")); system,kind,_=meta(source); dbf=safe_dbf(item.get("dbfPath") or converted_relative(item.get("path","")))
+        if sources and (system,kind)!=(sources[0]["system"],sources[0]["kind"]): raise ValueError("Todos os arquivos precisam pertencer à mesma família e tipo de base.")
+        sources.append({"source":source,"dbf":dbf,"system":system,"kind":kind})
+    system,kind=sources[0]["system"],sources[0]["kind"]
+    _,_,_,fieldinfo=dbf_layout(sources[0]["dbf"])
+    fieldset=set(fieldinfo)
+    for item in sources[1:]:
+        _,_,_,other=dbf_layout(item["dbf"])
+        if set(other)!=fieldset or any((other[n]["type"],other[n]["length"],other[n]["decimals"])!=(v["type"],v["length"],v["decimals"]) for n,v in fieldinfo.items()):
+            raise ValueError(f"O arquivo {item['source'].name} possui campos diferentes dos demais selecionados.")
+    fields=[{"name":name,"type":info["type"],"length":info["length"],"decimals":info["decimals"]} for name,info in fieldinfo.items()]
+    defname,definition=archive_def(system,kind)
+    if definition is None: raise RuntimeError("Definição oficial indisponível para este arquivo.")
+    rows,cols,selections,increments,group=parse_def(definition,fields)
+    rowoption=next((item for item in rows if item["id"]==payload.get("row")),None)
+    coloption=next((item for item in cols if item["id"]==payload.get("column")),None) if payload.get("column") else None
+    if not rowoption: raise ValueError("Escolha uma linha disponível na definição.")
+    if payload.get("column") and not coloption: raise ValueError("Escolha uma coluna disponível na definição.")
+    rowfield=rowoption["field"]; colfield=coloption["field"] if coloption else ""
+    raw_metrics=payload.get("metrics") or [payload.get("metric","FREQ")]
+    if not isinstance(raw_metrics,list) or not 1<=len(raw_metrics)<=50: raise ValueError("Selecione de 1 a 50 incrementos.")
+    metrics=list(dict.fromkeys(str(value).upper() for value in raw_metrics))
+    valid_metrics={"FREQ","RECORDS",*(item["field"] for item in increments)}
+    if any(metric not in valid_metrics for metric in metrics): raise ValueError("Um incremento escolhido não pertence à definição deste arquivo.")
+    if len(metrics)>1 and coloption: raise ValueError("Quando mais de um incremento é selecionado, deixe Colunas como Não ativa.")
+    groupfield=(group or {}).get("field")
+    metric_details=[]
+    increment_labels={item["field"]:item["label"] for item in increments}
+    for metric in metrics:
+        numeric=groupfield if metric=="FREQ" and groupfield else metric if metric not in {"FREQ","RECORDS"} else ""
+        if numeric and numeric not in fieldinfo: raise ValueError("Um campo numérico da definição não existe no DBF.")
+        metric_details.append({"id":metric,"field":numeric,"decimals":fieldinfo[numeric]["decimals"] if numeric else 0,"label":(f"Frequência · {groupfield}" if metric=="FREQ" and groupfield else "Frequência de registros" if metric=="FREQ" else "Número de registros" if metric=="RECORDS" else increment_labels.get(metric,metric))})
+    raw_filters=payload.get("filters",[])
+    if not isinstance(raw_filters,list) or len(raw_filters)>300: raise ValueError("A lista de categorias selecionadas é inválida ou excede o limite de 300.")
+    available_selections={item["id"]:item for item in selections}; filters=defaultdict(lambda:{"include":set(),"exclude":set()})
+    for condition in raw_filters:
+        if not isinstance(condition,dict) or condition.get("option") not in available_selections: raise ValueError("Uma seleção não pertence à definição deste arquivo.")
+        value=str(condition.get("value","" )).strip(); mode=str(condition.get("mode","include")).lower()
+        if not value or len(value)>80 or mode not in {"include","exclude"}: raise ValueError("Uma categoria selecionada é inválida.")
+        filters[condition["option"]][mode].add(value)
+    filter_specs=[(available_selections[option]["field"],conditions) for option,conditions in filters.items()]
+    column_filter=payload.get("columnFilter"); column_value=""
+    if column_filter:
+        if not isinstance(column_filter,dict) or not coloption or column_filter.get("option")!=coloption["id"]: raise ValueError("O valor selecionado não corresponde à coluna atual.")
+        column_value=str(column_filter.get("value","" )).strip()
+        if len(column_value)>80: raise ValueError("O valor da coluna excede 80 caracteres.")
+    munfield="PA_UFMUN" if system=="SIA" else "MUNIC_MOV"
+    usemun=bool(payload.get("belem",True)) and munfield in fieldset
+    rowlabels=relation_mapping(system,rowoption); collabels=relation_mapping(system,coloption)
+    unclassified_mode=str(payload.get("unclassified","ignore")).lower()
+    if unclassified_mode not in {"ignore","include","discriminate"}: raise ValueError("Tratamento de não classificados inválido.")
+    suppress_rows=bool(payload.get("suppressRows",True)); suppress_columns=bool(payload.get("suppressColumns",True))
+    save_records=bool(payload.get("saveRecords",False)); test_crc=bool(payload.get("testCrc",False))
+    archive=UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip"
+    identity={"cacheVersion":3,"dbfs":[cache_file_identity(x["dbf"]) for x in sources],"definition":cache_file_identity(archive) if archive.is_file() else defname,"row":rowoption["id"],"column":coloption["id"] if coloption else "","metrics":metrics,"belem":usemun,"filters":[[key,mode,sorted(values)] for key,state in filters.items() for mode,values in state.items()],"columnFilter":{"option":coloption["id"],"value":column_value} if column_value and coloption else None,"unclassified":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns}
+    target=cache_target("tabulations",identity)
+    if not save_records and not test_crc:
+        cached=cache_read(target)
+        if cached is not None: return cached
+    requested=[rowfield]+([colfield] if colfield else [])+[detail["field"] for detail in metric_details if detail["field"]]+([munfield] if usemun else [])+[field for field,_ in filter_specs]
+    names=list(dict.fromkeys(requested)); positions={name:index for index,name in enumerate(names)}
+    row_index=positions[rowfield]; col_index=positions[colfield] if colfield else None
+    mun_index=positions[munfield] if usemun else None
+    filter_indexes=[(positions[field],conditions) for field,conditions in filter_specs]
+    metric_indexes=[positions[detail["field"]] if detail["field"] else None for detail in metric_details]
+    agg=defaultdict(int); rowtot=defaultdict(int); coltot=defaultdict(int); rowset=set(); colset=set(); totals=[0 for _ in metrics]
+    records=0; excluded_unclassified=0; processed=0; indexes_by_file=[]
+    for item in sources:
+        if test_crc: verify_dbc_against_dbf(item["source"],item["dbf"])
+        selected_indexes=[]
+        for record_index,record in iter_dbf_fields(item["dbf"],names,with_index=True):
+            processed+=1
+            if usemun and record[mun_index].lstrip("0")!="150140": continue
+            passed=True
+            for index,condition in filter_indexes:
+                value=record[index]
+                if condition["include"] and value not in condition["include"]: passed=False; break
+                if value in condition["exclude"]: passed=False; break
+            if not passed: continue
+            if column_value and record[col_index]!=column_value: continue
+            raw_key=record[row_index] or "(vazio)"
+            classified=category_is_classified(rowlabels,raw_key)
+            if not classified and unclassified_mode=="ignore":
+                excluded_unclassified+=1; continue
+            key="\x00UNCLASSIFIED" if not classified and unclassified_mode=="include" else raw_key
+            col=(record[col_index] or "(vazio)") if col_index is not None else "Total"
+            values=[]
+            for detail,index in zip(metric_details,metric_indexes):
+                if detail["id"]=="RECORDS" or (detail["id"]=="FREQ" and not groupfield): value=1
+                else: value=scaled_integer(record[index],detail["decimals"])
+                values.append(value)
+            rowset.add(key); colset.add(col); selected_indexes.append(record_index); records+=1
+            for metric_index,value in enumerate(values):
+                metric=metrics[metric_index]
+                cell=(key,col,metric)
+                if cell not in agg and len(agg)>=500000: raise ValueError("A combinação cria mais de 500 mil células. Escolha menos categorias ou remova a coluna.")
+                agg[cell]+=value; rowtot[(key,metric)]+=value; coltot[(col,metric)]+=value; totals[metric_index]+=value
+            if len(rowset)>50000 or len(colset)>250: raise ValueError("A tabulação ultrapassou o limite prático de linhas ou colunas. Escolha outra combinação.")
+        indexes_by_file.append(selected_indexes)
+    def ordered_codes(mapping,observed,suppress):
+        values=set(observed)
+        if not suppress and mapping: values.update(code for code in mapping.keys() if code!="\x00ranges")
+        order={code:index for index,code in enumerate(code for code in mapping if code!="\x00ranges")}
+        return sorted(values,key=lambda code:(order.get(code,1000000000),code))
+    raw_rows=ordered_codes(rowlabels,rowset,suppress_rows)
+    raw_columns=ordered_codes(collabels,colset,suppress_columns) if colfield else ["Total"]
+    if suppress_rows:
+        raw_rows=[key for key in raw_rows if any(rowtot[(key,metric)]!=0 for metric in metrics)]
+    if colfield and suppress_columns:
+        raw_columns=[code for code in raw_columns if any(coltot[(code,metric)]!=0 for metric in metrics)]
+    if not suppress_columns and len(raw_columns)>250: raise ValueError("A lista de colunas com zeros ultrapassa 250 categorias. Ative Suprimir colunas zeradas ou escolha outra variável.")
+    display_columns=[cnv_label(collabels,col) for col in raw_columns] if colfield else ([detail["label"] for detail in metric_details] if len(metrics)>1 else ["Total"])
+    result_rows=[]
+    for key in raw_rows[:5000]:
+        if key=="\x00UNCLASSIFIED": label="Não classificados"
+        else: label=cnv_label(rowlabels,key)
+        if colfield:
+            values=[scaled_text(agg[(key,col,metrics[0])],metric_details[0]["decimals"]) for col in raw_columns]
+        elif len(metrics)>1:
+            values=[scaled_text(rowtot[(key,metric)],detail["decimals"]) for metric,detail in zip(metrics,metric_details)]
+        else: values=[scaled_text(rowtot[(key,metrics[0])],metric_details[0]["decimals"])]
+        item={"key":"" if key=="\x00UNCLASSIFIED" else key,"label":label,"values":values,"unclassified":key=="\x00UNCLASSIFIED"}
+        if len(metrics)==1: item["total"]=scaled_text(rowtot[(key,metrics[0])],metric_details[0]["decimals"])
+        result_rows.append(item)
+    if colfield:
+        column_totals=[scaled_text(coltot[(col,metrics[0])],metric_details[0]["decimals"]) for col in raw_columns]
+        total=scaled_text(totals[0],metric_details[0]["decimals"])
+    elif len(metrics)>1:
+        column_totals=[scaled_text(value,detail["decimals"]) for value,detail in zip(totals,metric_details)]
+        total=None
+    else:
+        column_totals=[scaled_text(totals[0],metric_details[0]["decimals"])]; total=scaled_text(totals[0],metric_details[0]["decimals"])
+    result={"ok":True,"definition":defname,"metrics":[{"id":m["id"],"label":m["label"]} for m in metric_details],"metric":metric_details[0]["label"] if len(metrics)==1 else f"{len(metrics)} incrementos","records":records,"processedRecords":processed,"excludedUnclassified":excluded_unclassified,"total":total,"totalsByMetric":[scaled_text(value,detail["decimals"]) for value,detail in zip(totals,metric_details)],"columnTotals":column_totals,"municipalityApplied":usemun,"municipalityField":munfield if usemun else None,"appliedFilters":sum(len(state["include"])+len(state["exclude"]) for state in filters.values())+(1 if column_value else 0),"columns":display_columns,"rows":result_rows,"totalCategories":len(raw_rows),"truncated":len(raw_rows)>5000,"files":[x["source"].name for x in sources],"unclassifiedMode":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns,"crcTested":test_crc}
+    if save_records:
+        token=secrets.token_hex(16)
+        saved=save_dbf_records([x["dbf"] for x in sources],indexes_by_file,token)
+        result["savedRecords"]={"url":"download.php?token="+token,"name":saved.name,"count":records}
+    if not save_records and not test_crc: cache_write(target,result,max_bytes=10_000_000)
+    return result
+
+def tabwin_handle(payload):
+    action=payload.get("action")
+    if action=="catalog": return catalog()
+    if action=="schema": return schema(payload.get("path",""))
+    if action=="column_values": return column_values(payload)
+    if action=="category_values": return category_values(payload)
+    if action=="tabulate": return tabulate(payload)
+    if action=="convert_start": return start_conversion(payload.get("path",""))
+    if action=="convert_status": return conversion_status(payload.get("job_id",""))
+    raise ValueError("Ação de tabulação inválida.")
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv)>2 and sys.argv[1]=="--worker":
+        run_conversion_worker(sys.argv[2]); raise SystemExit(0)
+    try:
+        request=json.load(sys.stdin)
+        result=tabwin_handle(request)
+        sys.stdout.write(json.dumps(result,ensure_ascii=True,default=str))
+    except Exception as exc:
+        sys.stdout.write(json.dumps({"ok":False,"error":str(exc)},ensure_ascii=True))
+        raise SystemExit(2)

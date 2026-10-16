@@ -1,0 +1,16 @@
+# Bases DATASUS baixadas, convertidas e resultados/caches locais
+/uploads/*
+!/uploads/.htaccess
+!/uploads/.gitkeep
+
+# Arquivos temporários de montagem e pacotes de distribuição
+/.build/
+/dist/
+
+# Cache e arquivos temporários do Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.part
+*.log

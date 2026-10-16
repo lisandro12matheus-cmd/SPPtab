@@ -1,0 +1,30 @@
+Metadata-Version: 2.4
+Name: dbc_reader
+Version: 0.1.2
+Summary: Utils classes to read DBC files, a DATASUS compressed DBF files
+Home-page: https://github.com/lais-huol/dbc_reader
+Download-URL: https://github.com/lais-huol/dbc_reader/releases/tag/0.1.2
+Author: Kelson da Costa Medeiros
+Author-email: kelson.medeiros@lais.huol.ufrn.br
+License: MIT
+Keywords: DBF,DBC,reader,datasus
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.7.0
+License-File: LICENSE
+Requires-Dist: dbf-reader>=0.2.2
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: download-url
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+Utils classes to read DBC files, a DATASUS compressed DBF files, that a distributed without compliance with the DBF or PKWare specification

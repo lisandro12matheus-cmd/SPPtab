@@ -1,0 +1,14 @@
+dbf_reader-0.2.2.dist-info/INSTALLER,sha256=zuuue4knoyJ-UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg,4
+dbf_reader-0.2.2.dist-info/METADATA,sha256=ZJmBfax21slRN0NS3EG13WuTq46kORy-q7D55Xs61us,961
+dbf_reader-0.2.2.dist-info/RECORD,,
+dbf_reader-0.2.2.dist-info/WHEEL,sha256=YVMoNqKzERt-wjUZwJ33xBGAwnFl-4cqbYkTtWa4itE,91
+dbf_reader-0.2.2.dist-info/licenses/LICENSE,sha256=pZQtTOcx4-rZLnLcJFhwPYe_oMS4P_GPzTciP4BIij4,1074
+dbf_reader-0.2.2.dist-info/top_level.txt,sha256=DZ6DXMFPYnR5jA0TkDhimDZOGvkpszOImPTARGLAH2c,11
+dbf_reader/__init__.py,sha256=4iHr2vdh0pOgB8vhYWB_6-_SkdgKU5IDbCpo8wizYjI,89
+dbf_reader/__pycache__/__init__.cpython-314.pyc,,
+dbf_reader/__pycache__/definitions.cpython-314.pyc,,
+dbf_reader/__pycache__/reader.cpython-314.pyc,,
+dbf_reader/__pycache__/renderers.cpython-314.pyc,,
+dbf_reader/definitions.py,sha256=0HBsammjcY1VGbqJb5h1iu3uUozbL0_wI5bf9qylWo4,7599
+dbf_reader/reader.py,sha256=-n9HOoBGHcNZRbmvmf33pwoHX3yaDipe8D-0wvw3kEA,4380
+dbf_reader/renderers.py,sha256=GxPoj3OFlWU41r1vWCZv9KQnqGY3MaI7nkyAAS9qXS8,3055
