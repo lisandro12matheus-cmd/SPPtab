@@ -9,9 +9,11 @@ import re
 import sys
 import tempfile
 from datetime import datetime, timezone
-from ftplib import FTP, error_perm
+from ftplib import FTP
 from pathlib import Path
 from typing import Any
+
+from official_source import download_file as portal_download_file, list_files as portal_list_files
 
 HOST = "ftp.datasus.gov.br"
 REMOTE = {
@@ -55,21 +57,39 @@ class SourceError(Exception):
 
 
 def connect() -> FTP:
-    ftp = FTP(HOST, timeout=35)
+    ftp = FTP(HOST, timeout=12)
     ftp.login()
     ftp.set_pasv(True)
     return ftp
 
 
 def select_files(system: str, year: int, month: int | None = None, include_metadata: bool = True) -> list[dict[str, Any]]:
-    ftp = connect()
+    directory = REMOTE[system]
+    ftp = None
+    source_mode = "https"
     try:
-        directory = REMOTE[system]
+        names = [directory + "/" + name for name in portal_list_files(system, year, month)]
+    except Exception as https_error:
         try:
+            ftp = connect()
             names = ftp.nlst(directory)
-        except error_perm as exc:
-            raise SourceError(f"O DATASUS não permitiu listar {directory}: {exc}") from exc
+            source_mode = "ftp"
+        except Exception as ftp_error:
+            if ftp is not None:
+                ftp.close()
+                ftp = None
+            local_root = UPLOADS / system.upper() / str(year)
+            local_names = [path.name for path in local_root.rglob("*") if path.is_file() and path.suffix.lower() == ".dbc"] if local_root.is_dir() else []
+            if not local_names:
+                raise SourceError(
+                    "Não foi possível consultar o DATASUS por HTTPS nem FTP. "
+                    "Confira a conexão com a internet ou tente outra rede. "
+                    f"HTTPS: {https_error}; FTP: {ftp_error}"
+                ) from ftp_error
+            names = [directory + "/" + name for name in local_names]
+            source_mode = "local"
 
+    try:
         found: list[dict[str, Any]] = []
         yy = f"{year % 100:02d}"
         for remote_path in names:
@@ -84,7 +104,7 @@ def select_files(system: str, year: int, month: int | None = None, include_metad
             kind = match.group("kind").upper()
             size = None
             modified = None
-            if include_metadata:
+            if include_metadata and ftp is not None:
                 try:
                     size = ftp.size(remote_path)
                 except Exception:
@@ -101,17 +121,21 @@ def select_files(system: str, year: int, month: int | None = None, include_metad
                 "size": size,
                 "modified": modified,
                 "remote": remote_path,
+                "source_mode": source_mode,
             })
             local = UPLOADS / relative_folder(system, year, int(match.group("mm")), kind) / filename
             found[-1]["local_path"] = str(local.relative_to(UPLOADS)).replace("\\", "/")
-            found[-1]["downloaded"] = local.is_file() and (size is None or local.stat().st_size == size)
+            found[-1]["downloaded"] = local.is_file() and local.stat().st_size > 0 and (size is None or local.stat().st_size == size)
             found[-1]["incomplete"] = local.is_file() and not found[-1]["downloaded"]
+            if size is None and found[-1]["downloaded"]:
+                found[-1]["size"] = local.stat().st_size
         return sorted(found, key=lambda item: (item["kind"], item["name"].lower()))
     finally:
-        try:
-            ftp.quit()
-        except Exception:
-            ftp.close()
+        if ftp is not None:
+            try:
+                ftp.quit()
+            except Exception:
+                ftp.close()
 
 
 def relative_folder(system: str, year: int, month: int, kind: str) -> Path:
@@ -136,8 +160,9 @@ def safe_size(size: int | None) -> str:
     return f"{amount:.1f} {unit}"
 
 
-def download_selected(system: str, year: int, month: int, requested_names: list[str]) -> dict[str, Any]:
-    available = select_files(system, year, month)
+def download_selected(system: str, year: int, month: int, requested_names: list[str], available: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    if available is None:
+        available = select_files(system, year, month)
     allowed = {item["name"].upper(): item for item in available}
     names = list(dict.fromkeys(name.upper() for name in requested_names))
     if not names or any(name not in allowed for name in names):
@@ -149,21 +174,37 @@ def download_selected(system: str, year: int, month: int, requested_names: list[
         folder = UPLOADS / relative_folder(system, year, month, item["kind"])
         folder.mkdir(parents=True, exist_ok=True)
         target = folder / item["name"]
-        if target.exists() and (item["size"] is None or target.stat().st_size == item["size"]):
+        if target.exists() and target.stat().st_size > 0 and (item["size"] is None or target.stat().st_size == item["size"]):
             results.append({"name": item["name"], "path": str(target.relative_to(UPLOADS)).replace("\\", "/"), "size": target.stat().st_size, "already_present": True})
             continue
 
         fd, temporary = tempfile.mkstemp(prefix=f".{item['name']}.", suffix=".part", dir=folder)
         os.close(fd)
         written = 0
-        ftp = connect()
         try:
-            with open(temporary, "wb") as stream:
-                def write_chunk(chunk: bytes) -> None:
-                    nonlocal written
-                    stream.write(chunk)
-                    written += len(chunk)
-                ftp.retrbinary(f"RETR {item['remote']}", write_chunk, blocksize=1024 * 128)
+            try:
+                portal_download_file(item["remote"], item["name"], Path(temporary))
+                written = Path(temporary).stat().st_size
+            except Exception as https_error:
+                try:
+                    ftp = connect()
+                    try:
+                        with open(temporary, "wb") as stream:
+                            def write_chunk(chunk: bytes) -> None:
+                                nonlocal written
+                                stream.write(chunk)
+                                written += len(chunk)
+                            ftp.retrbinary(f"RETR {item['remote']}", write_chunk, blocksize=1024 * 128)
+                    finally:
+                        try:
+                            ftp.quit()
+                        except Exception:
+                            ftp.close()
+                except Exception as ftp_error:
+                    raise SourceError(
+                        f"Não foi possível baixar {item['name']} por HTTPS nem FTP. "
+                        f"HTTPS: {https_error}; FTP: {ftp_error}"
+                    ) from ftp_error
             if item["size"] is not None and written != item["size"]:
                 raise SourceError(f"O arquivo {item['name']} chegou incompleto ({written} de {item['size']} bytes).")
             os.replace(temporary, target)
@@ -173,12 +214,6 @@ def download_selected(system: str, year: int, month: int, requested_names: list[
             except OSError:
                 pass
             raise
-        finally:
-            try:
-                ftp.quit()
-            except Exception:
-                ftp.close()
-
         results.append({"name": item["name"], "path": str(target.relative_to(UPLOADS)).replace("\\", "/"), "size": written, "already_present": False})
 
     manifest_path = UPLOADS / "manifest.json"
@@ -224,13 +259,13 @@ def main() -> int:
 
         if action == "competencies":
             months = sorted({item["month"] for item in files})
-            output: dict[str, Any] = {"ok": True, "system": system, "year": year, "months": months, "files_count": len(files)}
+            output: dict[str, Any] = {"ok": True, "system": system, "year": year, "months": months, "files_count": len(files), "source_mode": files[0]["source_mode"] if files else "https"}
         elif action == "files":
             for item in files:
                 item["size_label"] = safe_size(item["size"])
-            output = {"ok": True, "system": system, "year": year, "month": month, "files": files, "count": len(files)}
+            output = {"ok": True, "system": system, "year": year, "month": month, "files": files, "count": len(files), "source_mode": files[0]["source_mode"] if files else "https"}
         else:
-            downloaded = download_selected(system, year, month or 0, request.get("names", []))
+            downloaded = download_selected(system, year, month or 0, request.get("names", []), files)
             output = {"ok": True, "system": system, "year": year, "month": month, **downloaded}
 
         # Escaped Unicode keeps stdout valid even when Apache starts Python with a legacy Windows code page.

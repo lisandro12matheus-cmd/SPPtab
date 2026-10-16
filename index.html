@@ -339,8 +339,12 @@
 
     .closing-panel .eyebrow { margin-bottom: 12px; color: #a9ccff; }
     .closing-panel h2 { max-width: 570px; color: #fff; font-size: clamp(28px, 3.6vw, 40px); }
+    .closing-action { display: grid; justify-items: center; gap: 12px; flex: none; }
     .closing-panel .button { position: relative; z-index: 1; flex: none; background: #fff; box-shadow: 0 9px 22px rgba(3, 18, 52, .19); color: var(--navy); }
     .closing-panel .button:hover { background: #eaf2ff; }
+    .integrity-link { color: #c9dcfa; font-size: 12px; font-weight: 600; text-decoration: none; }
+    .integrity-link:hover { color: #fff; text-decoration: underline; }
+    .integrity-link:focus-visible { outline: 3px solid #8ebaff; outline-offset: 4px; }
 
     .site-footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 104px; border-top: 1px solid var(--line); color: #8792a6; font-size: 12px; }
     .footer-identity { display: grid; gap: 7px; }
@@ -506,10 +510,13 @@
           <p class="eyebrow"><span class="eyebrow-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span> Download</p>
           <h2 id="closing-title">Versão portátil do SPPtab para Windows.</h2>
         </div>
-        <a class="button" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable.zip" aria-label="Baixar SPPtab portátil para Windows 64 bits">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.75v10.5m0 0 4.25-4.25M12 14.25l-4.25-4.25M5 16.25v2.5A1.25 1.25 0 0 0 6.25 20h11.5A1.25 1.25 0 0 0 19 18.75v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span>Baixar para Windows 64 bits</span>
-        </a>
+        <div class="closing-action">
+          <a class="button" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable.zip" aria-label="Baixar SPPtab portátil para Windows 64 bits">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.75v10.5m0 0 4.25-4.25M12 14.25l-4.25-4.25M5 16.25v2.5A1.25 1.25 0 0 0 6.25 20h11.5A1.25 1.25 0 0 0 19 18.75v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Baixar para Windows 64 bits</span>
+          </a>
+          <a class="integrity-link" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable-SHA256SUM.txt">Verificar SHA-256 do pacote</a>
+        </div>
       </div>
     </section>
   </main>

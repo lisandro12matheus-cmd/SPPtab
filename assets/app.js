@@ -137,7 +137,12 @@
         currentFiles = [];
         setEmpty('Nenhum arquivo encontrado', 'Esta competência ainda não tem arquivos publicados para a base selecionada.');
         showNotice('Tente outra competência ou outro conjunto de dados.', 'info');
-      } else renderFiles(data.files);
+      } else {
+        renderFiles(data.files);
+        if (data.source_mode === 'local') {
+          showNotice('O DATASUS está inacessível nesta rede. Mostrando os arquivos já salvos na biblioteca deste computador.', 'info');
+        }
+      }
     } catch (error) {
       setEmpty('Não foi possível buscar os arquivos', 'Tente novamente em instantes.');
       showNotice(error.message, 'error');

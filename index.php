@@ -34,7 +34,7 @@ declare(strict_types=1);
       </nav>
       <div class="sidebar-foot">
         <span class="source-dot"></span>
-        <div><strong>Fonte oficial</strong><small>DATASUS · FTP público</small></div>
+        <div><strong>Fonte oficial</strong><small>DATASUS · HTTPS / FTP</small></div>
       </div>
     </aside>
 
@@ -47,7 +47,7 @@ declare(strict_types=1);
       </section>
 
       <section class="workspace" aria-label="Busca de arquivos DATASUS">
-        <div class="step-heading"><span class="step-number">01</span><div><h2>Escolha a competência</h2><p>Os arquivos são publicados por estado e mês.</p></div><span class="source-status"><span class="source-dot"></span> Conectado ao DATASUS</span></div>
+        <div class="step-heading"><span class="step-number">01</span><div><h2>Escolha a competência</h2><p>Os arquivos são publicados por estado e mês.</p></div><span class="source-status"><span class="source-dot"></span> Consulta ao DATASUS</span></div>
         <div class="filters">
           <label class="field field-system"><span>BASE DE DADOS</span><select id="system"><option value="sia">Ambulatorial · SIA/SUS</option><option value="sih">Hospitalar · SIH/SUS</option></select></label>
           <label class="field"><span>ANO</span><select id="year"></select></label>

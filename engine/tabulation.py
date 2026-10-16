@@ -8,6 +8,8 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from official_source import download_file as portal_download_file
+
 ROOT = Path(__file__).resolve().parents[1]
 UPLOADS = Path(os.environ.get("TABWIN2_DATA_DIR", ROOT / "uploads")).expanduser().resolve()
 UPLOADS.mkdir(parents=True, exist_ok=True)
@@ -333,14 +335,23 @@ def ensure_archive(system: str) -> Path:
     if not path.exists() or path.stat().st_size < 1000:
         tmp=path.with_suffix(".zip.part")
         remote=f"/dissemin/publicos/{'SIASUS' if system=='SIA' else 'SIHSUS'}/200801_/Auxiliar/TAB_{system}.zip"
-        ftp=FTP("ftp.datasus.gov.br",timeout=90); ftp.login(); ftp.set_pasv(True)
         try:
-            with tmp.open("wb") as out: ftp.retrbinary(f"RETR {remote}",out.write,blocksize=1024*1024)
+            try:
+                portal_download_file(remote, f"TAB_{system}.zip", tmp)
+            except Exception as https_error:
+                try:
+                    ftp=FTP("ftp.datasus.gov.br",timeout=12); ftp.login(); ftp.set_pasv(True)
+                    try:
+                        with tmp.open("wb") as out: ftp.retrbinary(f"RETR {remote}",out.write,blocksize=1024*1024)
+                    finally:
+                        try: ftp.quit()
+                        except Exception: ftp.close()
+                except Exception as ftp_error:
+                    raise RuntimeError(f"Não foi possível baixar as definições oficiais por HTTPS nem FTP. HTTPS: {https_error}; FTP: {ftp_error}") from ftp_error
+            if tmp.stat().st_size < 1000: raise RuntimeError("O pacote oficial de definições chegou incompleto.")
+            tmp.replace(path)
         finally:
-            try: ftp.quit()
-            except Exception: ftp.close()
-        if tmp.stat().st_size < 1000: raise RuntimeError("O pacote oficial de definições chegou incompleto.")
-        tmp.replace(path)
+            tmp.unlink(missing_ok=True)
     return path
 
 def archive_def(system: str, kind: str):

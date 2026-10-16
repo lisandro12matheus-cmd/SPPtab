@@ -6,7 +6,9 @@ Ferramenta local para buscar, converter e tabular microdados ambulatoriais (SIA/
 
 Os pacotes para Windows estão na página de [Releases](https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest). O pacote portátil pode ser extraído em uma pasta e iniciado pelo `SPPtab.exe`; não é necessário instalar PHP, Python ou XAMPP separadamente. A versão empacotada atualmente é destinada a Windows 64 bits.
 
-O SPPtab está em fase inicial e, nesta versão, trabalha com dados ambulatoriais e hospitalares do Pará. É necessário acesso à internet para buscar arquivos e definições oficiais do DATASUS.
+O SPPtab está em fase inicial e, nesta versão, trabalha com dados ambulatoriais e hospitalares do Pará. É necessário acesso à internet para buscar arquivos e definições oficiais do DATASUS. A consulta usa primeiro o [serviço HTTPS de transferência de arquivos do DATASUS](https://datasus.saude.gov.br/transferencia-de-arquivos/) e recorre ao FTP público se necessário. Quando ambos estão indisponíveis, as competências já salvas continuam visíveis na biblioteca local.
+
+O pacote portátil ainda não possui assinatura digital. O Windows pode mostrar um aviso de aplicativo não reconhecido ao executar o programa pela primeira vez. Confira se o download veio da página oficial do projeto e compare o SHA-256 com o arquivo `SPPtab-Portable-SHA256SUM.txt` da mesma versão. Assinar futuras versões com um certificado reconhecido é a solução para identificar o publicador no Windows; uma assinatura criada pelo próprio projeto não eliminaria o aviso.
 
 ## Fluxo de trabalho
 
@@ -20,7 +22,7 @@ As tabulações leem apenas os campos selecionados no DBF e guardam em `uploads/
 
 ## Fontes e organização
 
-- Dados originais: FTP público do DATASUS, separados em `uploads/{SIA|SIH}/{ano}/{mês}/{família}/`.
+- Dados originais: serviço HTTPS ou FTP público do DATASUS, separados em `uploads/{SIA|SIH}/{ano}/{mês}/{família}/`.
 - Definições oficiais: `uploads/DEFINICOES/originais/TAB_{SIA|SIH}.zip`; arquivos DEF e referências ativas ficam em `uploads/DEFINICOES/{sistema}/`.
 - DBFs convertidos: `uploads/CONVERTIDOS/{sistema}/{ano}/{mês}/{família}/`.
 - Progresso temporário dos trabalhos: `uploads/.jobs/`.
@@ -32,6 +34,6 @@ As tabulações leem apenas os campos selecionados no DBF e guardam em `uploads/
 
 - Apache/PHP 8 com `proc_open` habilitado (XAMPP).
 - Python 3.10 ou superior. Se o Apache não localizar o Python, defina `TABWIN2_PYTHON` antes de iniciar o Apache.
-- Acesso de saída ao FTP público do DATASUS.
+- Acesso de saída ao serviço HTTPS do DATASUS ou ao FTP público.
 
 O mecanismo inclui o leitor DBF e o descompactador BLAST necessários para trabalhar sem instalar pacotes Python no ambiente do Apache. Os créditos e licenças dos componentes estão em `engine/vendor/`.
