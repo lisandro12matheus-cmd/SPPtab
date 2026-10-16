@@ -666,10 +666,29 @@ def preset_store_path():
     target.parent.mkdir(parents=True,exist_ok=True)
     return target
 
+def repair_mojibake_text(value):
+    if not isinstance(value,str) or not any(marker in value for marker in ("Ã","Â","â€","ðŸ")): return value
+    try: candidate=value.encode("cp1252").decode("utf-8")
+    except (UnicodeEncodeError,UnicodeDecodeError): return value
+    markers=("Ã","Â","â€","ðŸ")
+    if sum(candidate.count(marker) for marker in markers)<sum(value.count(marker) for marker in markers): return candidate
+    return value
+
 def read_preset_store():
     try:
         data=json.loads(preset_store_path().read_text(encoding="utf-8"))
-        return data if isinstance(data,dict) and isinstance(data.get("items"),list) else {"version":1,"items":[]}
+        if not isinstance(data,dict) or not isinstance(data.get("items"),list): return {"version":1,"items":[]}
+        changed=False
+        for item in data["items"]:
+            if not isinstance(item,dict): continue
+            name=repair_mojibake_text(item.get("name"))
+            if name!=item.get("name"):
+                item["name"]=name
+                changed=True
+        if changed:
+            try: write_preset_store(data)
+            except OSError: pass
+        return data
     except (OSError,ValueError,TypeError): return {"version":1,"items":[]}
 
 def write_preset_store(data):
@@ -725,7 +744,7 @@ def saved_presets(relative: str):
     return {"ok":True,"file":context["file"],"system":context["system"],"kind":context["kind"],"uf":context["uf"],"definition":context["definition"],"presets":items[:250]}
 
 def save_preset(payload):
-    relative=str(payload.get("path") or ""); name=" ".join(str(payload.get("name") or "").split())
+    relative=str(payload.get("path") or ""); name=" ".join(repair_mojibake_text(str(payload.get("name") or "")).split())
     if not name or len(name)>80: raise ValueError("Dê um nome com até 80 caracteres para a combinação.")
     context,options,summary=validated_preset_options(relative,payload.get("options"))
     store=read_preset_store(); items=[item for item in store["items"] if isinstance(item,dict)]
@@ -1034,6 +1053,7 @@ if __name__ == "__main__":
     if len(sys.argv)>2 and sys.argv[1]=="--tabulate-worker":
         run_tabulation_worker(sys.argv[2]); raise SystemExit(0)
     try:
+        if hasattr(sys.stdin,"reconfigure"): sys.stdin.reconfigure(encoding="utf-8")
         request=json.load(sys.stdin)
         result=tabwin_handle(request)
         sys.stdout.write(json.dumps(result,ensure_ascii=True,default=str))
