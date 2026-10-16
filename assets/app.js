@@ -9,12 +9,16 @@
   const emptyTitle = document.querySelector('#emptyTitle');
   const emptyCopy = document.querySelector('#emptyCopy');
   const emptyState = document.querySelector('#emptyState');
+  const emptyIcon = document.querySelector('#emptyIcon');
+  const searchLoader = document.querySelector('#searchLoader');
+  const results = document.querySelector('#results');
   const resultsContent = document.querySelector('#resultsContent');
   const fileRows = document.querySelector('#fileRows');
   const notice = document.querySelector('#notice');
   const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   let currentFiles = [];
   let busy = false;
+  let loadingTimer = null;
 
   const currentYear = new Date().getFullYear();
   for (let y = currentYear; y >= 2008; y -= 1) {
@@ -37,7 +41,36 @@
     return data;
   }
 
+  function stopLoading() {
+    if (loadingTimer !== null) clearInterval(loadingTimer);
+    loadingTimer = null;
+    emptyState.classList.remove('is-loading');
+    results.setAttribute('aria-busy', 'false');
+    searchLoader.hidden = true;
+    emptyIcon.hidden = false;
+  }
+
+  function setLoading(messages) {
+    stopLoading();
+    emptyState.hidden = false;
+    resultsContent.hidden = true;
+    emptyState.classList.add('is-loading');
+    results.setAttribute('aria-busy', 'true');
+    emptyIcon.hidden = true;
+    searchLoader.hidden = false;
+    let messageIndex = 0;
+    const showMessage = () => {
+      const message = messages[messageIndex % messages.length];
+      emptyTitle.textContent = message.title;
+      emptyCopy.textContent = message.copy;
+      messageIndex += 1;
+    };
+    showMessage();
+    loadingTimer = setInterval(showMessage, 4500);
+  }
+
   function setEmpty(title, copy) {
+    stopLoading();
     emptyState.hidden = false;
     resultsContent.hidden = true;
     emptyTitle.textContent = title;
@@ -59,7 +92,12 @@
     searchButton.disabled = true;
     month.disabled = true;
     month.innerHTML = '<option value="">Buscando períodos…</option>';
-    setEmpty('Consultando competências', 'Estamos verificando quais meses já foram publicados para esta base.');
+    const base = system.value === 'sia' ? 'ambulatorial' : 'hospitalar';
+    setLoading([
+      {title:'Indo ao DATASUS', copy:`Abrindo a consulta da base ${base} do Pará para ${year.value}.`},
+      {title:'Consultando as competências', copy:'Verificando quais meses já foram publicados na fonte oficial.'},
+      {title:'Conferindo a base mais recente', copy:'Organizando os períodos disponíveis para você escolher.'}
+    ]);
     try {
       const data = await request({action:'competencies', system:system.value, year:Number(year.value)});
       month.innerHTML = '';
@@ -83,6 +121,7 @@
   }
 
   function renderFiles(files) {
+    stopLoading();
     currentFiles = files;
     fileRows.innerHTML = '';
     files.forEach((file, index) => {
@@ -130,7 +169,12 @@
     if (!month.value) return;
     clearNotice();
     searchButton.disabled = true;
-    setEmpty('Buscando arquivos', 'A lista da competência está sendo consultada no DATASUS.');
+    const period = `${monthNames[Number(month.value) - 1]} de ${year.value}`;
+    setLoading([
+      {title:'Consultando o DATASUS', copy:`Localizando os arquivos de ${period} para o Pará.`},
+      {title:'Conferindo os arquivos', copy:'Verificando o que está disponível e o que já foi salvo neste computador.'},
+      {title:'Preparando a lista', copy:'Organizando os arquivos para você selecionar os que precisa.'}
+    ]);
     try {
       const data = await request({action:'files', system:system.value, year:Number(year.value), month:Number(month.value)});
       if (!data.files.length) {

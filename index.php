@@ -10,6 +10,7 @@ declare(strict_types=1);
   <link rel="stylesheet" href="assets/app.css?v=2">
   <link rel="stylesheet" href="assets/brand.css?v=1">
   <link rel="stylesheet" href="assets/launch.css?v=2">
+  <link rel="stylesheet" href="assets/search-loading.css?v=1">
 </head>
 <body>
   <div class="launch-splash" id="launchSplash" role="status" aria-live="polite">
@@ -57,10 +58,11 @@ declare(strict_types=1);
         <div class="scope-note"><span class="info-icon">i</span><span>Os dados são do <strong>estado do Pará</strong>. Belém será aplicado como filtro municipal na tabulação, usando o código IBGE <strong>150140</strong>.</span></div>
 
         <div class="results" id="results" aria-live="polite">
-          <div class="empty-state" id="emptyState">
-            <div class="empty-icon"><span>⌕</span></div>
-            <strong id="emptyTitle">Consultando competências</strong>
-            <p id="emptyCopy">Estamos verificando quais meses já foram publicados para esta base.</p>
+          <div class="empty-state is-loading" id="emptyState">
+            <div class="search-loader" id="searchLoader" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+            <div class="empty-icon" id="emptyIcon" hidden><span>⌕</span></div>
+            <strong id="emptyTitle">Indo ao DATASUS</strong>
+            <p id="emptyCopy">Consultando as competências disponíveis para o Pará.</p>
           </div>
           <div class="results-content" id="resultsContent" hidden>
             <div class="results-head"><div><div class="results-title"><h3>Arquivos encontrados</h3><span class="count-badge" id="fileCount">0</span></div><p id="resultsSummary">Selecione os arquivos que deseja importar.</p></div><button class="text-button" id="selectAll" type="button">Selecionar todos</button></div>
@@ -78,7 +80,7 @@ declare(strict_types=1);
       <footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> etapa 1 de 3</span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer>
     </main>
   </div>
-  <script src="assets/app.js?v=2" defer></script>
+  <script src="assets/app.js?v=3" defer></script>
   <script src="assets/launch-splash.js?v=2" defer></script>
 </body>
 </html>
