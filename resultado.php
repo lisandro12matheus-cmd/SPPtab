@@ -1,5 +1,5 @@
 <?php declare(strict_types=1); ?><!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><title>Resultado da tabulação · SPPtab</title><link rel="stylesheet" href="assets/app.css?v=11"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/tabular-refine.css?v=13"></head>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><title>Resultado da tabulação · SPPtab</title><link rel="stylesheet" href="assets/app.css?v=11"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/tabular-refine.css?v=15"></head>
 <body class="result-page"><main class="result-app">
   <header class="result-topbar"><a class="brand result-brand" href="./"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span><span><strong>SPPtab</strong><small>saúde em dados</small></span></a><div class="result-actions"><button class="text-button" id="exportCsv" type="button" disabled>Exportar CSV</button><button class="button button-secondary" id="printTable" type="button" disabled>Imprimir</button></div></header>
   <section class="result-overview"><div class="eyebrow"><span class="eyebrow-line"></span> TABULAÇÃO CONCLUÍDA</div><h1 id="resultTitle">Aguardando resultado…</h1><p id="resultSummary">Esta aba será preenchida assim que a leitura da base terminar.</p><div class="result-badges" id="resultBadges"></div><div class="saved-download" id="savedDownload" hidden></div><div class="result-status" id="resultStatus" role="status">Conectando à aba de tabulação…</div></section>
@@ -18,4 +18,4 @@
   </section>
   <section class="result-table-panel" id="resultPanel" hidden><div class="result-table-wrap"><table class="result-table"><thead id="resultHead"></thead><tbody id="resultBody"></tbody><tfoot id="resultFoot"></tfoot></table></div></section>
   <footer class="result-footer"><span>Definição oficial · DATASUS / TabWin</span><span>SPPtab</span></footer>
-</main><script src="assets/result.js?v=8" defer></script></body></html>
+</main><script src="assets/result.js?v=10" defer></script></body></html>

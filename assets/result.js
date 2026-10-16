@@ -8,6 +8,8 @@
   let activeFilterMenu = null;
   let filterState = new Map();
   let pendingAdditionalColumns = new Set();
+  let pendingMainColumn = '';
+  let isUpdatingColumns = false;
 
   const fmt = (value) => {
     const number = Number(value);
@@ -292,7 +294,7 @@
   function renderColumnOptions(query = '') {
     const box = $('#columnOptions');
     const available = result?.availableColumns || [];
-    const candidates = available.filter((item) => !pendingAdditionalColumns.has(String(item.id)));
+    const candidates = available.filter((item) => String(item.id) !== pendingMainColumn && !pendingAdditionalColumns.has(String(item.id)));
     const normalized = query.trim().toLocaleLowerCase('pt-BR');
     const matching = candidates.filter((item) => `${item.label} ${item.field}`.toLocaleLowerCase('pt-BR').includes(normalized));
     box.replaceChildren();
@@ -309,7 +311,7 @@
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.value = item.id;
-      checkbox.disabled = pendingAdditionalColumns.size >= 2;
+      checkbox.disabled = isUpdatingColumns || pendingAdditionalColumns.size >= 2;
       const copy = document.createElement('span');
       const name = document.createElement('strong');
       name.textContent = item.label;
@@ -329,7 +331,7 @@
         renderColumnOptions($('#columnSearch').value);
         updateColumnPickerState();
         $('#columnHelp').classList.remove('is-error');
-        $('#applyColumns').disabled = sameColumns(pendingAdditionalColumns, result.additionalColumns || []);
+        $('#applyColumns').disabled = isUpdatingColumns || sameColumnSelection();
       });
       box.append(label);
     });
@@ -338,53 +340,32 @@
   function renderActiveColumns() {
     const box = $('#activeColumns');
     box.replaceChildren();
-    const dimensions = new Map((result.columnDimensions || []).map((item) => [String(item.id), item]));
+    const dimensions = new Map([...(result.columnDimensions || []), ...(result.availableColumns || [])].map((item) => [String(item.id), item]));
     const available = new Map((result.availableColumns || []).map((item) => [String(item.id), item]));
-    for (const item of result.columnDimensions || []) {
-      const id = String(item.id);
-      const chip = document.createElement('span');
-      chip.className = 'result-active-column';
-      const name = document.createElement('strong');
-      name.textContent = item.label;
-      const detail = document.createElement('small');
-      detail.textContent = pendingAdditionalColumns.has(id) ? 'adicionada' : 'já parametrizada';
-      chip.append(name, detail);
-      if (pendingAdditionalColumns.has(id)) {
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.setAttribute('aria-label', `Remover ${item.label}`);
-        remove.textContent = '×';
-        remove.addEventListener('click', () => {
-          pendingAdditionalColumns.delete(id);
-          renderActiveColumns();
-          renderColumnOptions($('#columnSearch').value);
-          updateColumnPickerState();
-          $('#columnHelp').classList.remove('is-error');
-        });
-        chip.append(remove);
-      }
-      box.append(chip);
-    }
-    for (const id of pendingAdditionalColumns) {
-      if (dimensions.has(id)) continue;
-      const item = available.get(id);
+    const activeIds = [...new Set([pendingMainColumn, ...pendingAdditionalColumns].filter(Boolean))];
+    for (const id of activeIds) {
+      const item = dimensions.get(id) || available.get(id);
       if (!item) continue;
+      const isMain = id === pendingMainColumn;
       const chip = document.createElement('span');
       chip.className = 'result-active-column';
       const name = document.createElement('strong');
       name.textContent = item.label;
       const detail = document.createElement('small');
-      detail.textContent = 'adicionada';
+      detail.textContent = isMain && id === String(result.column || '') ? 'já parametrizada' : 'adicionada';
       const remove = document.createElement('button');
       remove.type = 'button';
       remove.setAttribute('aria-label', `Remover ${item.label}`);
-      remove.textContent = '×';
+      remove.textContent = 'Remover';
+      remove.disabled = isUpdatingColumns;
       remove.addEventListener('click', () => {
-        pendingAdditionalColumns.delete(id);
+        if (id === pendingMainColumn) pendingMainColumn = '';
+        else pendingAdditionalColumns.delete(id);
         renderActiveColumns();
         renderColumnOptions($('#columnSearch').value);
         updateColumnPickerState();
         $('#columnHelp').classList.remove('is-error');
+        submitColumnChanges();
       });
       chip.append(name, detail, remove);
       box.append(chip);
@@ -397,7 +378,30 @@
     $('#columnHelp').textContent = measures > 1
       ? `${count} de 2 dimensões extras. As categorias serão separadas por medida.`
       : `${count} de 2 dimensões extras. O cruzamento será recalculado.`;
-    $('#applyColumns').disabled = sameColumns(pendingAdditionalColumns, result.additionalColumns || []);
+    $('#applyColumns').disabled = isUpdatingColumns || sameColumnSelection();
+  }
+
+  function sameColumnSelection() {
+    return pendingMainColumn === String(result.column || '')
+      && sameColumns(pendingAdditionalColumns, result.additionalColumns || []);
+  }
+
+  function submitColumnChanges() {
+    const picker = $('#columnPicker');
+    if (!window.opener || isUpdatingColumns || pendingAdditionalColumns.size > 2) return;
+    isUpdatingColumns = true;
+    updateColumnPickerState();
+    renderActiveColumns();
+    renderColumnOptions($('#columnSearch').value);
+    picker.open = false;
+    $('#resultStatus').classList.remove('error');
+    $('#resultStatus').textContent = 'Preparando o novo cruzamento com as colunas selecionadas…';
+    window.opener.postMessage({
+      type: 'tabwin2-add-result-columns',
+      runId,
+      column: pendingMainColumn || null,
+      columns: [...pendingAdditionalColumns],
+    }, location.origin);
   }
 
   function sameColumns(left, right) {
@@ -410,24 +414,14 @@
     const picker = $('#columnPicker');
     const available = result.availableColumns || [];
     picker.hidden = !available.length;
+    pendingMainColumn = String(result.column || '');
     pendingAdditionalColumns = new Set((result.additionalColumns || []).map(String));
     $('#columnSearch').value = '';
     $('#columnSearch').oninput = () => renderColumnOptions($('#columnSearch').value);
     $('#columnHelp').classList.remove('is-disabled', 'is-error');
     renderActiveColumns();
     updateColumnPickerState();
-    $('#applyColumns').onclick = () => {
-      if (!window.opener || pendingAdditionalColumns.size > 2) return;
-      $('#applyColumns').disabled = true;
-      picker.open = false;
-      $('#resultStatus').classList.remove('error');
-      $('#resultStatus').textContent = 'Preparando o novo cruzamento com as colunas selecionadas…';
-      window.opener.postMessage({
-        type: 'tabwin2-add-result-columns',
-        runId,
-        columns: [...pendingAdditionalColumns],
-      }, location.origin);
-    };
+    $('#applyColumns').onclick = submitColumnChanges;
     renderColumnOptions();
   }
 
@@ -540,11 +534,17 @@
     const message = event.data || {};
     if (message.runId !== runId) return;
     if (message.type === 'tabwin2-result' && message.data?.ok) draw(message.data);
-    else if (message.type === 'tabwin2-result-update' && message.data?.ok) draw(message.data, true);
+    else if (message.type === 'tabwin2-result-update' && message.data?.ok) {
+      isUpdatingColumns = false;
+      draw(message.data, true);
+    }
     else if (message.type === 'tabwin2-column-error') {
+      isUpdatingColumns = false;
       $('#resultStatus').textContent = message.message || 'Não foi possível atualizar as colunas.';
       $('#resultStatus').classList.add('error');
-      $('#applyColumns').disabled = sameColumns(pendingAdditionalColumns, result?.additionalColumns || []);
+      renderActiveColumns();
+      renderColumnOptions($('#columnSearch').value);
+      $('#applyColumns').disabled = isUpdatingColumns || sameColumnSelection();
     } else if (message.type === 'tabwin2-error') showError(message.message || 'Falha ao gerar a tabulação.');
     else if (message.type === 'tabwin2-progress') {
       const progress = Number(message.progress) || 0;

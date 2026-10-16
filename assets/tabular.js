@@ -995,7 +995,8 @@
       sendPopupMessage();
     } else if (message.type === 'tabwin2-add-result-columns' && message.runId === resultRunId) {
       const columns = Array.isArray(message.columns) ? [...new Set(message.columns.map(String))] : [];
-      if (columns.length <= 2) recalculateResultColumns(columns);
+      const column = typeof message.column === 'string' ? message.column : '';
+      if (columns.length <= 2) recalculateResultColumns(columns, column);
     }
   });
 
@@ -1008,7 +1009,7 @@
     return resultPopup;
   }
 
-  async function recalculateResultColumns(columns) {
+  async function recalculateResultColumns(columns, column) {
     if (!resultTabulationPayload || !resultPopup || resultPopup.closed || isTabulating) return;
     const button = $('#runButton');
     isTabulating = true;
@@ -1016,7 +1017,7 @@
     button.textContent = 'Atualizando resultado…';
     notice(3, 'Refazendo o cruzamento com as novas colunas.');
     try {
-      const payload = { ...resultTabulationPayload, additionalColumns: columns, testCrc: false, saveRecords: false };
+      const payload = { ...resultTabulationPayload, column, columnFilter: column ? resultTabulationPayload.columnFilter : null, additionalColumns: columns, testCrc: false, saveRecords: false };
       const job = await request(payload);
       while (true) {
         const state = await request({ action: 'tabulate_status', job_id: job.job_id });
