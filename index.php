@@ -7,7 +7,7 @@ declare(strict_types=1);
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f4f7f8">
   <title>SPPtab · DATASUS</title>
-  <link rel="stylesheet" href="assets/app.css?v=7">
+  <link rel="stylesheet" href="assets/app.css?v=11">
   <link rel="stylesheet" href="assets/brand.css?v=1">
   <link rel="stylesheet" href="assets/launch.css?v=2">
   <link rel="stylesheet" href="assets/search-loading.css?v=1">
@@ -44,7 +44,7 @@ declare(strict_types=1);
       <section class="intro" id="pageIntro">
         <div class="eyebrow"><span class="eyebrow-line"></span> IMPORTAÇÃO DE DADOS</div>
         <h1>Comece pela<br class="mobile-break"> localidade.</h1>
-        <p>Escolha o estado dos dados. Se quiser, defina também um município para usar como recorte na tabulação.</p>
+        <p>Escolha o estado dos dados. Se quiser, defina também um município para recortar a tabulação quando o relatório oferecer esse campo.</p>
       </section>
 
       <nav class="search-progress" aria-label="Etapas da busca de arquivos">
@@ -61,7 +61,7 @@ declare(strict_types=1);
             <div class="map-caption"><span class="map-key"><i></i><span id="mapKeyText">Selecione uma UF</span></span><span id="mapTooltip" aria-live="polite">Passe o cursor ou use o teclado</span></div>
           </div>
           <div class="location-controls">
-            <div class="location-copy"><div class="location-copy-kicker"><span class="tile-motif" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span class="location-kicker">ETAPA 01 · LOCALIDADE</span></div><h2>Onde estão os dados?</h2><p class="location-intro">Os arquivos do DATASUS são estaduais. O município é opcional e será usado somente para recortar a tabulação.</p></div>
+            <div class="location-copy"><div class="location-copy-kicker"><span class="tile-motif" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span class="location-kicker">ETAPA 01 · LOCALIDADE</span></div><h2>Onde estão os dados?</h2><p class="location-intro">Os arquivos do DATASUS são estaduais. O município é opcional; o filtro será aplicado quando o relatório tiver um campo municipal compatível.</p></div>
             <label class="field"><span>ESTADO / UNIDADE DA FEDERAÇÃO</span><select id="uf"><option value="">Selecione um estado…</option><option value="AC">Acre · AC</option><option value="AL">Alagoas · AL</option><option value="AP">Amapá · AP</option><option value="AM">Amazonas · AM</option><option value="BA">Bahia · BA</option><option value="CE">Ceará · CE</option><option value="DF">Distrito Federal · DF</option><option value="ES">Espírito Santo · ES</option><option value="GO">Goiás · GO</option><option value="MA">Maranhão · MA</option><option value="MT">Mato Grosso · MT</option><option value="MS">Mato Grosso do Sul · MS</option><option value="MG">Minas Gerais · MG</option><option value="PA">Pará · PA</option><option value="PB">Paraíba · PB</option><option value="PR">Paraná · PR</option><option value="PE">Pernambuco · PE</option><option value="PI">Piauí · PI</option><option value="RJ">Rio de Janeiro · RJ</option><option value="RN">Rio Grande do Norte · RN</option><option value="RS">Rio Grande do Sul · RS</option><option value="RO">Rondônia · RO</option><option value="RR">Roraima · RR</option><option value="SC">Santa Catarina · SC</option><option value="SP">São Paulo · SP</option><option value="SE">Sergipe · SE</option><option value="TO">Tocantins · TO</option></select></label>
             <div class="municipality-picker"><label class="field"><span>RECORTE MUNICIPAL · OPCIONAL</span><input id="municipalitySearch" type="search" aria-label="Localizar município" placeholder="Localizar município" autocomplete="off" disabled></label><label class="field municipality-select-field"><span class="sr-only">Selecionar município</span><select id="municipality" aria-label="Selecionar município para a tabulação" disabled><option value="">Escolha primeiro um estado…</option></select></label></div>
             <div class="location-hint" id="locationHint" role="status">Escolha uma UF no mapa ou na lista para continuar.</div>
@@ -78,7 +78,7 @@ declare(strict_types=1);
           <label class="field"><span>COMPETÊNCIA</span><select id="month" disabled><option value="">Buscando períodos…</option></select></label>
           <button class="button button-primary" id="searchButton" type="button"><span class="search-glyph">⌕</span> Buscar arquivos</button>
         </div>
-        <div class="scope-note"><span class="info-icon">i</span><span id="scopeCopy">A lista de arquivos acompanha o estado escolhido. O município selecionado será aplicado como filtro na tabulação; não altera a abrangência do arquivo DBC.</span></div>
+        <div class="scope-note"><span class="info-icon">i</span><span id="scopeCopy">A lista acompanha o estado escolhido. O município selecionado poderá ser aplicado à tabulação quando o relatório tiver um campo municipal compatível; isso não altera a abrangência do arquivo DBC.</span></div>
 
         <div class="results" id="results" aria-live="polite">
           <div class="empty-state is-loading" id="emptyState">
@@ -102,7 +102,7 @@ declare(strict_types=1);
       <footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> <span id="pageStepLabel">etapa 1 de 3</span></span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer>
     </main>
   </div>
-  <script src="assets/app.js?v=10" defer></script>
+  <script src="assets/app.js?v=11" defer></script>
   <script src="assets/launch-splash.js?v=2" defer></script>
 </body>
 </html>

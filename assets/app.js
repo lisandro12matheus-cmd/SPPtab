@@ -124,17 +124,17 @@
     const hint = document.querySelector('#locationHint');
     if (!location.uf || !location.municipalityName) {
       if (tag) tag.textContent = location.uf ? `${stateNames[location.uf]} · ${location.uf}` : 'Escolha a UF';
-      if (scope) scope.textContent = 'A lista de arquivos acompanha o estado escolhido. O município selecionado será aplicado como filtro na tabulação; não altera a abrangência do arquivo DBC.';
+      if (scope) scope.textContent = 'A lista acompanha o estado escolhido. O município selecionado poderá ser aplicado à tabulação quando o relatório tiver um campo municipal compatível; isso não altera a abrangência do arquivo DBC.';
       return;
     }
     const wholeState = !location.municipalityCode;
     if (tag) tag.textContent = `${location.uf} · ${wholeState ? 'Todo o estado' : location.municipalityName}`;
     if (scope) scope.innerHTML = wholeState
       ? `Os arquivos listados são do estado de <strong>${escapeHtml(stateNames[location.uf])}</strong>. A tabulação considerará todos os municípios dessa UF.`
-      : `Os arquivos listados são do estado de <strong>${escapeHtml(stateNames[location.uf])}</strong>. <strong>${escapeHtml(location.municipalityName)}</strong> será aplicado como filtro municipal na tabulação, usando o código IBGE <strong>${escapeHtml(location.municipalityCode)}</strong>.`;
+      : `Os arquivos listados são do estado de <strong>${escapeHtml(stateNames[location.uf])}</strong>. <strong>${escapeHtml(location.municipalityName)}</strong> poderá ser usado como filtro municipal quando o relatório oferecer campo compatível, usando o código IBGE <strong>${escapeHtml(location.municipalityCode)}</strong>.`;
     if (hint) hint.textContent = wholeState
       ? `Arquivos de ${stateNames[location.uf]}; a tabulação incluirá todo o estado.`
-      : `${location.municipalityName} será usado como filtro na tabulação. Os DBCs continuam sendo arquivos estaduais.`;
+      : `${location.municipalityName} poderá ser usado como filtro quando o relatório oferecer campo municipal compatível. Os DBCs continuam sendo arquivos estaduais.`;
   }
 
   async function loadMap() {

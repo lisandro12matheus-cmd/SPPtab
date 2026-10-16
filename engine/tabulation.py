@@ -24,6 +24,7 @@ DEF_MAP = {
  "RD":"RD2008.DEF", "RJ":"RJ2008.DEF", "SP":"SP2008.DEF", "ER":"Motivo_de_Erro.DEF", "CH":"RD2008.DEF", "CM":"RD2008.DEF"
 }
 FILENAME = re.compile(r"^(?P<kind>[A-Z]{2,4}?)(?P<uf>[A-Z]{2})(?P<yy>\d{2})(?P<mm>\d{2})(?:[A-Z])?\.DBC$", re.I)
+SP_EXTRA_DIMENSIONS = (("SP_NAIH","AIH"),("SP_PF_DOC","CNS do profissional"))
 JOB_WRITE_LOCK = threading.Lock()
 SLOW_FALLBACK_LIMIT = 8 * 1024 * 1024
 NATIVE_TIMEOUT_SECONDS = 120
@@ -244,11 +245,18 @@ def meta(path: Path):
     kind = match.group("kind").upper()
     return system, kind, match
 
-def municipality_code(payload, fieldnames, municipality_field):
+def municipality_field(system: str, fieldnames):
+    """Return the known service-location field only when this report has it."""
+    available={str(name).upper() for name in fieldnames}
+    candidates={"SIA":("PA_UFMUN",),"SIH":("MUNIC_MOV",)}.get(system,())
+    return next((name for name in candidates if name in available),"")
+
+def municipality_code(payload, fieldnames, field):
     code=str(payload.get("municipalityCode") or "").strip()
-    if not code: return ""
+    # Some report layouts do not carry a municipal field. In that case, do not
+    # apply a different field with another meaning or block the tabulation.
+    if not code or not field or field.upper() not in {str(name).upper() for name in fieldnames}: return ""
     if not re.fullmatch(r"\d{6}",code): raise ValueError("O código do município deve ter seis dígitos.")
-    if municipality_field not in fieldnames: raise ValueError("Este arquivo não possui o campo necessário para filtrar município.")
     return code
 
 def catalog():
@@ -555,6 +563,15 @@ def parse_def(data: bytes, fields: list[dict[str,Any]]):
             if field in names: cols.append({"id":f"{row[0].strip()[:1].upper()}:{line_no}","label":row[0].strip()[1:].strip().strip('"') or field,"field":field,"command":row[0].strip()[:1].upper(),"descField":row[2].strip().strip('"') if len(row)>2 else "","relation":row[3].strip().strip('"') if len(row)>3 else ""})
     return rows,cols,selections,increments,group
 
+def add_sp_identifier_options(kind: str, fields, rows):
+    """Expose high-cardinality SP identifiers as row dimensions only."""
+    if kind.upper()!="SP": return
+    available={str(name).upper() for name in fields}
+    for field,label in SP_EXTRA_DIMENSIONS:
+        if field not in available: continue
+        if any(item.get("field","").upper()==field for item in rows): continue
+        rows.append({"id":f"EXTRA:{field}","label":label,"field":field,"command":"L","descField":"","relation":""})
+
 def cnv_values(raw: bytes) -> dict[str,str]:
     lines=raw.decode("cp1252","replace").splitlines()
     result={}; ranges=[]
@@ -628,10 +645,10 @@ def schema(relative: str):
     defname,definition=archive_def(system,kind)
     if definition is None: raise RuntimeError(f"A definição {defname or 'do arquivo'} não foi encontrada no pacote oficial {system}.")
     rows,cols,selections,increments,group=parse_def(definition,fields)
+    add_sp_identifier_options(kind,[f["name"] for f in fields],rows)
     relationFiles={item.get("relation", "").lower() for collection in (rows,cols,selections,increments) for item in collection if item.get("relation", "").lower().endswith(".cnv")}
     fieldnames={f["name"].upper() for f in fields}
-    municipality="PA_UFMUN" if system=="SIA" else "MUNIC_MOV"
-    if municipality not in fieldnames: municipality=""
+    municipality=municipality_field(system,fieldnames)
     return {"ok":True,"file":{"path":relative,"name":path.name,"system":system,"kind":kind,"uf":filename_match.group("uf").upper()},"dbfPath":converted.relative_to(UPLOADS).as_posix(),"dbfIdentity":cache_file_identity(converted),"definition":{"name":defname,"archive":f"uploads/DEFINICOES/originais/TAB_{system}.zip","size":len(definition),"relationFiles":len(relationFiles)},"fields":fields,"lineOptions":rows,"columnOptions":cols,"selectionOptions":selections,"increments":increments,"groupField":group,"municipalityField":municipality,"recordCount":records}
 
 def category_values(payload):
@@ -640,17 +657,18 @@ def category_values(payload):
     defname,definition=archive_def(system,kind)
     if definition is None: raise RuntimeError("Definição oficial indisponível para este arquivo.")
     lines,columns,selections,_,_=parse_def(definition,[{"name":name,**info} for name,info in fields.items()])
+    add_sp_identifier_options(kind,fields.keys(),lines)
     groups={"line":lines,"column":columns,"selection":selections}
     option_type=str(payload.get("optionType","column"))
     if option_type not in groups: raise ValueError("Tipo de categoria inválido.")
     option=next((item for item in groups[option_type] if item["id"]==payload.get("option")),None)
     if not option: raise ValueError("Escolha uma variável disponível na definição.")
     field=option["field"]
-    munfield="PA_UFMUN" if system=="SIA" else "MUNIC_MOV"
+    munfield=municipality_field(system,fields)
     municipality=municipality_code(payload,fields,munfield)
     usemun=bool(municipality)
     archive=UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip"
-    identity={"cacheVersion":3,"dbf":cache_file_identity(path),"option":option["id"],"type":option_type,"municipalityCode":municipality,"definition":cache_file_identity(archive) if archive.is_file() else defname}
+    identity={"cacheVersion":6,"dbf":cache_file_identity(path),"option":option["id"],"type":option_type,"municipalityCode":municipality,"definition":cache_file_identity(archive) if archive.is_file() else defname}
     target=cache_target("category-values",identity)
     cached=cache_read(target)
     if cached is not None: return cached
@@ -746,6 +764,7 @@ def tabulate(payload, progress=None):
     defname,definition=archive_def(system,kind)
     if definition is None: raise RuntimeError("Definição oficial indisponível para este arquivo.")
     rows,cols,selections,increments,group=parse_def(definition,fields)
+    add_sp_identifier_options(kind,fieldset,rows)
     rowoption=next((item for item in rows if item["id"]==payload.get("row")),None)
     coloption=next((item for item in cols if item["id"]==payload.get("column")),None) if payload.get("column") else None
     if not rowoption: raise ValueError("Escolha uma linha disponível na definição.")
@@ -778,9 +797,11 @@ def tabulate(payload, progress=None):
         if not isinstance(column_filter,dict) or not coloption or column_filter.get("option")!=coloption["id"]: raise ValueError("O valor selecionado não corresponde à coluna atual.")
         column_value=str(column_filter.get("value","" )).strip()
         if len(column_value)>80: raise ValueError("O valor da coluna excede 80 caracteres.")
-    munfield="PA_UFMUN" if system=="SIA" else "MUNIC_MOV"
+    munfield=municipality_field(system,fieldset)
+    requested_municipality=bool(str(payload.get("municipalityCode") or "").strip())
     municipality=municipality_code(payload,fieldset,munfield)
     usemun=bool(municipality)
+    municipality_skipped=requested_municipality and not usemun and not munfield
     municipality_name=str(payload.get("municipalityName") or "").strip()[:80] if usemun else ""
     rowlabels=relation_mapping(system,rowoption); collabels=relation_mapping(system,coloption)
     unclassified_mode=str(payload.get("unclassified","ignore")).lower()
@@ -788,7 +809,7 @@ def tabulate(payload, progress=None):
     suppress_rows=bool(payload.get("suppressRows",True)); suppress_columns=bool(payload.get("suppressColumns",True))
     save_records=bool(payload.get("saveRecords",False)); test_crc=bool(payload.get("testCrc",False))
     archive=UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip"
-    identity={"cacheVersion":4,"dbfs":[cache_file_identity(x["dbf"]) for x in sources],"definition":cache_file_identity(archive) if archive.is_file() else defname,"row":rowoption["id"],"column":coloption["id"] if coloption else "","metrics":metrics,"municipalityCode":municipality,"filters":[[key,mode,sorted(values)] for key,state in filters.items() for mode,values in state.items()],"columnFilter":{"option":coloption["id"],"value":column_value} if column_value and coloption else None,"unclassified":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns}
+    identity={"cacheVersion":5,"dbfs":[cache_file_identity(x["dbf"]) for x in sources],"definition":cache_file_identity(archive) if archive.is_file() else defname,"row":rowoption["id"],"column":coloption["id"] if coloption else "","metrics":metrics,"municipalityCode":municipality,"municipalitySkipped":municipality_skipped,"filters":[[key,mode,sorted(values)] for key,state in filters.items() for mode,values in state.items()],"columnFilter":{"option":coloption["id"],"value":column_value} if column_value and coloption else None,"unclassified":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns}
     target=cache_target("tabulations",identity)
     if not save_records and not test_crc:
         cached=cache_read(target)
@@ -879,7 +900,7 @@ def tabulate(payload, progress=None):
         total=None
     else:
         column_totals=[scaled_text(totals[0],metric_details[0]["decimals"])]; total=scaled_text(totals[0],metric_details[0]["decimals"])
-    result={"ok":True,"definition":defname,"metrics":[{"id":m["id"],"label":m["label"]} for m in metric_details],"metric":metric_details[0]["label"] if len(metrics)==1 else f"{len(metrics)} incrementos","records":records,"processedRecords":processed,"excludedUnclassified":excluded_unclassified,"total":total,"totalsByMetric":[scaled_text(value,detail["decimals"]) for value,detail in zip(totals,metric_details)],"columnTotals":column_totals,"municipalityApplied":usemun,"municipalityCode":municipality or None,"municipalityName":municipality_name or None,"municipalityField":munfield if usemun else None,"appliedFilters":sum(len(state["include"])+len(state["exclude"]) for state in filters.values())+(1 if column_value else 0),"columns":display_columns,"rows":result_rows,"totalCategories":len(raw_rows),"truncated":len(raw_rows)>5000,"files":[x["source"].name for x in sources],"unclassifiedMode":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns,"crcTested":test_crc}
+    result={"ok":True,"definition":defname,"metrics":[{"id":m["id"],"label":m["label"]} for m in metric_details],"metric":metric_details[0]["label"] if len(metrics)==1 else f"{len(metrics)} incrementos","records":records,"processedRecords":processed,"excludedUnclassified":excluded_unclassified,"total":total,"totalsByMetric":[scaled_text(value,detail["decimals"]) for value,detail in zip(totals,metric_details)],"columnTotals":column_totals,"municipalityApplied":usemun,"municipalitySkipped":municipality_skipped,"municipalityCode":municipality or None,"municipalityName":municipality_name or None,"municipalityField":munfield if usemun else None,"appliedFilters":sum(len(state["include"])+len(state["exclude"]) for state in filters.values())+(1 if column_value else 0),"columns":display_columns,"rows":result_rows,"totalCategories":len(raw_rows),"truncated":len(raw_rows)>5000,"files":[x["source"].name for x in sources],"unclassifiedMode":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns,"crcTested":test_crc}
     if save_records:
         if progress: progress(97,"Salvando os registros selecionados")
         token=secrets.token_hex(16)

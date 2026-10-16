@@ -448,7 +448,6 @@
       status.textContent = 'Escolha uma coluna para carregar as categorias disponíveis.';
       return null;
     }
-
     status.textContent = 'Carregando categorias da base…';
     try {
       const municipalityCode = activeMunicipalityCode();
@@ -471,11 +470,12 @@
         const label = item.label && item.label !== item.value ? `${item.label} · código ${item.value}` : item.value;
         select.add(new Option(label, item.value));
       });
-      select.disabled = false;
+      select.disabled = data.values.length === 0;
       const count = data.values.length.toLocaleString('pt-BR');
       status.textContent = data.truncated
         ? `Exibindo os primeiros ${count} valores disponíveis${fromBrowserCache ? ' · cache do navegador' : ''}.`
         : `${count} ${data.values.length === 1 ? 'categoria disponível' : 'categorias disponíveis'}${fromBrowserCache ? ' · cache do navegador' : ''}.`;
+      updateRunButton();
       return data.values;
     } catch (error) {
       if (requestId === categoryRequests.column) status.textContent = error.message;
@@ -492,10 +492,12 @@
       wrapper.hidden = true;
       select.replaceChildren(new Option('Todas as categorias', ''));
       select.disabled = true;
+      updateRunButton();
       return;
     }
     wrapper.hidden = false;
     loadCategoryValues(option, select, $('#columnValuesStatus'));
+    updateRunButton();
   }
 
   function renderFilterValues() {
@@ -740,7 +742,7 @@
       });
     }
     dbfPath = schema.dbfPath;
-    const cacheKey = browserCacheKey('schema', selected, 'prepared-definition-v1');
+    const cacheKey = browserCacheKey('schema', selected, 'prepared-definition-v4');
     writeBrowserCache(cacheKey, schema);
     const cacheLabel = fromBrowserCache ? ' · definição recuperada do cache deste navegador' : '';
     $('#definitionStatus').innerHTML = `<strong>${escapeHtml(schema.definition.name)}</strong> · ${Number(schema.recordCount).toLocaleString('pt-BR')} registros · ${schema.fields.length} campos compatíveis${cacheLabel}`;
@@ -773,13 +775,20 @@
     renderFiles();
     $('#fileOptions').hidden = false;
     const chosenMunicipality = currentLocationSelection();
-    $('#municipalityWrap').hidden = !schema.municipalityField || !chosenMunicipality;
-    $('#municipalityFilter').checked = Boolean(chosenMunicipality);
-    if (schema.municipalityField) {
-      $('#municipalityDescription').textContent = chosenMunicipality
+    const municipalityFilter = $('#municipalityFilter');
+    const hasMunicipalityField = Boolean(schema.municipalityField);
+    $('#municipalityWrap').hidden = !chosenMunicipality;
+    $('#municipalityWrap').classList.toggle('is-unavailable', Boolean(chosenMunicipality && !hasMunicipalityField));
+    municipalityFilter.disabled = !hasMunicipalityField;
+    municipalityFilter.checked = Boolean(chosenMunicipality && hasMunicipalityField);
+    $('#municipalityTitle').textContent = hasMunicipalityField ? 'Filtrar município escolhido' : 'Filtro municipal indisponível nesta base';
+    $('#municipalityDescription').textContent = chosenMunicipality
+      ? hasMunicipalityField
         ? `${chosenMunicipality.municipalityName} · código IBGE ${chosenMunicipality.municipalityCode} · campo ${schema.municipalityField}`
-        : `Escolha um município na tela inicial para ativar o filtro · campo ${schema.municipalityField}`;
-    }
+        : 'Este relatório não contém um campo municipal compatível; todos os registros serão considerados.'
+      : hasMunicipalityField
+        ? `Escolha um município na tela inicial para ativar o filtro · campo ${schema.municipalityField}`
+        : 'Este relatório não contém um campo municipal compatível.';
     setSchemaLoading(false);
     loadColumnValues();
     updateRunButton();
@@ -794,7 +803,7 @@
     if (!selected) return;
     if (schema && schema.file?.path === selected.path) return;
 
-    const schemaKey = browserCacheKey('schema', selected, 'prepared-definition-v1');
+    const schemaKey = browserCacheKey('schema', selected, 'prepared-definition-v4');
     const cachedSchema = readBrowserCache(schemaKey);
     if (cachedSchema?.file?.path === selected.path && cachedSchema?.dbfPath && cachedSchema?.definition?.name && Array.isArray(cachedSchema.fields) && Array.isArray(cachedSchema.lineOptions)) {
       $('#tabControls').hidden = true;
