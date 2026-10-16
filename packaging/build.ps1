@@ -44,6 +44,11 @@ if (-not (Test-Path -LiteralPath $PythonZip)) {
 $PythonExtract = Join-Path $BuildRoot 'python-extracted'
 Expand-Archive -LiteralPath $PythonZip -DestinationPath $PythonExtract -Force
 Copy-Item -Path (Join-Path $PythonExtract '*') -Destination $PythonPayload -Recurse -Force
+$PythonPathConfig = Get-ChildItem -LiteralPath $PythonPayload -File -Filter 'python*._pth' | Select-Object -First 1
+if (-not $PythonPathConfig) { throw 'O Python portátil não contém o arquivo de configuração de módulos.' }
+# O Python embutido usa _pth isolado e não inclui automaticamente a pasta do script.
+# Sem este caminho, um computador sem Python instalado não encontra official_source.py.
+Add-Content -LiteralPath $PythonPathConfig.FullName -Value '..\..\app\engine' -Encoding ASCII
 
 Write-Host 'Baixando e conferindo o runtime PHP oficial…'
 if (-not (Test-Path -LiteralPath $PhpZip)) {
