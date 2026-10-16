@@ -264,7 +264,8 @@ def catalog():
             sysname,kind,m=meta(p); rel=p.relative_to(UPLOADS).as_posix(); info=manifest.get(rel,{})
             converted=converted_relative(rel)
             dbf=UPLOADS/converted
-            files.append({"path":rel,"name":p.name,"system":sysname,"kind":kind,"year":2000+int(m.group("yy")),"month":int(m.group("mm")),"size":p.stat().st_size,"downloaded_at":info.get("downloaded_at"),"converted":dbf.is_file(),"dbf_path":converted if dbf.is_file() else None,"conversion":active_jobs.get(rel)})
+            dbf_exists=dbf.is_file(); dbf_stat=dbf.stat() if dbf_exists else None
+            files.append({"path":rel,"name":p.name,"system":sysname,"kind":kind,"year":2000+int(m.group("yy")),"month":int(m.group("mm")),"size":p.stat().st_size,"downloaded_at":info.get("downloaded_at"),"converted":dbf_exists,"dbf_path":converted if dbf_exists else None,"dbf_size":dbf_stat.st_size if dbf_stat else None,"dbf_mtime_ns":dbf_stat.st_mtime_ns if dbf_stat else None,"conversion":active_jobs.get(rel)})
         except Exception: continue
     files.sort(key=lambda x:(x["system"],-x["year"],-x["month"],x["name"]))
     return {"ok":True,"files":files,"library_root":str(UPLOADS)}
@@ -559,7 +560,7 @@ def schema(relative: str):
     fieldnames={f["name"].upper() for f in fields}
     municipality="PA_UFMUN" if system=="SIA" else "MUNIC_MOV"
     if municipality not in fieldnames: municipality=""
-    return {"ok":True,"file":{"path":relative,"name":path.name,"system":system,"kind":kind},"dbfPath":converted.relative_to(UPLOADS).as_posix(),"definition":{"name":defname,"archive":f"uploads/DEFINICOES/originais/TAB_{system}.zip","size":len(definition),"relationFiles":len(relationFiles)},"fields":fields,"lineOptions":rows,"columnOptions":cols,"selectionOptions":selections,"increments":increments,"groupField":group,"municipalityField":municipality,"municipalityCode":"150140","recordCount":records}
+    return {"ok":True,"file":{"path":relative,"name":path.name,"system":system,"kind":kind},"dbfPath":converted.relative_to(UPLOADS).as_posix(),"dbfIdentity":cache_file_identity(converted),"definition":{"name":defname,"archive":f"uploads/DEFINICOES/originais/TAB_{system}.zip","size":len(definition),"relationFiles":len(relationFiles)},"fields":fields,"lineOptions":rows,"columnOptions":cols,"selectionOptions":selections,"increments":increments,"groupField":group,"municipalityField":municipality,"municipalityCode":"150140","recordCount":records}
 
 def category_values(payload):
     relative=payload.get("path",""); source=safe_file(relative); path=safe_dbf(payload.get("dbfPath") or converted_relative(relative)); system,kind,_=meta(source)

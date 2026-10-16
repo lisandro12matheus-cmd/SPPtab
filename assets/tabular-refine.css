@@ -1,4 +1,21 @@
 .tabulation-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(240px,.9fr);gap:12px;align-items:stretch}
+.schema-loading{display:flex;align-items:center;gap:20px;margin:14px 0 17px;padding:22px 24px;border:1px solid #dce9e7;border-radius:12px;background:linear-gradient(110deg,#f5faf9 0%,#fbfdfc 66%,#f1f7f6 100%);box-shadow:0 8px 24px rgba(29,67,71,.045)}
+.schema-loading[hidden]{display:none!important}
+.schema-loading__mark{width:58px;height:58px;grid-template-columns:repeat(3,12px);grid-template-rows:repeat(3,12px);gap:5px;border-radius:13px;background:#e7f2ef}
+.schema-loading__mark span{width:12px;height:12px;border-radius:3px;animation:schema-square-pulse 1.45s ease-in-out infinite;transform-origin:center}
+.schema-loading__mark span:nth-child(1){height:12px;animation-delay:0s}
+.schema-loading__mark span:nth-child(2){height:12px;animation-delay:.12s}
+.schema-loading__mark span:nth-child(3){height:12px;animation-delay:.24s}
+.schema-loading__mark span:nth-child(4){animation-delay:.36s}
+.schema-loading__mark span:nth-child(5){animation-delay:.48s}
+.schema-loading__copy{min-width:0;flex:1}
+.schema-loading__eyebrow{display:block;margin-bottom:5px;color:#168176;font-size:9px;font-weight:700;letter-spacing:.9px}
+.schema-loading__copy>strong{display:block;color:#213b40;font-size:14px;font-weight:700}
+.schema-loading__copy>p{max-width:760px;margin:5px 0 12px;color:#6e8184;font-size:11px;line-height:1.55}
+.schema-loading__track{display:block;width:min(100%,520px);height:4px;overflow:hidden;border-radius:99px;background:#e2ece9}
+.schema-loading__track>span{display:block;width:34%;height:100%;border-radius:inherit;background:linear-gradient(90deg,#3288f5,#168176);animation:schema-progress 1.8s ease-in-out infinite}
+@keyframes schema-square-pulse{0%,100%{opacity:.45;transform:scale(.78)}45%{opacity:1;transform:scale(1.08)}}
+@keyframes schema-progress{0%{transform:translateX(-110%)}100%{transform:translateX(310%)}}
 .choice-panel{min-width:0;padding:14px;border:1px solid #e7eeec;border-radius:11px;background:#fbfcfc}
 .choice-heading h3{margin:0;color:#344f53;font-size:14px;font-weight:700}
 .choice-heading h3 span{color:#748488;font-size:11px;font-weight:500}
@@ -146,6 +163,8 @@
 @media(max-width:1050px){.main-content.tabular-main{padding-left:26px;padding-right:26px}}
 @media(max-width:760px){.main-content.tabular-main{width:auto;flex:1 1 auto;padding-left:20px;padding-right:20px}.tabulation-layout{grid-template-columns:1fr}}
 @media(max-width:460px){.main-content.tabular-main{padding-left:14px;padding-right:14px}}
+@media(max-width:520px){.schema-loading{align-items:flex-start;gap:13px;padding:16px}.schema-loading__mark{width:48px;height:48px;flex:none}.schema-loading__copy>strong{font-size:13px}}
+@media(prefers-reduced-motion:reduce){.schema-loading__mark span,.schema-loading__track>span{animation:none}.schema-loading__mark span{opacity:1;transform:none}.schema-loading__track>span{width:68%;transform:none}}
 @media(max-width:1050px){.tabulation-layout{grid-template-columns:repeat(2,minmax(0,1fr))}.increment-panel{grid-column:1/-1}.increment-panel .increment-options{grid-template-columns:repeat(2,minmax(0,1fr))}.selection-layout{grid-template-columns:minmax(0,1fr) 100px minmax(0,1fr)}}
 @media(max-width:760px){.tabulation-layout{grid-template-columns:1fr}.increment-panel{grid-column:auto}.increment-panel .increment-options{grid-template-columns:1fr;max-height:260px}.selection-layout{grid-template-columns:1fr}.selection-actions{flex-direction:row}.selection-actions .button{width:auto;flex:1}.selection-available,.selection-active{padding:11px}.choice-list{height:190px;min-height:190px}.category-list{height:190px;min-height:190px}.advanced-options .tabwin-options{grid-template-columns:1fr}.tabwin-options>.section-label{grid-column:auto}}
 @media(max-width:520px){.selection-builder,.advanced-options{padding:12px}.selection-actions{gap:7px}.selection-actions .button{font-size:10px}.category-search-row{grid-template-columns:minmax(0,1fr) auto}.category-search-row .button{padding:0 10px}.filter-item{grid-template-columns:auto minmax(0,1fr)}.filter-item button{grid-column:2;justify-self:start;padding:0}}

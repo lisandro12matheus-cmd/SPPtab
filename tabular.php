@@ -1,5 +1,5 @@
 <?php declare(strict_types=1); ?><!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><title>Tabulação · SPPtab</title><link rel="stylesheet" href="assets/app.css?v=6"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/tabular-refine.css?v=7"></head>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><title>Tabulação · SPPtab</title><link rel="stylesheet" href="assets/app.css?v=6"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/tabular-refine.css?v=8"></head>
 <body><div class="app-shell"><aside class="sidebar"><a class="brand" href="./"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span><span><strong>SPPtab</strong><small>saúde em dados</small></span></a><div class="nav-label">ESPAÇO DE TRABALHO</div><nav aria-label="Navegação principal"><a class="nav-item" href="index.php"><span class="nav-icon">⌕</span>Buscar arquivos</a><a class="nav-item" href="tabular.php"><span class="nav-icon">▦</span>Minhas bases</a><a class="nav-item active" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a></nav><div class="sidebar-foot"><span class="source-dot"></span><div><strong>Definições oficiais</strong><small>DATASUS · TabWin</small></div></div></aside>
 <main class="main-content tabular-main"><header class="topbar"><div class="breadcrumb">Dados públicos <span>/</span> <strong>Tabulação</strong></div><div class="top-tag"><span></span> PARÁ · PA</div></header><section class="intro"><div class="eyebrow"><span class="eyebrow-line"></span> LEITURA E TABULAÇÃO</div><h1>Uma etapa de cada vez.</h1><p>Selecione uma base local, converta o DBC para DBF acompanhando o progresso e depois monte sua tabulação com as definições oficiais.</p></section>
 <div class="wizard-steps" role="list"><button class="wizard-step active" data-stage="1" type="button"><span>01</span><strong>Selecionar DBC</strong></button><i></i><button class="wizard-step" data-stage="2" type="button"><span>02</span><strong>Converter para DBF</strong></button><i></i><button class="wizard-step" data-stage="3" type="button"><span>03</span><strong>Tabular dados</strong></button></div>
@@ -8,7 +8,11 @@
 <section class="workspace stage-panel" id="stage3" hidden>
   <div class="step-heading"><span class="step-number">03</span><div><h2>Monte sua tabulação</h2><p>Escolha o que aparece nas linhas, nas colunas e qual medida será calculada.</p></div></div>
   <div class="tab-form">
-    <div class="definition-status" id="definitionStatus">Carregando arquivo convertido e definição…</div>
+    <div class="definition-status" id="definitionStatus">Preparando arquivo convertido e definição…</div>
+    <div class="schema-loading" id="schemaLoading" hidden role="status" aria-live="polite" aria-busy="true">
+      <span class="brand-mark schema-loading__mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span>
+      <div class="schema-loading__copy"><span class="schema-loading__eyebrow">PREPARANDO TABULAÇÃO</span><strong id="schemaLoadingTitle">Alinhando os campos à definição oficial</strong><p id="schemaLoadingText">Na primeira vez, pode levar um pouco mais de tempo enquanto os recursos oficiais são baixados e preparados. Depois, a definição fica salva no cache deste navegador.</p><span class="schema-loading__track" aria-hidden="true"><span></span></span></div>
+    </div>
     <div class="tabulation-layout" id="tabControls" hidden>
       <section class="choice-panel">
         <div class="choice-heading"><h3>Linhas</h3><p>O que será listado uma linha por vez.</p></div>
@@ -94,4 +98,4 @@
 <section class="workspace tab-result" id="resultPanel" hidden>
   <div class="results-head"><div><div class="results-title"><h3>Resultado da tabulação</h3><span class="count-badge" id="resultCount">0</span></div><p id="resultSummary"></p></div><button class="text-button" id="exportCsv" type="button">Exportar CSV</button></div>
   <div class="file-table-wrap"><table class="file-table result-table"><thead id="resultHead"></thead><tbody id="resultBody"></tbody><tfoot id="resultFoot"></tfoot></table></div>
-</section><footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> tabulação em 3 etapas</span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer></main></div><script src="assets/tabular.js?v=24" defer></script></body></html>
+</section><footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> tabulação em 3 etapas</span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer></main></div><script src="assets/tabular.js?v=25" defer></script></body></html>

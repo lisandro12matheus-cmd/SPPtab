@@ -3,6 +3,8 @@
 
   const $ = (selector) => document.querySelector(selector);
   const fileSelect = $('#sourceFile');
+  const BROWSER_CACHE_PREFIX = 'spptab-tabulation-v1:';
+  const BROWSER_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 
   let files = [];
   let libraryRoot = '';
@@ -20,6 +22,46 @@
   let resultRunId = '';
   let popupReady = false;
   let pendingPopupMessage = null;
+
+  function dbfFingerprint(file) {
+    if (!file?.path || !file?.dbf_path || !Number(file.dbf_size) || !Number(file.dbf_mtime_ns)) return '';
+    return `${encodeURIComponent(file.path)}:${encodeURIComponent(file.dbf_path)}:${file.dbf_size}:${file.dbf_mtime_ns}`;
+  }
+
+  function browserCacheKey(kind, file, detail = '') {
+    const fingerprint = dbfFingerprint(file);
+    return fingerprint ? `${BROWSER_CACHE_PREFIX}${kind}:${fingerprint}:${encodeURIComponent(detail)}` : '';
+  }
+
+  function readBrowserCache(key) {
+    if (!key) return null;
+    try {
+      const entry = JSON.parse(localStorage.getItem(key) || 'null');
+      if (!entry || Date.now() - entry.savedAt > BROWSER_CACHE_TTL) {
+        localStorage.removeItem(key);
+        return null;
+      }
+      return entry.value ?? null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function writeBrowserCache(key, value) {
+    if (!key) return;
+    try {
+      const entry = JSON.stringify({ savedAt: Date.now(), value });
+      if (entry.length > 1_500_000) return;
+      localStorage.setItem(key, entry);
+    } catch (_) {
+      // A browser with full or disabled local storage still works without this cache.
+    }
+  }
+
+  function setSchemaLoading(visible) {
+    $('#schemaLoading').hidden = !visible;
+    $('#schemaLoading').setAttribute('aria-busy', visible ? 'true' : 'false');
+  }
 
   async function request(payload) {
     const response = await fetch('api.php', {
@@ -379,14 +421,20 @@
 
     status.textContent = 'Carregando categorias da base…';
     try {
-      const data = await request({
-        action: 'category_values',
-        path: selected.path,
-        dbfPath,
-        option,
-        optionType: 'column',
-        belem: $('#belemFilter').checked,
-      });
+      const cacheKey = browserCacheKey('categories', selected, `column:${option}:${$('#belemFilter').checked ? 'belem' : 'all'}`);
+      let data = readBrowserCache(cacheKey);
+      const fromBrowserCache = Boolean(data);
+      if (!data) {
+        data = await request({
+          action: 'category_values',
+          path: selected.path,
+          dbfPath,
+          option,
+          optionType: 'column',
+          belem: $('#belemFilter').checked,
+        });
+        writeBrowserCache(cacheKey, data);
+      }
       if (requestId !== categoryRequests.column) return null;
       data.values.forEach((item) => {
         const label = item.label && item.label !== item.value ? `${item.label} · código ${item.value}` : item.value;
@@ -395,8 +443,8 @@
       select.disabled = false;
       const count = data.values.length.toLocaleString('pt-BR');
       status.textContent = data.truncated
-        ? `Exibindo os primeiros ${count} valores disponíveis.`
-        : `${count} ${data.values.length === 1 ? 'categoria disponível' : 'categorias disponíveis'}.`;
+        ? `Exibindo os primeiros ${count} valores disponíveis${fromBrowserCache ? ' · cache do navegador' : ''}.`
+        : `${count} ${data.values.length === 1 ? 'categoria disponível' : 'categorias disponíveis'}${fromBrowserCache ? ' · cache do navegador' : ''}.`;
       return data.values;
     } catch (error) {
       if (requestId === categoryRequests.column) status.textContent = error.message;
@@ -476,14 +524,20 @@
     const requestId = ++categoryRequests.selection;
     status.textContent = 'Carregando categorias da base…';
     try {
-      const data = await request({
-        action: 'category_values',
-        path: selected.path,
-        dbfPath,
-        option: optionId,
-        optionType: 'selection',
-        belem: $('#belemFilter').checked,
-      });
+      const cacheKey = browserCacheKey('categories', selected, `selection:${optionId}:${$('#belemFilter').checked ? 'belem' : 'all'}`);
+      let data = readBrowserCache(cacheKey);
+      const fromBrowserCache = Boolean(data);
+      if (!data) {
+        data = await request({
+          action: 'category_values',
+          path: selected.path,
+          dbfPath,
+          option: optionId,
+          optionType: 'selection',
+          belem: $('#belemFilter').checked,
+        });
+        writeBrowserCache(cacheKey, data);
+      }
       if (requestId !== categoryRequests.selection || $('#filterField').value !== optionId) return;
       selectionValues = data.values.map((item) => ({
         value: String(item.value),
@@ -492,8 +546,8 @@
       renderFilterValues();
       const count = selectionValues.length.toLocaleString('pt-BR');
       status.textContent = data.truncated
-        ? `Exibindo as primeiras ${count} categorias disponíveis.`
-        : `${count} ${selectionValues.length === 1 ? 'categoria disponível' : 'categorias disponíveis'}.`;
+        ? `Exibindo as primeiras ${count} categorias disponíveis${fromBrowserCache ? ' · cache do navegador' : ''}.`
+        : `${count} ${selectionValues.length === 1 ? 'categoria disponível' : 'categorias disponíveis'}${fromBrowserCache ? ' · cache do navegador' : ''}.`;
     } catch (error) {
       if (requestId === categoryRequests.selection) status.textContent = error.message;
       updateFilterButton();
@@ -643,11 +697,78 @@
     renderFiles();
   }
 
+  function applySchema(data, fromBrowserCache = false) {
+    schema = data;
+    if (schema.dbfIdentity && selected) {
+      Object.assign(selected, {
+        dbf_path: schema.dbfIdentity.path,
+        dbf_size: schema.dbfIdentity.size,
+        dbf_mtime_ns: schema.dbfIdentity.mtime,
+        converted: true,
+      });
+    }
+    dbfPath = schema.dbfPath;
+    const cacheKey = browserCacheKey('schema', selected, 'prepared-definition-v1');
+    writeBrowserCache(cacheKey, schema);
+    const cacheLabel = fromBrowserCache ? ' · definição recuperada do cache deste navegador' : '';
+    $('#definitionStatus').innerHTML = `<strong>${escapeHtml(schema.definition.name)}</strong> · ${Number(schema.recordCount).toLocaleString('pt-BR')} registros · ${schema.fields.length} campos compatíveis${cacheLabel}`;
+    $('#rowSearch').value = '';
+    $('#columnSearch').value = '';
+    optionList($('#rowField'), lineOptionsForSelectedState(schema.lineOptions), '', true);
+    filterOptionList($('#rowField'), $('#rowSearch').value, $('#rowListStatus'));
+    optionList($('#columnField'), schema.columnOptions, 'Não ativa');
+    filterOptionList($('#columnField'), $('#columnSearch').value, $('#columnListStatus'));
+    renderIncrements();
+    $('#tabControls').hidden = false;
+    $('#incrementSection').hidden = false;
+    $('#advancedOptions').hidden = false;
+    $('#filterField').replaceChildren(new Option('Escolha uma informação…', ''));
+    schema.selectionOptions.forEach((item) => {
+      $('#filterField').add(new Option(`${item.label} · ${item.field}`, item.id));
+    });
+    $('#filterField').disabled = !schema.selectionOptions.length;
+    $('#filterOptions').hidden = !schema.selectionOptions.length;
+    $('#filterSearch').value = '';
+    $('#filterSearch').disabled = true;
+    $('#filterValue').replaceChildren();
+    $('#filterValue').setAttribute('aria-disabled', 'true');
+    $('#filterStatus').textContent = 'Escolha uma informação para ver os valores disponíveis.';
+    selectionValues = [];
+    activeFilters = [];
+    categoryRequests.selection += 1;
+    drawFilters();
+    tabFiles = selected ? [selected] : [];
+    renderFiles();
+    $('#fileOptions').hidden = false;
+    $('#municipalityWrap').hidden = !schema.municipalityField;
+    if (schema.municipalityField) {
+      $('#municipalityDescription').textContent = `Belém · código IBGE 150140 · campo ${schema.municipalityField}`;
+    }
+    setSchemaLoading(false);
+    loadColumnValues();
+    updateRunButton();
+    if (!schema.lineOptions.length) {
+      notice(3, 'A definição não encontrou opções de linha compatíveis com os campos desta base.', 'error');
+    } else {
+      $('#notice3').hidden = true;
+    }
+  }
+
   async function loadSchema() {
     if (!selected) return;
     if (schema && schema.file?.path === selected.path) return;
 
+    const schemaKey = browserCacheKey('schema', selected, 'prepared-definition-v1');
+    const cachedSchema = readBrowserCache(schemaKey);
+    if (cachedSchema?.file?.path === selected.path && cachedSchema?.dbfPath && cachedSchema?.definition?.name && Array.isArray(cachedSchema.fields) && Array.isArray(cachedSchema.lineOptions)) {
+      $('#tabControls').hidden = true;
+      $('#runButton').disabled = true;
+      applySchema(cachedSchema, true);
+      return;
+    }
+
     $('#definitionStatus').textContent = 'Consultando o arquivo convertido e a definição oficial…';
+    setSchemaLoading(true);
     $('#tabControls').hidden = true;
     $('#runButton').disabled = true;
     $('#advancedOptions').hidden = true;
@@ -656,50 +777,19 @@
     $('#columnValueFilter').hidden = true;
     $('#resultPanel').hidden = true;
     try {
-      schema = await request({ action: 'schema', path: selected.path });
-      dbfPath = schema.dbfPath;
-      $('#definitionStatus').innerHTML = `<strong>${escapeHtml(schema.definition.name)}</strong> · ${Number(schema.recordCount).toLocaleString('pt-BR')} registros · ${schema.fields.length} campos compatíveis`;
-      $('#rowSearch').value = '';
-      $('#columnSearch').value = '';
-      optionList($('#rowField'), lineOptionsForSelectedState(schema.lineOptions), '', true);
-      filterOptionList($('#rowField'), $('#rowSearch').value, $('#rowListStatus'));
-      optionList($('#columnField'), schema.columnOptions, 'Não ativa');
-      filterOptionList($('#columnField'), $('#columnSearch').value, $('#columnListStatus'));
-      renderIncrements();
-      $('#tabControls').hidden = false;
-      $('#incrementSection').hidden = false;
-      $('#advancedOptions').hidden = false;
-      $('#filterField').replaceChildren(new Option('Escolha uma informação…', ''));
-      schema.selectionOptions.forEach((item) => {
-        $('#filterField').add(new Option(`${item.label} · ${item.field}`, item.id));
-      });
-      $('#filterField').disabled = !schema.selectionOptions.length;
-      $('#filterOptions').hidden = !schema.selectionOptions.length;
-      $('#filterSearch').value = '';
-      $('#filterSearch').disabled = true;
-      $('#filterValue').replaceChildren();
-      $('#filterValue').setAttribute('aria-disabled', 'true');
-      $('#filterStatus').textContent = 'Escolha uma informação para ver os valores disponíveis.';
-      selectionValues = [];
-      activeFilters = [];
-      categoryRequests.selection += 1;
-      drawFilters();
-      tabFiles = selected ? [selected] : [];
-      renderFiles();
-      $('#fileOptions').hidden = false;
-      $('#municipalityWrap').hidden = !schema.municipalityField;
-      if (schema.municipalityField) {
-        $('#municipalityDescription').textContent = `Belém · código IBGE 150140 · campo ${schema.municipalityField}`;
+      const data = await request({ action: 'schema', path: selected.path });
+      if (data.dbfIdentity) {
+        Object.assign(selected, {
+          dbf_path: data.dbfIdentity.path,
+          dbf_size: data.dbfIdentity.size,
+          dbf_mtime_ns: data.dbfIdentity.mtime,
+          converted: true,
+        });
       }
-      loadColumnValues();
-      updateRunButton();
-      if (!schema.lineOptions.length) {
-        notice(3, 'A definição não encontrou opções de linha compatíveis com os campos desta base.', 'error');
-      } else {
-        $('#notice3').hidden = true;
-      }
+      applySchema(data, false);
     } catch (error) {
       schema = null;
+      setSchemaLoading(false);
       $('#definitionStatus').textContent = 'Não foi possível carregar a definição.';
       notice(3, error.message, 'error');
     }
