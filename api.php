@@ -39,33 +39,42 @@ if (!is_array($payload)) {
 }
 
 $action = $payload['action'] ?? '';
-if (!in_array($action, ['competencies', 'files', 'download', 'catalog', 'schema', 'column_values', 'category_values', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status'], true)) {
+$tabulationActions = ['catalog', 'delete_file', 'schema', 'column_values', 'category_values', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status'];
+$dataActions = ['competencies', 'files', 'download', 'municipalities'];
+if (!in_array($action, [...$dataActions, ...$tabulationActions], true)) {
     respond(['ok' => false, 'error' => 'Ação não reconhecida.'], 400);
 }
 
-if (in_array($action, ['catalog', 'schema', 'column_values', 'category_values', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status'], true)) {
+if (in_array($action, $tabulationActions, true)) {
     $payload['action'] = $action;
-}
-
-if (!in_array($action, ['catalog', 'schema', 'column_values', 'category_values', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status'], true)) {
-if (!in_array($payload['system'] ?? '', ['sia', 'sih'], true)) {
-    respond(['ok' => false, 'error' => 'Selecione uma base válida.'], 400);
-}
-
-$year = filter_var($payload['year'] ?? null, FILTER_VALIDATE_INT);
-if ($year === false || $year < 2008 || $year > (int) date('Y')) {
-    respond(['ok' => false, 'error' => 'Ano fora do intervalo disponível.'], 400);
-}
-
-if ($action !== 'competencies') {
-    $month = filter_var($payload['month'] ?? null, FILTER_VALIDATE_INT);
-    if ($month === false || $month < 1 || $month > 12) {
-        respond(['ok' => false, 'error' => 'Competência inválida.'], 400);
+} elseif ($action === 'municipalities') {
+    $uf = strtoupper((string) ($payload['uf'] ?? ''));
+    if (!in_array($uf, ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'], true)) {
+        respond(['ok' => false, 'error' => 'Selecione uma unidade da Federação válida.'], 400);
     }
-    $payload['month'] = $month;
-}
-$payload['year'] = $year;
-$payload['action'] = $action;
+    $payload['uf'] = $uf;
+} else {
+    if (!in_array($payload['system'] ?? '', ['sia', 'sih'], true)) {
+        respond(['ok' => false, 'error' => 'Selecione uma base válida.'], 400);
+    }
+    $uf = strtoupper((string) ($payload['uf'] ?? ''));
+    if (!in_array($uf, ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'], true)) {
+        respond(['ok' => false, 'error' => 'Selecione uma unidade da Federação válida.'], 400);
+    }
+    $year = filter_var($payload['year'] ?? null, FILTER_VALIDATE_INT);
+    if ($year === false || $year < 2008 || $year > (int) date('Y')) {
+        respond(['ok' => false, 'error' => 'Ano fora do intervalo disponível.'], 400);
+    }
+    if ($action !== 'competencies') {
+        $month = filter_var($payload['month'] ?? null, FILTER_VALIDATE_INT);
+        if ($month === false || $month < 1 || $month > 12) {
+            respond(['ok' => false, 'error' => 'Competência inválida.'], 400);
+        }
+        $payload['month'] = $month;
+    }
+    $payload['uf'] = $uf;
+    $payload['year'] = $year;
+    $payload['action'] = $action;
 }
 
 $python = getenv('TABWIN2_PYTHON') ?: '';
@@ -87,7 +96,7 @@ $candidates = array_filter([
     ...($localPython ?: []),
     'python',
 ]);
-$script = __DIR__ . DIRECTORY_SEPARATOR . 'engine' . DIRECTORY_SEPARATOR . (in_array($action, ['catalog', 'schema', 'column_values', 'category_values', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status'], true) ? 'tabulation.py' : 'datasus.py');
+$script = __DIR__ . DIRECTORY_SEPARATOR . 'engine' . DIRECTORY_SEPARATOR . (in_array($action, $tabulationActions, true) ? 'tabulation.py' : 'datasus.py');
 $lastError = '';
 
 foreach ($candidates as $binary) {

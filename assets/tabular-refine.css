@@ -168,3 +168,23 @@
 @media(max-width:1050px){.tabulation-layout{grid-template-columns:repeat(2,minmax(0,1fr))}.increment-panel{grid-column:1/-1}.increment-panel .increment-options{grid-template-columns:repeat(2,minmax(0,1fr))}.selection-layout{grid-template-columns:minmax(0,1fr) 100px minmax(0,1fr)}}
 @media(max-width:760px){.tabulation-layout{grid-template-columns:1fr}.increment-panel{grid-column:auto}.increment-panel .increment-options{grid-template-columns:1fr;max-height:260px}.selection-layout{grid-template-columns:1fr}.selection-actions{flex-direction:row}.selection-actions .button{width:auto;flex:1}.selection-available,.selection-active{padding:11px}.choice-list{height:190px;min-height:190px}.category-list{height:190px;min-height:190px}.advanced-options .tabwin-options{grid-template-columns:1fr}.tabwin-options>.section-label{grid-column:auto}}
 @media(max-width:520px){.selection-builder,.advanced-options{padding:12px}.selection-actions{gap:7px}.selection-actions .button{font-size:10px}.category-search-row{grid-template-columns:minmax(0,1fr) auto}.category-search-row .button{padding:0 10px}.filter-item{grid-template-columns:auto minmax(0,1fr)}.filter-item button{grid-column:2;justify-self:start;padding:0}}
+
+/* SPPtab blue tile palette for active tabulation controls. */
+.tabular-main .choice-list:focus,.tabular-main .column-filter select:focus,.tabular-main .selection-builder select:focus,.tabular-main .selection-builder input:focus{border-color:#8eb3ed;box-shadow:0 0 0 3px #edf4ff}
+.tabular-main .choice-list option:checked{background:#eaf2ff linear-gradient(0deg,#eaf2ff,#eaf2ff);color:#205fb4}
+.tabular-main .column-filter,.tabular-main .filter-builder{background:#f5f8ff;border-color:#e3ebf8}
+.tabular-main .category-list:focus-within{border-color:#8eb3ed;box-shadow:0 0 0 3px #edf4ff}
+.tabular-main .category-option:hover{background:#f1f6ff}
+.tabular-main .category-option input{accent-color:#2f78dc}
+.tabular-main .increment-option:has(input:checked){border-color:#a7c4f0;background:#f1f6ff;color:#315582}
+.tabular-main .filter-chip{border-color:#dce8fb;background:#f0f5ff;color:#315d96}
+.tabular-main .selected-file{border-color:#dce8fb;background:#f8faff;color:#425d83}
+.tabular-main .selected-file button{background:#eaf2ff;color:#386db7}
+.tabular-main .section-label>span,.tabular-main .active-title>span{background:#eaf2ff;color:#386db7}
+.tabular-main .filter-item{border-color:#dce8fb;background:#f4f7ff;color:#405f8a}
+.tabular-main .filter-action{background:#e4edfc;color:#386db7}
+.tabular-main .category-list .category-option:hover{background:#f1f6ff}
+.result-page .result-badge{border-color:#dce8fb;color:#476c9e}
+.result-page .result-status{background:#eff5ff;color:#456995}
+.result-page .result-table tfoot th,.result-page .result-table tfoot td{background:#edf4ff;color:#315582;border-top-color:#dce8fb}
+.result-page .result-table tbody tr:hover td{background:#f7f9ff}

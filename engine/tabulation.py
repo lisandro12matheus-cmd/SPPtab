@@ -23,7 +23,7 @@ DEF_MAP = {
  "AR":"APAC_Radioterapia.DEF", "ATD":"APAC_Tratamento_Dialitico.DEF", "PS":"RAAS_Psicossocial.def", "SAD":"Atencao_Domiciliar.def",
  "RD":"RD2008.DEF", "RJ":"RJ2008.DEF", "SP":"SP2008.DEF", "ER":"Motivo_de_Erro.DEF", "CH":"RD2008.DEF", "CM":"RD2008.DEF"
 }
-FILENAME = re.compile(r"^(?P<kind>[A-Z]{2,4})PA(?P<yy>\d{2})(?P<mm>\d{2})(?:[A-Z])?\.DBC$", re.I)
+FILENAME = re.compile(r"^(?P<kind>[A-Z]{2,4}?)(?P<uf>[A-Z]{2})(?P<yy>\d{2})(?P<mm>\d{2})(?:[A-Z])?\.DBC$", re.I)
 JOB_WRITE_LOCK = threading.Lock()
 SLOW_FALLBACK_LIMIT = 8 * 1024 * 1024
 NATIVE_TIMEOUT_SECONDS = 120
@@ -244,6 +244,13 @@ def meta(path: Path):
     kind = match.group("kind").upper()
     return system, kind, match
 
+def municipality_code(payload, fieldnames, municipality_field):
+    code=str(payload.get("municipalityCode") or "").strip()
+    if not code: return ""
+    if not re.fullmatch(r"\d{6}",code): raise ValueError("O código do município deve ter seis dígitos.")
+    if municipality_field not in fieldnames: raise ValueError("Este arquivo não possui o campo necessário para filtrar município.")
+    return code
+
 def catalog():
     files=[]; manifest={}; active_jobs={}
     try:
@@ -265,10 +272,72 @@ def catalog():
             converted=converted_relative(rel)
             dbf=UPLOADS/converted
             dbf_exists=dbf.is_file(); dbf_stat=dbf.stat() if dbf_exists else None
-            files.append({"path":rel,"name":p.name,"system":sysname,"kind":kind,"year":2000+int(m.group("yy")),"month":int(m.group("mm")),"size":p.stat().st_size,"downloaded_at":info.get("downloaded_at"),"converted":dbf_exists,"dbf_path":converted if dbf_exists else None,"dbf_size":dbf_stat.st_size if dbf_stat else None,"dbf_mtime_ns":dbf_stat.st_mtime_ns if dbf_stat else None,"conversion":active_jobs.get(rel)})
+            files.append({"path":rel,"name":p.name,"system":sysname,"kind":kind,"uf":m.group("uf").upper(),"year":2000+int(m.group("yy")),"month":int(m.group("mm")),"size":p.stat().st_size,"downloaded_at":info.get("downloaded_at"),"converted":dbf_exists,"dbf_path":converted if dbf_exists else None,"dbf_size":dbf_stat.st_size if dbf_stat else None,"dbf_mtime_ns":dbf_stat.st_mtime_ns if dbf_stat else None,"conversion":active_jobs.get(rel)})
         except Exception: continue
     files.sort(key=lambda x:(x["system"],-x["year"],-x["month"],x["name"]))
     return {"ok":True,"files":files,"library_root":str(UPLOADS)}
+
+def delete_library_file(payload: dict[str,Any]):
+    source=safe_file(payload.get("path",""))
+    relative=source.relative_to(UPLOADS).as_posix()
+    system,_,_=meta(source)
+    if system not in {"SIA","SIH"}:
+        raise ValueError("Somente arquivos ambulatoriais e hospitalares importados podem ser removidos daqui.")
+
+    jobs=UPLOADS/".jobs"
+    if jobs.is_dir():
+        for statefile in jobs.glob("*.json"):
+            try:
+                state=json.loads(statefile.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+            else:
+                if state.get("source_path")==relative and state.get("status") in {"queued","running"} and time.time()-statefile.stat().st_mtime<20:
+                    raise ValueError("Este arquivo está sendo convertido. Aguarde a conversão terminar antes de removê-lo.")
+        tabulation_jobs=jobs/"tabulations"
+        if tabulation_jobs.is_dir():
+            for statefile in tabulation_jobs.glob("*.json"):
+                try:
+                    state=json.loads(statefile.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+                else:
+                    if state.get("status") not in {"queued","running"} or time.time()-statefile.stat().st_mtime>=300:
+                        continue
+                    data=state.get("payload") or {}
+                    selected={str(data.get("path") or "").replace("\\","/")}
+                    selected.update(str(item.get("path") or "").replace("\\","/") for item in data.get("sources",[]) if isinstance(item,dict))
+                    if relative in selected:
+                        raise ValueError("Este arquivo está sendo usado por uma tabulação em andamento. Aguarde a conclusão antes de removê-lo.")
+
+    converted=UPLOADS/converted_relative(relative)
+    if not converted.resolve().is_relative_to(UPLOADS):
+        raise ValueError("O caminho do arquivo convertido é inválido.")
+    source.unlink()
+    converted.unlink(missing_ok=True)
+    for partial in converted.parent.glob(converted.name+".*.part"):
+        try:
+            partial.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    manifest=UPLOADS/"manifest.json"
+    try:
+        items=json.loads(manifest.read_text(encoding="utf-8"))
+        if isinstance(items,list):
+            retained=[item for item in items if not isinstance(item,dict) or str(item.get("path") or "").replace("\\","/")!=relative]
+            if len(retained)!=len(items):
+                fd,temporary=tempfile.mkstemp(prefix="manifest-",suffix=".json.part",dir=str(UPLOADS))
+                try:
+                    with os.fdopen(fd,"w",encoding="utf-8") as stream:
+                        stream.write(json.dumps(retained,ensure_ascii=False,indent=2)+"\n")
+                    os.replace(temporary,manifest)
+                finally:
+                    Path(temporary).unlink(missing_ok=True)
+    except (OSError,json.JSONDecodeError):
+        pass
+
+    return {"ok":True,"deleted":{"path":relative,"name":source.name},"files":catalog()["files"]}
 
 def converted_relative(source_relative: str) -> str:
     rel=Path(source_relative)
@@ -550,7 +619,7 @@ def relation_mapping(system: str, option):
     return {}
 
 def schema(relative: str):
-    path=safe_file(relative); system,kind,_=meta(path); fields,records=dbc_header(path)
+    path=safe_file(relative); system,kind,filename_match=meta(path); fields,records=dbc_header(path)
     converted=UPLOADS/converted_relative(relative)
     if not converted.is_file(): raise ValueError("Converta este DBC para DBF na etapa 2 antes de abrir a tabulação.")
     defname,definition=archive_def(system,kind)
@@ -560,7 +629,7 @@ def schema(relative: str):
     fieldnames={f["name"].upper() for f in fields}
     municipality="PA_UFMUN" if system=="SIA" else "MUNIC_MOV"
     if municipality not in fieldnames: municipality=""
-    return {"ok":True,"file":{"path":relative,"name":path.name,"system":system,"kind":kind},"dbfPath":converted.relative_to(UPLOADS).as_posix(),"dbfIdentity":cache_file_identity(converted),"definition":{"name":defname,"archive":f"uploads/DEFINICOES/originais/TAB_{system}.zip","size":len(definition),"relationFiles":len(relationFiles)},"fields":fields,"lineOptions":rows,"columnOptions":cols,"selectionOptions":selections,"increments":increments,"groupField":group,"municipalityField":municipality,"municipalityCode":"150140","recordCount":records}
+    return {"ok":True,"file":{"path":relative,"name":path.name,"system":system,"kind":kind,"uf":filename_match.group("uf").upper()},"dbfPath":converted.relative_to(UPLOADS).as_posix(),"dbfIdentity":cache_file_identity(converted),"definition":{"name":defname,"archive":f"uploads/DEFINICOES/originais/TAB_{system}.zip","size":len(definition),"relationFiles":len(relationFiles)},"fields":fields,"lineOptions":rows,"columnOptions":cols,"selectionOptions":selections,"increments":increments,"groupField":group,"municipalityField":municipality,"recordCount":records}
 
 def category_values(payload):
     relative=payload.get("path",""); source=safe_file(relative); path=safe_dbf(payload.get("dbfPath") or converted_relative(relative)); system,kind,_=meta(source)
@@ -575,15 +644,16 @@ def category_values(payload):
     if not option: raise ValueError("Escolha uma variável disponível na definição.")
     field=option["field"]
     munfield="PA_UFMUN" if system=="SIA" else "MUNIC_MOV"
-    usemun=bool(payload.get("belem",True)) and munfield in fields
+    municipality=municipality_code(payload,fields,munfield)
+    usemun=bool(municipality)
     archive=UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip"
-    identity={"cacheVersion":2,"dbf":cache_file_identity(path),"option":option["id"],"type":option_type,"belem":usemun,"definition":cache_file_identity(archive) if archive.is_file() else defname}
+    identity={"cacheVersion":3,"dbf":cache_file_identity(path),"option":option["id"],"type":option_type,"municipalityCode":municipality,"definition":cache_file_identity(archive) if archive.is_file() else defname}
     target=cache_target("category-values",identity)
     cached=cache_read(target)
     if cached is not None: return cached
     names=[field]
     values=set(); truncated=False
-    for record in iter_dbf_fields(path,names,pre_filter=(munfield,"150140") if usemun else None):
+    for record in iter_dbf_fields(path,names,pre_filter=(munfield,municipality) if usemun else None):
         value=record[0]
         if not value: continue
         if value not in values:
@@ -659,9 +729,9 @@ def tabulate(payload, progress=None):
     sources=[]
     for item in raw_sources:
         if not isinstance(item,dict): raise ValueError("A lista de arquivos é inválida.")
-        source=safe_file(item.get("path","")); system,kind,_=meta(source); dbf=safe_dbf(item.get("dbfPath") or converted_relative(item.get("path","")))
-        if sources and (system,kind)!=(sources[0]["system"],sources[0]["kind"]): raise ValueError("Todos os arquivos precisam pertencer à mesma família e tipo de base.")
-        sources.append({"source":source,"dbf":dbf,"system":system,"kind":kind})
+        source=safe_file(item.get("path","")); system,kind,filename_match=meta(source); uf=filename_match.group("uf").upper(); dbf=safe_dbf(item.get("dbfPath") or converted_relative(item.get("path","")))
+        if sources and (system,kind,uf)!=(sources[0]["system"],sources[0]["kind"],sources[0]["uf"]): raise ValueError("Todos os arquivos precisam pertencer à mesma família, tipo de base e unidade da Federação.")
+        sources.append({"source":source,"dbf":dbf,"system":system,"kind":kind,"uf":uf})
     system,kind=sources[0]["system"],sources[0]["kind"]
     _,_,_,fieldinfo=dbf_layout(sources[0]["dbf"])
     fieldset=set(fieldinfo)
@@ -706,14 +776,16 @@ def tabulate(payload, progress=None):
         column_value=str(column_filter.get("value","" )).strip()
         if len(column_value)>80: raise ValueError("O valor da coluna excede 80 caracteres.")
     munfield="PA_UFMUN" if system=="SIA" else "MUNIC_MOV"
-    usemun=bool(payload.get("belem",True)) and munfield in fieldset
+    municipality=municipality_code(payload,fieldset,munfield)
+    usemun=bool(municipality)
+    municipality_name=str(payload.get("municipalityName") or "").strip()[:80] if usemun else ""
     rowlabels=relation_mapping(system,rowoption); collabels=relation_mapping(system,coloption)
     unclassified_mode=str(payload.get("unclassified","ignore")).lower()
     if unclassified_mode not in {"ignore","include","discriminate"}: raise ValueError("Tratamento de não classificados inválido.")
     suppress_rows=bool(payload.get("suppressRows",True)); suppress_columns=bool(payload.get("suppressColumns",True))
     save_records=bool(payload.get("saveRecords",False)); test_crc=bool(payload.get("testCrc",False))
     archive=UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip"
-    identity={"cacheVersion":3,"dbfs":[cache_file_identity(x["dbf"]) for x in sources],"definition":cache_file_identity(archive) if archive.is_file() else defname,"row":rowoption["id"],"column":coloption["id"] if coloption else "","metrics":metrics,"belem":usemun,"filters":[[key,mode,sorted(values)] for key,state in filters.items() for mode,values in state.items()],"columnFilter":{"option":coloption["id"],"value":column_value} if column_value and coloption else None,"unclassified":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns}
+    identity={"cacheVersion":4,"dbfs":[cache_file_identity(x["dbf"]) for x in sources],"definition":cache_file_identity(archive) if archive.is_file() else defname,"row":rowoption["id"],"column":coloption["id"] if coloption else "","metrics":metrics,"municipalityCode":municipality,"filters":[[key,mode,sorted(values)] for key,state in filters.items() for mode,values in state.items()],"columnFilter":{"option":coloption["id"],"value":column_value} if column_value and coloption else None,"unclassified":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns}
     target=cache_target("tabulations",identity)
     if not save_records and not test_crc:
         cached=cache_read(target)
@@ -736,7 +808,7 @@ def tabulate(payload, progress=None):
         def scan_update(file_processed,_file_total):
             if progress and total_to_scan:
                 progress(min(94,5+int(89*(processed+file_processed)/total_to_scan)),f"Lendo os registros · {processed+file_processed:,} de {total_to_scan:,}".replace(",","."))
-        for record_index,record in iter_dbf_fields(item["dbf"],names,with_index=True,pre_filter=(munfield,"150140") if usemun else None,processed_counter=processed_file,scan_callback=scan_update if progress else None):
+        for record_index,record in iter_dbf_fields(item["dbf"],names,with_index=True,pre_filter=(munfield,municipality) if usemun else None,processed_counter=processed_file,scan_callback=scan_update if progress else None):
             passed=True
             for index,condition in filter_indexes:
                 value=record[index]
@@ -804,7 +876,7 @@ def tabulate(payload, progress=None):
         total=None
     else:
         column_totals=[scaled_text(totals[0],metric_details[0]["decimals"])]; total=scaled_text(totals[0],metric_details[0]["decimals"])
-    result={"ok":True,"definition":defname,"metrics":[{"id":m["id"],"label":m["label"]} for m in metric_details],"metric":metric_details[0]["label"] if len(metrics)==1 else f"{len(metrics)} incrementos","records":records,"processedRecords":processed,"excludedUnclassified":excluded_unclassified,"total":total,"totalsByMetric":[scaled_text(value,detail["decimals"]) for value,detail in zip(totals,metric_details)],"columnTotals":column_totals,"municipalityApplied":usemun,"municipalityField":munfield if usemun else None,"appliedFilters":sum(len(state["include"])+len(state["exclude"]) for state in filters.values())+(1 if column_value else 0),"columns":display_columns,"rows":result_rows,"totalCategories":len(raw_rows),"truncated":len(raw_rows)>5000,"files":[x["source"].name for x in sources],"unclassifiedMode":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns,"crcTested":test_crc}
+    result={"ok":True,"definition":defname,"metrics":[{"id":m["id"],"label":m["label"]} for m in metric_details],"metric":metric_details[0]["label"] if len(metrics)==1 else f"{len(metrics)} incrementos","records":records,"processedRecords":processed,"excludedUnclassified":excluded_unclassified,"total":total,"totalsByMetric":[scaled_text(value,detail["decimals"]) for value,detail in zip(totals,metric_details)],"columnTotals":column_totals,"municipalityApplied":usemun,"municipalityCode":municipality or None,"municipalityName":municipality_name or None,"municipalityField":munfield if usemun else None,"appliedFilters":sum(len(state["include"])+len(state["exclude"]) for state in filters.values())+(1 if column_value else 0),"columns":display_columns,"rows":result_rows,"totalCategories":len(raw_rows),"truncated":len(raw_rows)>5000,"files":[x["source"].name for x in sources],"unclassifiedMode":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns,"crcTested":test_crc}
     if save_records:
         if progress: progress(97,"Salvando os registros selecionados")
         token=secrets.token_hex(16)
@@ -817,6 +889,7 @@ def tabulate(payload, progress=None):
 def tabwin_handle(payload):
     action=payload.get("action")
     if action=="catalog": return catalog()
+    if action=="delete_file": return delete_library_file(payload)
     if action=="schema": return schema(payload.get("path",""))
     if action=="column_values": return column_values(payload)
     if action=="category_values": return category_values(payload)

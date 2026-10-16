@@ -4,11 +4,14 @@
 from __future__ import annotations
 
 import json
+import gzip
 import os
 import re
 import sys
 import tempfile
 import time
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from ftplib import FTP
 from pathlib import Path
@@ -24,8 +27,10 @@ REMOTE = {
 ROOT = Path(__file__).resolve().parents[1]
 UPLOADS = Path(os.environ.get("TABWIN2_DATA_DIR", ROOT / "uploads")).expanduser().resolve()
 UPLOADS.mkdir(parents=True, exist_ok=True)
-FILENAME_PATTERN = re.compile(r"^(?P<kind>[A-Z]{2,4})PA(?P<yy>\d{2})(?P<mm>0[1-9]|1[0-2])(?P<suffix>[A-Z])?\.DBC$", re.I)
+FILENAME_PATTERN = re.compile(r"^(?P<kind>[A-Z]{2,4}?)(?P<uf>[A-Z]{2})(?P<yy>\d{2})(?P<mm>0[1-9]|1[0-2])(?P<suffix>[A-Z])?\.DBC$", re.I)
 SIH_KINDS = {"CH", "CM", "ER", "RD", "RJ", "SP"}
+VALID_UFS = {"AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"}
+IBGE_UF_IDS = {"RO":"11", "AC":"12", "AM":"13", "RR":"14", "PA":"15", "AP":"16", "TO":"17", "MA":"21", "PI":"22", "CE":"23", "RN":"24", "PB":"25", "PE":"26", "AL":"27", "SE":"28", "BA":"29", "MG":"31", "ES":"32", "RJ":"33", "SP":"35", "PR":"41", "SC":"42", "RS":"43", "MS":"50", "MT":"51", "GO":"52", "DF":"53"}
 
 SIA_LABELS = {
     "AB": "APAC · cirurgia bariátrica",
@@ -64,10 +69,10 @@ def connect() -> FTP:
     return ftp
 
 
-def source_cache(system: str, year: int) -> Path:
+def source_cache(system: str, year: int, uf: str = "PA") -> Path:
     folder = UPLOADS / ".cache" / "source-files"
     folder.mkdir(parents=True, exist_ok=True)
-    return folder / f"{system}-{year}.json"
+    return folder / f"{system}-{uf.lower()}-{year}.json"
 
 
 def cached_source(path: Path) -> dict[str, Any] | None:
@@ -80,10 +85,13 @@ def cached_source(path: Path) -> dict[str, Any] | None:
     return None
 
 
-def select_files(system: str, year: int, month: int | None = None) -> list[dict[str, Any]]:
+def select_files(system: str, year: int, month: int | None = None, uf: str = "PA") -> list[dict[str, Any]]:
+    uf = uf.upper()
+    if uf not in VALID_UFS:
+        raise SourceError("Unidade da Federação inválida.")
     directory = REMOTE[system]
     ftp = None
-    cache_path = source_cache(system, year)
+    cache_path = source_cache(system, year, uf)
     cached = cached_source(cache_path)
     freshness = 600 if year == datetime.now().year else 86400
     if cached and time.time() - cached["fetched_at"] < freshness:
@@ -92,7 +100,7 @@ def select_files(system: str, year: int, month: int | None = None) -> list[dict[
     else:
         source_mode = "https"
         try:
-            names = [directory + "/" + name for name in portal_list_files(system, year, None) if name == name.rsplit("/", 1)[-1] and FILENAME_PATTERN.fullmatch(name)]
+            names = [directory + "/" + name for name in portal_list_files(system, year, None, uf) if name == name.rsplit("/", 1)[-1] and FILENAME_PATTERN.fullmatch(name)]
             temporary_cache = cache_path.with_suffix(".json.part")
             try:
                 temporary_cache.write_text(json.dumps({"fetched_at": time.time(), "names": [name.rsplit("/", 1)[-1] for name in names]}), encoding="utf-8")
@@ -135,7 +143,7 @@ def select_files(system: str, year: int, month: int | None = None) -> list[dict[
         for remote_path in names:
             filename = remote_path.rsplit("/", 1)[-1]
             match = FILENAME_PATTERN.fullmatch(filename)
-            if not match or match.group("yy") != yy:
+            if not match or match.group("yy") != yy or match.group("uf").upper() != uf:
                 continue
             if system == "sih" and match.group("kind").upper() not in SIH_KINDS:
                 continue
@@ -147,6 +155,7 @@ def select_files(system: str, year: int, month: int | None = None) -> list[dict[
             found.append({
                 "name": filename,
                 "kind": kind,
+                "uf": uf,
                 "label": (SIA_LABELS if system == "sia" else SIH_LABELS).get(kind, f"Arquivo {kind}"),
                 "month": int(match.group("mm")),
                 "size": size,
@@ -191,9 +200,61 @@ def safe_size(size: int | None) -> str:
     return f"{amount:.1f} {unit}"
 
 
-def download_selected(system: str, year: int, month: int, requested_names: list[str], available: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+def list_municipalities(uf: str) -> dict[str, Any]:
+    uf = uf.upper()
+    if uf not in IBGE_UF_IDS:
+        raise SourceError("Unidade da Federação inválida.")
+    cache_folder = UPLOADS / ".cache" / "municipalities"
+    cache_folder.mkdir(parents=True, exist_ok=True)
+    cache_path = cache_folder / f"{uf.lower()}.json"
+    cached = None
+    try:
+        cached = json.loads(cache_path.read_text(encoding="utf-8"))
+        if not isinstance(cached, dict) or not isinstance(cached.get("municipalities"), list):
+            cached = None
+    except (OSError, ValueError, TypeError):
+        cached = None
+    if cached and time.time() - float(cached.get("fetched_at", 0)) < 30 * 86400:
+        return {"ok": True, "uf": uf, "municipalities": cached["municipalities"], "source_mode": "cache"}
+
+    url = f"https://servicodados.ibge.gov.br/api/v1/localidades/estados/{IBGE_UF_IDS[uf]}/municipios?orderBy=nome"
+    try:
+        request = urllib.request.Request(url, headers={"User-Agent": "SPPtab/1.0", "Accept": "application/json"})
+        with urllib.request.urlopen(request, timeout=20) as response:
+            if urllib.parse.urlparse(response.geturl()).hostname != "servicodados.ibge.gov.br":
+                raise ValueError("A consulta do IBGE foi redirecionada para outro domínio.")
+            body = response.read()
+            if response.headers.get("Content-Encoding", "").lower() == "gzip" or body.startswith(b"\x1f\x8b"):
+                body = gzip.decompress(body)
+            data = json.loads(body.decode("utf-8"))
+        if not isinstance(data, list):
+            raise ValueError("O IBGE não retornou a lista de municípios esperada.")
+        municipalities = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            ibge_id = str(item.get("id", ""))
+            name = item.get("nome")
+            if len(ibge_id) == 7 and ibge_id.isdigit() and isinstance(name, str):
+                municipalities.append({"code": ibge_id[:6], "ibge_id": ibge_id, "name": name})
+        if not municipalities:
+            raise ValueError("O IBGE não retornou municípios válidos para esta UF.")
+        temporary = cache_path.with_suffix(".json.part")
+        try:
+            temporary.write_text(json.dumps({"fetched_at": time.time(), "municipalities": municipalities}, ensure_ascii=False), encoding="utf-8")
+            os.replace(temporary, cache_path)
+        except OSError:
+            temporary.unlink(missing_ok=True)
+        return {"ok": True, "uf": uf, "municipalities": municipalities, "source_mode": "ibge"}
+    except Exception as exc:
+        if cached:
+            return {"ok": True, "uf": uf, "municipalities": cached["municipalities"], "source_mode": "stale-cache"}
+        raise SourceError(f"Não foi possível carregar os municípios do IBGE: {exc}") from exc
+
+
+def download_selected(system: str, year: int, month: int, requested_names: list[str], available: list[dict[str, Any]] | None = None, uf: str = "PA") -> dict[str, Any]:
     if available is None:
-        available = select_files(system, year, month)
+        available = select_files(system, year, month, uf)
     allowed = {item["name"].upper(): item for item in available}
     names = list(dict.fromkeys(name.upper() for name in requested_names))
     if not names or any(name not in allowed for name in names):
@@ -277,14 +338,21 @@ def main() -> int:
     try:
         request = json.load(sys.stdin)
         action = request.get("action")
+        if action == "municipalities":
+            output = list_municipalities(str(request.get("uf", "")).upper())
+            sys.stdout.write(json.dumps(output, ensure_ascii=True))
+            return 0
         system = request.get("system")
         year = int(request.get("year"))
         month = int(request["month"]) if "month" in request else None
+        uf = str(request.get("uf", "PA")).upper()
         if system not in REMOTE or year < 2008 or year > datetime.now().year:
             raise SourceError("Base ou ano inválido.")
+        if uf not in VALID_UFS:
+            raise SourceError("Unidade da Federação inválida.")
 
         if action in {"competencies", "files", "download"}:
-            files = select_files(system, year, month if action != "competencies" else None)
+            files = select_files(system, year, month if action != "competencies" else None, uf)
         else:
             raise SourceError("Ação não reconhecida.")
 
@@ -292,14 +360,14 @@ def main() -> int:
             months = sorted({item["month"] for item in files})
             for item in files:
                 item["size_label"] = safe_size(item["size"])
-            output: dict[str, Any] = {"ok": True, "system": system, "year": year, "months": months, "files_count": len(files), "files": files, "source_mode": files[0]["source_mode"] if files else "https"}
+            output: dict[str, Any] = {"ok": True, "system": system, "year": year, "uf": uf, "months": months, "files_count": len(files), "files": files, "source_mode": files[0]["source_mode"] if files else "https"}
         elif action == "files":
             for item in files:
                 item["size_label"] = safe_size(item["size"])
-            output = {"ok": True, "system": system, "year": year, "month": month, "files": files, "count": len(files), "source_mode": files[0]["source_mode"] if files else "https"}
+            output = {"ok": True, "system": system, "year": year, "month": month, "uf": uf, "files": files, "count": len(files), "source_mode": files[0]["source_mode"] if files else "https"}
         else:
-            downloaded = download_selected(system, year, month or 0, request.get("names", []), files)
-            output = {"ok": True, "system": system, "year": year, "month": month, **downloaded}
+            downloaded = download_selected(system, year, month or 0, request.get("names", []), files, uf)
+            output = {"ok": True, "system": system, "year": year, "month": month, "uf": uf, **downloaded}
 
         # Escaped Unicode keeps stdout valid even when Apache starts Python with a legacy Windows code page.
         sys.stdout.write(json.dumps(output, ensure_ascii=True))

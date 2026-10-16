@@ -5,6 +5,8 @@
   const fileSelect = $('#sourceFile');
   const BROWSER_CACHE_PREFIX = 'spptab-tabulation-v1:';
   const BROWSER_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+  const LOCATION_KEY = 'spptab-location-v1';
+  const stateNames = {AC:'Acre',AL:'Alagoas',AP:'Amapá',AM:'Amazonas',BA:'Bahia',CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',MA:'Maranhão',MT:'Mato Grosso',MS:'Mato Grosso do Sul',MG:'Minas Gerais',PA:'Pará',PB:'Paraíba',PR:'Paraná',PE:'Pernambuco',PI:'Piauí',RJ:'Rio de Janeiro',RN:'Rio Grande do Norte',RS:'Rio Grande do Sul',RO:'Rondônia',RR:'Roraima',SC:'Santa Catarina',SP:'São Paulo',SE:'Sergipe',TO:'Tocantins'};
 
   let files = [];
   let libraryRoot = '';
@@ -22,6 +24,34 @@
   let resultRunId = '';
   let popupReady = false;
   let pendingPopupMessage = null;
+
+  function updateTabLocationTag() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(LOCATION_KEY) || 'null'); } catch (_) {}
+    const uf = selected?.uf || saved?.uf || '';
+    const locationText = selected && saved?.uf !== selected.uf
+      ? `${stateNames[uf] || uf} · ${uf}`
+      : saved?.uf === uf && saved?.municipalityName
+        ? `${uf} · ${saved.municipalityName}`
+        : uf ? `${stateNames[uf] || uf} · ${uf}` : 'Localidade';
+    $('#tabLocationName').textContent = locationText;
+  }
+
+  function currentLocationSelection() {
+    try {
+      const value = JSON.parse(localStorage.getItem(LOCATION_KEY) || 'null');
+      if (value && value.uf === selected?.uf && /^\d{6}$/.test(String(value.municipalityCode || ''))) return value;
+    } catch (_) {}
+    return null;
+  }
+
+  function activeMunicipalityCode() {
+    return $('#municipalityFilter').checked ? String(currentLocationSelection()?.municipalityCode || '') : '';
+  }
+
+  function activeMunicipalityName() {
+    return activeMunicipalityCode() ? String(currentLocationSelection()?.municipalityName || '') : '';
+  }
 
   function dbfFingerprint(file) {
     if (!file?.path || !file?.dbf_path || !Number(file.dbf_size) || !Number(file.dbf_mtime_ns)) return '';
@@ -137,11 +167,12 @@
       fileSelect.replaceChildren(new Option(files.length ? 'Selecione uma base…' : 'Nenhuma base importada', ''));
       files.forEach((file) => {
         const period = `${String(file.month).padStart(2, '0')}/${file.year}`;
-        fileSelect.add(new Option(`${file.system} · ${file.kind} · ${period} · ${file.name} (${formatBytes(file.size)})`, file.path));
+        fileSelect.add(new Option(`${file.system} · ${file.kind} · ${period} · ${stateNames[file.uf] || file.uf} · ${file.name} (${formatBytes(file.size)})`, file.path));
       });
       $('#sourceDetails').textContent = files.length
         ? `${files.length.toLocaleString('pt-BR')} ${files.length === 1 ? 'arquivo disponível' : 'arquivos disponíveis'} na biblioteca.`
         : 'Importe primeiro um arquivo na etapa Buscar arquivos.';
+      updateTabLocationTag();
     } catch (error) {
       fileSelect.replaceChildren(new Option('Falha ao abrir biblioteca', ''));
       $('#sourceDetails').textContent = error.message;
@@ -150,6 +181,7 @@
 
   function chooseFile() {
     selected = files.find((file) => file.path === fileSelect.value) || null;
+    updateTabLocationTag();
     schema = null;
     dbfPath = selected?.dbf_path || null;
     tabFiles = selected ? [selected] : [];
@@ -312,9 +344,7 @@
       PA: 'Pará', PB: 'Paraíba', PR: 'Paraná', PE: 'Pernambuco', PI: 'Piauí', RJ: 'Rio de Janeiro', RN: 'Rio Grande do Norte',
       RS: 'Rio Grande do Sul', RO: 'Rondônia', RR: 'Roraima', SC: 'Santa Catarina', SP: 'São Paulo', SE: 'Sergipe', TO: 'Tocantins',
     };
-    const filename = String(selected?.name || '').toUpperCase();
-    const fileMatch = filename.match(/^[A-Z]{2}([A-Z]{2})\d{4}(?=\.|$)/);
-    const stateCode = fileMatch?.[1];
+    const stateCode = String(selected?.uf || '').toUpperCase();
     const stateName = stateNames[stateCode];
     if (!stateName) return items;
 
@@ -421,7 +451,8 @@
 
     status.textContent = 'Carregando categorias da base…';
     try {
-      const cacheKey = browserCacheKey('categories', selected, `column:${option}:${$('#belemFilter').checked ? 'belem' : 'all'}`);
+      const municipalityCode = activeMunicipalityCode();
+      const cacheKey = browserCacheKey('categories', selected, `column:${option}:${municipalityCode || 'all'}`);
       let data = readBrowserCache(cacheKey);
       const fromBrowserCache = Boolean(data);
       if (!data) {
@@ -431,7 +462,7 @@
           dbfPath,
           option,
           optionType: 'column',
-          belem: $('#belemFilter').checked,
+          municipalityCode,
         });
         writeBrowserCache(cacheKey, data);
       }
@@ -524,7 +555,8 @@
     const requestId = ++categoryRequests.selection;
     status.textContent = 'Carregando categorias da base…';
     try {
-      const cacheKey = browserCacheKey('categories', selected, `selection:${optionId}:${$('#belemFilter').checked ? 'belem' : 'all'}`);
+      const municipalityCode = activeMunicipalityCode();
+      const cacheKey = browserCacheKey('categories', selected, `selection:${optionId}:${municipalityCode || 'all'}`);
       let data = readBrowserCache(cacheKey);
       const fromBrowserCache = Boolean(data);
       if (!data) {
@@ -534,7 +566,7 @@
           dbfPath,
           option: optionId,
           optionType: 'selection',
-          belem: $('#belemFilter').checked,
+          municipalityCode,
         });
         writeBrowserCache(cacheKey, data);
       }
@@ -740,9 +772,13 @@
     tabFiles = selected ? [selected] : [];
     renderFiles();
     $('#fileOptions').hidden = false;
-    $('#municipalityWrap').hidden = !schema.municipalityField;
+    const chosenMunicipality = currentLocationSelection();
+    $('#municipalityWrap').hidden = !schema.municipalityField || !chosenMunicipality;
+    $('#municipalityFilter').checked = Boolean(chosenMunicipality);
     if (schema.municipalityField) {
-      $('#municipalityDescription').textContent = `Belém · código IBGE 150140 · campo ${schema.municipalityField}`;
+      $('#municipalityDescription').textContent = chosenMunicipality
+        ? `${chosenMunicipality.municipalityName} · código IBGE ${chosenMunicipality.municipalityCode} · campo ${schema.municipalityField}`
+        : `Escolha um município na tela inicial para ativar o filtro · campo ${schema.municipalityField}`;
     }
     setSchemaLoading(false);
     loadColumnValues();
@@ -840,7 +876,8 @@
         row: $('#rowField').value,
         column,
         metrics: selectedMetrics(),
-        belem: $('#belemFilter').checked,
+        municipalityCode: activeMunicipalityCode(),
+        municipalityName: activeMunicipalityName(),
         filters: activeFilters.map((filter) => ({ option: filter.option, value: filter.value, mode: filter.mode })),
         columnFilter: column && columnValue ? { option: column, value: columnValue } : null,
         suppressRows: $('#suppressRows').checked,
@@ -975,7 +1012,7 @@
   $('#rowField').addEventListener('change', updateRunButton);
   $('#columnField').addEventListener('change', loadColumnValues);
   $('#columnValue').addEventListener('change', updateRunButton);
-  $('#belemFilter').addEventListener('change', () => {
+  $('#municipalityFilter').addEventListener('change', () => {
     loadColumnValues();
     if ($('#filterField').value) loadSelectionValues();
   });
@@ -1007,6 +1044,7 @@
     const match = files.find((file) => file.conversion?.id === job) || files.find((file) => !file.converted);
     if (!match) return;
     selected = match;
+    updateTabLocationTag();
     fileSelect.value = match.path;
     step2();
     if (match.conversion?.id !== job) {

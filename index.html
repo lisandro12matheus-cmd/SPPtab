@@ -3,572 +3,83 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f6f8fc">
-  <meta name="description" content="SPPtab: busque, prepare e tabule dados públicos ambulatoriais e hospitalares do Pará.">
-  <title>SPPtab — Tabulação de dados públicos de saúde</title>
+  <meta name="theme-color" content="#f5f7fa">
+  <meta name="description" content="SPPtab organiza a busca, conversão e tabulação de dados públicos ambulatoriais e hospitalares do DATASUS.">
+  <title>SPPtab — Dados públicos de saúde para análise</title>
+  <link rel="preload" as="image" href="assets/hero-public-health.jpg" fetchpriority="high">
   <style>
-    :root {
-      color-scheme: light;
-      --navy: #20346f;
-      --navy-deep: #17295d;
-      --blue: #1760bd;
-      --blue-mid: #4b86df;
-      --blue-bright: #3288f5;
-      --ink: #16264d;
-      --muted: #66748f;
-      --line: #e2e8f2;
-      --paper: #ffffff;
-      --wash: #f6f8fc;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      font-synthesis: none;
-      text-rendering: optimizeLegibility;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-      scroll-behavior: smooth;
-    }
-
-    * { box-sizing: border-box; }
-    body { min-width: 320px; margin: 0; color: var(--ink); background: var(--paper); }
-    a { color: inherit; }
-    button, a { -webkit-tap-highlight-color: transparent; }
-    .container { width: min(1160px, calc(100% - 48px)); margin-inline: auto; }
-
-    .site-header {
-      position: relative;
-      z-index: 2;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      min-height: 92px;
-      border-bottom: 1px solid rgba(32, 52, 111, .07);
-    }
-
-    .brand { display: inline-flex; align-items: center; text-decoration: none; }
-    .brand img { display: block; width: 150px; height: auto; }
-    .main-nav { display: flex; align-items: center; gap: 34px; margin-left: auto; margin-right: 32px; }
-    .nav-link { color: #596782; font-size: 14px; font-weight: 600; text-decoration: none; transition: color .18s ease; }
-    .nav-link:hover { color: var(--blue); }
-
-    .button {
-      display: inline-flex;
-      min-height: 50px;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      padding: 0 20px;
-      border: 1px solid transparent;
-      border-radius: 12px;
-      background: var(--blue);
-      box-shadow: 0 8px 18px rgba(23, 96, 189, .16);
-      color: #fff;
-      font: inherit;
-      font-size: 14px;
-      font-weight: 700;
-      line-height: 1.2;
-      text-align: center;
-      text-decoration: none;
-      transition: transform .18s ease, background-color .18s ease, box-shadow .18s ease;
-    }
-
-    .button:hover { transform: translateY(-2px); background: #124f9e; box-shadow: 0 12px 24px rgba(23, 96, 189, .22); }
-    .button:active { transform: translateY(0); }
-    .button:focus-visible, .nav-link:focus-visible, .text-link:focus-visible { outline: 3px solid #8ebaff; outline-offset: 4px; }
-    .button svg { width: 18px; height: 18px; flex: none; }
-    .button-small { min-height: 44px; padding-inline: 17px; border-radius: 11px; }
-
-    .hero {
-      display: grid;
-      grid-template-columns: minmax(0, 1.08fr) minmax(340px, .92fr);
-      align-items: center;
-      gap: clamp(36px, 5vw, 74px);
-      min-height: 620px;
-      padding-block: 72px 88px;
-    }
-
-    .hero-copy { max-width: 615px; }
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      margin: 0 0 24px;
-      color: var(--blue);
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: .14em;
-      line-height: 1.4;
-      text-transform: uppercase;
-    }
-
-    .eyebrow-mark { display: inline-grid; width: 22px; height: 22px; grid-template-columns: repeat(2, 1fr); gap: 3px; }
-    .eyebrow-mark i { border-radius: 3px; background: var(--blue); }
-    .eyebrow-mark i:nth-child(2) { background: var(--blue-mid); }
-    .eyebrow-mark i:nth-child(3) { background: #80b2ff; }
-    .eyebrow-mark i:nth-child(4) { background: var(--blue-bright); }
-
-    h1, h2, p { margin-top: 0; }
-    h1 {
-      max-width: 620px;
-      margin-bottom: 21px;
-      color: var(--navy);
-      font-size: clamp(45px, 5.1vw, 66px);
-      font-weight: 750;
-      letter-spacing: -.064em;
-      line-height: 1.02;
-    }
-
-    h1 span { color: var(--blue); }
-    .hero-lead { max-width: 540px; margin-bottom: 28px; color: var(--muted); font-size: 17px; line-height: 1.72; }
-    .hero-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 23px; }
-    .hero-actions .button { min-height: 56px; padding-inline: 24px; font-size: 15px; }
-    .text-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--navy); font-size: 14px; font-weight: 700; text-decoration: none; }
-    .text-link svg { width: 17px; height: 17px; transition: transform .18s ease; }
-    .text-link:hover svg { transform: translateX(3px); }
-    .hero-note { display: flex; align-items: center; gap: 10px; margin: 20px 0 0; color: #7b879e; font-size: 12px; line-height: 1.5; }
-    .hero-note .tiny-pixels { display: inline-flex; flex: none; gap: 3px; }
-    .tiny-pixels i { width: 6px; height: 6px; border-radius: 2px; background: var(--blue-mid); }
-    .tiny-pixels i:nth-child(2) { background: var(--blue-bright); }
-    .tiny-pixels i:nth-child(3) { background: #9dc6ff; }
-    .release-status { display: flex; align-items: center; gap: 13px; width: fit-content; max-width: 100%; margin-top: 25px; padding: 11px 14px; border: 1px solid #e3ebf7; border-radius: 12px; background: #f8faff; }
-    .release-status__mark { display: grid; width: 25px; height: 25px; flex: none; grid-template-columns: repeat(2, 8px); grid-template-rows: repeat(2, 8px); gap: 3px; place-content: center; }
-    .release-status__mark i { border-radius: 2px; background: var(--blue); }
-    .release-status__mark i:nth-child(2) { background: var(--blue-mid); }
-    .release-status__mark i:nth-child(3) { background: var(--blue-bright); }
-    .release-status__copy { display: grid; gap: 2px; min-width: 0; }
-    .release-status__copy small { color: #8290aa; font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
-    .release-status__copy strong { color: var(--navy); font-size: 12px; font-weight: 700; line-height: 1.3; }
-    .release-status__link { margin-left: 12px; color: var(--blue); font-size: 11px; font-weight: 700; white-space: nowrap; text-decoration: none; }
-    .release-status__link:hover { text-decoration: underline; }
-    .release-status__link:focus-visible { outline: 3px solid #8ebaff; outline-offset: 4px; }
-
-    .hero-art {
-      position: relative;
-      display: grid;
-      height: 430px;
-      place-items: center;
-      isolation: isolate;
-    }
-
-    .hero-art::before {
-      position: absolute;
-      z-index: -2;
-      inset: 18px 2px 24px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(226, 239, 255, .9) 0%, rgba(239, 246, 255, .68) 46%, rgba(255, 255, 255, 0) 72%);
-      content: "";
-    }
-
-    .hero-art::after {
-      position: absolute;
-      z-index: -1;
-      inset: 16px 0 35px;
-      background-image: linear-gradient(rgba(49, 102, 180, .075) 1px, transparent 1px), linear-gradient(90deg, rgba(49, 102, 180, .075) 1px, transparent 1px);
-      background-size: 30px 30px;
-      content: "";
-      mask-image: radial-gradient(circle, #000 18%, transparent 68%);
-      pointer-events: none;
-    }
-
-    .art-ring {
-      position: absolute;
-      width: min(88%, 370px);
-      aspect-ratio: 1;
-      border: 1px solid rgba(42, 104, 196, .15);
-      border-radius: 50%;
-    }
-
-    .art-ring::before {
-      position: absolute;
-      inset: 27px;
-      border: 1px solid rgba(42, 104, 196, .09);
-      border-radius: 50%;
-      content: "";
-    }
-
-    .art-ring::after {
-      position: absolute;
-      top: 15%;
-      left: 12%;
-      width: 10px;
-      height: 10px;
-      border-radius: 3px;
-      background: #6ba9fa;
-      box-shadow: 0 0 0 7px rgba(107, 169, 250, .12);
-      content: "";
-      animation: orbit-turn 22s linear infinite;
-      transform-origin: 140px 140px;
-    }
-
-    .brand-symbol {
-      position: relative;
-      display: grid;
-      grid-template-columns: repeat(3, 64px);
-      grid-template-rows: repeat(3, 64px);
-      gap: 11px;
-      margin-top: -30px;
-    }
-
-    .brand-symbol i {
-      position: relative;
-      display: block;
-      border: 1px solid rgba(255, 255, 255, .3);
-      border-radius: 14px;
-      background: var(--tile);
-      box-shadow: 0 17px 30px rgba(24, 79, 155, .17), inset 0 1px 0 rgba(255, 255, 255, .2);
-      animation: tile-breathe 4.8s ease-in-out infinite;
-      animation-delay: var(--delay);
-    }
-
-    .brand-symbol i::after { position: absolute; inset: 8px; border: 1px solid rgba(255, 255, 255, .13); border-radius: 7px; content: ""; }
-    .brand-symbol i:nth-child(1) { grid-column: 1; grid-row: 1; --tile: #1760bd; --delay: -.2s; }
-    .brand-symbol i:nth-child(2) { grid-column: 2; grid-row: 1; --tile: #4b86df; --delay: -1.15s; }
-    .brand-symbol i:nth-child(3) { grid-column: 3; grid-row: 1; --tile: #3288f5; --delay: -2.1s; }
-    .brand-symbol i:nth-child(4) { grid-column: 2; grid-row: 2; --tile: #1760bd; --delay: -3.05s; }
-    .brand-symbol i:nth-child(5) { grid-column: 2; grid-row: 3; --tile: #3288f5; --delay: -4s; }
-
-    .art-flow {
-      position: absolute;
-      right: 8%;
-      bottom: 23px;
-      left: 8%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 13px;
-      min-height: 48px;
-      padding: 8px 16px;
-      border: 1px solid #e1e9f6;
-      border-radius: 13px;
-      background: rgba(255, 255, 255, .94);
-      box-shadow: 0 12px 30px rgba(32, 52, 111, .09);
-      color: #52627f;
-      font-size: 11px;
-      font-weight: 750;
-      letter-spacing: .045em;
-      white-space: nowrap;
-    }
-
-    .art-flow b { color: var(--blue); font-weight: 800; }
-    .art-flow .flow-track { position: relative; width: 28px; height: 1px; background: #bfd4f0; }
-    .art-flow .flow-track::after { position: absolute; top: -3px; left: 0; width: 7px; height: 7px; border-radius: 2px; background: var(--blue-bright); content: ""; animation: track-move 2.8s ease-in-out infinite; }
-
-    @keyframes tile-breathe {
-      0%, 100% { transform: translateY(0); filter: brightness(1); }
-      50% { transform: translateY(-6px); filter: brightness(1.1); }
-    }
-
-    @keyframes orbit-turn { to { transform: rotate(360deg); } }
-    @keyframes track-move { 0%, 100% { left: 0; } 50% { left: calc(100% - 7px); } }
-
-    .flow-section {
-      padding: 93px 0 102px;
-      background:
-        radial-gradient(circle at 88% 12%, rgba(78, 143, 236, .22), transparent 31%),
-        linear-gradient(125deg, #1c3069, #17295d 72%);
-    }
-    .flow-section .eyebrow { color: #a9ccff; }
-    .flow-section .eyebrow-mark i:nth-child(1) { background: #6aa8ff; }
-    .flow-section h2 { color: #fff; }
-    .flow-section .section-description { color: #c6d4ee; }
-    .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 48px; margin-bottom: 40px; }
-    .section-heading .eyebrow { margin-bottom: 14px; }
-    h2 { margin-bottom: 0; color: var(--navy); font-size: clamp(32px, 3.7vw, 46px); font-weight: 730; letter-spacing: -.055em; line-height: 1.08; }
-    .section-intro { max-width: 595px; }
-    .section-description { max-width: 355px; margin-bottom: 4px; color: var(--muted); font-size: 14px; line-height: 1.75; }
-
-    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 17px; }
-    .step-card {
-      position: relative;
-      min-height: 230px;
-      padding: 27px 26px 26px;
-      border: 1px solid rgba(179, 207, 255, .18);
-      border-radius: 18px;
-      background: rgba(255, 255, 255, .075);
-      transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
-    }
-
-    .step-card:hover { transform: translateY(-4px); border-color: rgba(179, 207, 255, .42); box-shadow: 0 18px 38px rgba(4, 17, 47, .16); }
-    .step-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
-    .step-number { display: grid; width: 37px; height: 37px; place-items: center; border-radius: 11px; background: rgba(111, 172, 255, .2); color: #d9eaff; font-size: 12px; font-weight: 800; }
-    .step-glyph { display: flex; gap: 4px; align-items: end; height: 25px; }
-    .step-glyph i { width: 7px; border-radius: 3px; background: #bcd8ff; }
-    .step-glyph i:nth-child(1) { height: 12px; }
-    .step-glyph i:nth-child(2) { height: 19px; background: #78aef2; }
-    .step-glyph i:nth-child(3) { height: 25px; background: var(--blue); }
-    .step-card h3 { margin: 0 0 9px; color: #fff; font-size: 18px; font-weight: 720; letter-spacing: -.025em; }
-    .step-card p { max-width: 310px; margin-bottom: 0; color: #c6d4ee; font-size: 13px; line-height: 1.7; }
-
-    .scope-section { padding: 88px 0; }
-    .scope-panel {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 42px;
-      padding: 38px 42px;
-      border: 1px solid #dfe8f7;
-      border-radius: 22px;
-      background: linear-gradient(115deg, #f3f7ff, #fff 74%);
-    }
-
-    .scope-panel .eyebrow { margin-bottom: 12px; }
-    .scope-panel h2 { margin-bottom: 12px; font-size: clamp(26px, 3vw, 34px); }
-    .scope-panel p:last-child { max-width: 620px; margin-bottom: 0; color: var(--muted); font-size: 14px; line-height: 1.7; }
-    .scope-tags { display: grid; gap: 10px; min-width: 225px; }
-    .scope-tag { display: flex; align-items: center; gap: 11px; padding: 11px 14px; border: 1px solid #e1eaf8; border-radius: 11px; background: rgba(255, 255, 255, .84); color: #40516f; font-size: 12px; font-weight: 700; }
-    .scope-tag .tag-pixel { width: 9px; height: 9px; border-radius: 3px; background: var(--blue); box-shadow: 11px 0 0 var(--blue-mid), 22px 0 0 var(--blue-bright); margin-right: 22px; }
-
-    .closing { padding: 0 0 88px; }
-    .closing-panel {
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 32px;
-      overflow: hidden;
-      padding: 42px 48px;
-      border-radius: 22px;
-      background:
-        radial-gradient(circle at 89% 8%, rgba(72, 136, 229, .26), transparent 28%),
-        linear-gradient(116deg, #20346f, #192c64);
-      box-shadow: 0 22px 45px rgba(32, 52, 111, .17);
-      color: #fff;
-      isolation: isolate;
-    }
-
-    .closing-panel::after {
-      position: absolute;
-      z-index: -1;
-      right: 235px;
-      bottom: -52px;
-      width: 180px;
-      height: 180px;
-      border: 1px solid rgba(198, 221, 255, .13);
-      border-radius: 28px;
-      box-shadow: 0 0 0 18px rgba(198, 221, 255, .025), 0 0 0 38px rgba(198, 221, 255, .02);
-      content: "";
-      transform: rotate(18deg);
-    }
-
-    .closing-panel .eyebrow { margin-bottom: 12px; color: #a9ccff; }
-    .closing-panel h2 { max-width: 570px; color: #fff; font-size: clamp(28px, 3.6vw, 40px); }
-    .closing-action { display: grid; justify-items: center; gap: 12px; flex: none; }
-    .closing-panel .button { position: relative; z-index: 1; flex: none; background: #fff; box-shadow: 0 9px 22px rgba(3, 18, 52, .19); color: var(--navy); }
-    .closing-panel .button:hover { background: #eaf2ff; }
-    .integrity-link { color: #c9dcfa; font-size: 12px; font-weight: 600; text-decoration: none; }
-    .integrity-link:hover { color: #fff; text-decoration: underline; }
-    .integrity-link:focus-visible { outline: 3px solid #8ebaff; outline-offset: 4px; }
-
-    .site-footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 104px; border-top: 1px solid var(--line); color: #8792a6; font-size: 12px; }
-    .footer-identity { display: grid; gap: 7px; }
-    .footer-brand { display: inline-flex; align-items: center; gap: 9px; color: #5f6d87; font-size: 11px; font-weight: 700; }
-    .footer-brand img { width: 17px; height: 17px; object-fit: contain; object-position: left center; }
-    .footer-owner { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
-    .footer-owner strong { color: var(--ink); font-size: 14px; font-weight: 700; }
-    .footer-owner a { color: #596b88; font-size: 13px; text-decoration: none; }
-    .footer-owner a:hover, .footer-links a:hover { color: var(--blue); text-decoration: underline; }
-    .footer-links { display: flex; flex-wrap: wrap; gap: 20px; }
-    .footer-links a { color: #6a7892; text-decoration: none; }
-    .site-footer a:focus-visible { outline: 3px solid #8ebaff; outline-offset: 4px; }
-
-    @media (max-width: 980px) {
-      .hero { grid-template-columns: minmax(0, 1fr) minmax(300px, .85fr); gap: 26px; min-height: 560px; }
-      h1 { font-size: clamp(43px, 5.4vw, 58px); }
-      .hero-art { height: 380px; }
-      .section-heading { align-items: start; flex-direction: column; gap: 16px; }
-      .section-description { max-width: 600px; }
-    }
-
-    @media (max-width: 760px) {
-      .container { width: min(100% - 36px, 560px); }
-      .site-header { min-height: 76px; }
-      .brand img { width: 128px; }
-      .main-nav { display: none; }
-      .button-small { min-height: 42px; padding-inline: 14px; font-size: 12px; }
-      .hero { grid-template-columns: 1fr; gap: 18px; min-height: 0; padding-block: 54px 68px; }
-      .hero-copy { max-width: 620px; }
-      .hero-art { width: min(100%, 470px); height: 350px; justify-self: center; }
-      .art-ring { width: 290px; }
-      .brand-symbol { grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(3, 52px); gap: 9px; margin-top: -18px; }
-      .art-flow { right: 5%; bottom: 10px; left: 5%; }
-      .flow-section { padding: 70px 0 76px; }
-      .steps { grid-template-columns: 1fr; gap: 12px; }
-      .step-card { min-height: 0; padding: 22px; }
-      .step-top { margin-bottom: 22px; }
-      .step-card p { max-width: 500px; }
-      .scope-section { padding: 70px 0; }
-      .scope-panel { grid-template-columns: 1fr; gap: 24px; padding: 28px; }
-      .scope-tags { grid-template-columns: repeat(3, 1fr); min-width: 0; }
-      .scope-tag { justify-content: center; gap: 8px; padding-inline: 9px; font-size: 10px; }
-      .scope-tag .tag-pixel { display: none; }
-      .closing { padding-bottom: 65px; }
-      .closing-panel { align-items: flex-start; flex-direction: column; padding: 32px; }
-      .closing-panel .button { min-height: 52px; }
-    }
-
-    @media (max-width: 440px) {
-      .container { width: calc(100% - 32px); }
-      .brand img { width: 112px; }
-      .hero { padding-block: 44px 58px; }
-      .hero h1 { font-size: 43px; }
-      .hero-lead { font-size: 15px; }
-      .hero-actions { align-items: stretch; flex-direction: column; gap: 8px; }
-      .hero-actions .button { width: 100%; }
-      .text-link { justify-content: center; }
-      .hero-note { align-items: flex-start; font-size: 11px; }
-      .release-status { width: 100%; flex-wrap: wrap; }
-      .release-status__link { margin-left: auto; }
-      .hero-art { height: 300px; }
-      .art-ring { width: 260px; }
-      .art-flow { gap: 9px; padding-inline: 10px; font-size: 10px; }
-      .art-flow .flow-track { width: 18px; }
-      .eyebrow { font-size: 10px; }
-      h2 { font-size: 32px; }
-      .scope-panel { padding: 24px 20px; }
-      .scope-tags { grid-template-columns: 1fr; }
-      .scope-tag { justify-content: flex-start; padding: 11px 13px; font-size: 11px; }
-      .scope-tag .tag-pixel { display: block; }
-      .closing-panel { padding: 27px 23px; }
-      .site-footer { align-items: flex-start; flex-direction: column; justify-content: center; gap: 12px; padding-block: 19px; }
-      .footer-links { gap: 16px; }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
-    }
+    :root{color-scheme:light;--navy:#1d326f;--deep:#142653;--blue:#1766c2;--mid:#4d8ee6;--ink:#172746;--muted:#687792;--line:#e5eaf1;--wash:#f5f7fa;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+    *{box-sizing:border-box}body{min-width:320px;margin:0;color:var(--ink);background:#fff}a{color:inherit}.wrap{width:min(1240px,calc(100% - 56px));margin-inline:auto}
+    .header{display:flex;min-height:84px;align-items:center;gap:30px}.brand{display:inline-flex;flex:none;align-items:center}.brand img{display:block;width:142px;height:auto}.nav{display:flex;justify-content:center;gap:clamp(20px,3vw,42px);margin-left:auto}.nav a{color:#65718a;font-size:12px;font-weight:650;text-decoration:none;transition:color .18s}.nav a:hover{color:var(--blue)}
+    .button{display:inline-flex;min-height:48px;align-items:center;justify-content:center;gap:10px;padding:0 19px;border:1px solid transparent;border-radius:10px;background:var(--blue);box-shadow:0 7px 18px #1766c229;color:#fff;font:inherit;font-size:13px;font-weight:720;text-decoration:none;transition:transform .2s,background .2s,box-shadow .2s}.button:hover{transform:translateY(-2px);background:#1055a6;box-shadow:0 12px 24px #1766c23b}.button svg{width:17px;height:17px;flex:none}.button-small{min-height:42px;padding-inline:16px;border-radius:9px;font-size:12px}:focus-visible{outline:3px solid #7db2f7;outline-offset:4px}
+    .hero{position:relative;isolation:isolate;display:flex;min-height:590px;align-items:center;overflow:hidden;margin-top:8px;padding:70px clamp(38px,6vw,82px);border:1px solid #e3eaf2;border-radius:26px;background:#edf3fa url("assets/hero-public-health.jpg") center 51%/cover no-repeat;box-shadow:0 22px 56px #162b4f1a}
+    .hero:before{position:absolute;z-index:-1;inset:0;background:linear-gradient(90deg,#fffffff9 0%,#fffffff7 29%,#ffffffe3 43%,#ffffff73 58%,#ffffff08 78%);content:""}.hero:after{position:absolute;z-index:-1;right:6.5%;bottom:7%;width:220px;height:220px;border:1px solid #ffffffb3;border-radius:24px;box-shadow:0 0 0 16px #ffffff2e,0 0 0 34px #ffffff21;content:"";transform:rotate(11deg)}
+    .hero-copy{width:min(100%,600px)}.eyebrow{display:flex;align-items:center;gap:10px;margin:0 0 20px;color:var(--blue);font-size:10px;font-weight:800;letter-spacing:.15em;line-height:1.4;text-transform:uppercase}.pixels{display:inline-grid;width:19px;height:19px;flex:none;grid-template-columns:repeat(2,7px);grid-template-rows:repeat(2,7px);gap:3px}.pixels i{border-radius:2px;background:#1766c2;animation:pulse 2.7s ease-in-out infinite}.pixels i:nth-child(2){background:#4d8ee6;animation-delay:.18s}.pixels i:nth-child(3){background:#8fc1ff;animation-delay:.36s}.pixels i:nth-child(4){background:#3288ef;animation-delay:.54s}
+    h1,h2,h3,p{margin-top:0}h1{max-width:575px;margin-bottom:18px;color:var(--deep);font-size:clamp(43px,4.8vw,62px);font-weight:760;letter-spacing:-.065em;line-height:1.03}h1 span{color:var(--blue)}.hero-copy>p:not(.eyebrow){max-width:515px;margin-bottom:25px;color:#586883;font-size:15px;line-height:1.75}.hero-actions{display:flex;align-items:center;flex-wrap:wrap;gap:22px}.hero-actions .button{min-height:53px;padding-inline:21px}.text-link{display:inline-flex;min-height:44px;align-items:center;gap:8px;color:#334867;font-size:12px;font-weight:720;text-decoration:none}.text-link svg{width:16px;height:16px;transition:transform .18s}.text-link:hover svg{transform:translateX(3px)}
+    .hero-meta{display:flex;align-items:center;flex-wrap:wrap;gap:11px 16px;margin-top:21px;color:#65748f;font-size:10px;font-weight:600}.meta-dot{display:inline-flex;align-items:center;gap:7px}.meta-dot i{width:6px;height:6px;border-radius:50%;background:#32a987;box-shadow:0 0 0 4px #32a9871f}.version{display:inline-flex;align-items:center;gap:8px;min-height:29px;padding:5px 10px;border:1px solid #dce6f3f2;border-radius:8px;background:#ffffffe0;color:#66758f;backdrop-filter:blur(8px)}.version strong{color:var(--navy);font-weight:750}.version a{color:var(--blue);font-weight:700;text-decoration:none}.version a:hover{text-decoration:underline}
+    .hero-label{position:absolute;right:clamp(28px,5vw,68px);bottom:27px;display:inline-flex;align-items:center;gap:9px;padding:11px 14px;border:1px solid #ffffffd1;border-radius:10px;background:#ffffffe6;box-shadow:0 9px 24px #162b4f1f;color:#405372;font-size:10px;font-weight:720;backdrop-filter:blur(12px)}.hero-label i{width:7px;height:7px;border-radius:2px;background:var(--blue);box-shadow:10px 0 #4d8ee6,20px 0 #8fc1ff;margin-right:19px}
+    .benefits{position:relative;z-index:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:-22px}.benefit{display:flex;min-height:96px;align-items:center;gap:13px;padding:17px 16px;border:1px solid #edf0f4;border-radius:13px;background:#fff;box-shadow:0 10px 26px #182b490e}.benefit-icon{display:grid;width:40px;height:40px;flex:none;place-items:center;border-radius:11px;background:#edf4fd;color:var(--blue)}.benefit:nth-child(2) .benefit-icon{background:#f0f2fc;color:#475b9c}.benefit:nth-child(3) .benefit-icon{background:#eaf5f5;color:#138076}.benefit:nth-child(4) .benefit-icon{background:#f1f4fa;color:#526884}.benefit-icon svg{width:20px;height:20px}.benefit-copy{display:grid;min-width:0;gap:4px}.benefit-copy strong{color:#263958;font-size:11px;font-weight:760;line-height:1.35}.benefit-copy small{color:#78869b;font-size:10px;line-height:1.45}
+    .section{padding-block:100px}.section-head{display:flex;align-items:end;justify-content:space-between;gap:44px;margin-bottom:34px}.section-head .eyebrow{margin-bottom:14px}h2{margin-bottom:0;color:var(--deep);font-size:clamp(34px,4vw,48px);font-weight:740;letter-spacing:-.055em;line-height:1.06}.section-head>p{max-width:400px;margin-bottom:4px;color:var(--muted);font-size:13px;line-height:1.75}
+    .feature-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.feature-card{overflow:hidden;border:1px solid #e6ebf2;border-radius:15px;background:#fff;box-shadow:0 10px 30px #1426480a;transition:transform .22s,box-shadow .22s}.feature-card:hover{transform:translateY(-4px);box-shadow:0 18px 40px #1426481a}.feature-image{display:block;width:100%;aspect-ratio:1.52;object-fit:cover;background:#edf3fb}.feature-content{padding:21px 22px 23px}.feature-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;color:#7890ae;font-size:9px;font-weight:800;letter-spacing:.11em;text-transform:uppercase}.feature-meta span:first-child{display:inline-flex;align-items:center;gap:7px}.feature-meta i{width:6px;height:6px;border-radius:2px;background:var(--mid)}.feature-content h3{margin-bottom:8px;color:#22385d;font-size:17px;font-weight:740;letter-spacing:-.025em}.feature-content p{min-height:45px;margin-bottom:0;color:#718098;font-size:11px;line-height:1.7}
+    .dark-band{position:relative;overflow:hidden;background:linear-gradient(120deg,#142653,#1b3475 68%,#1b3c83);color:#fff}.dark-band:before{position:absolute;top:-215px;left:-135px;width:480px;height:480px;border:1px solid #a9c9fb1f;border-radius:50%;box-shadow:0 0 0 32px #a9c9fb06,0 0 0 70px #a9c9fb05;content:""}.dark-inner{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(350px,.92fr);align-items:center;gap:65px;padding-block:76px}.dark-copy .eyebrow{color:#a9ccff}.dark-copy h2{max-width:570px;margin-bottom:16px;color:#fff;font-size:clamp(32px,3.8vw,44px)}.dark-copy>p:not(.eyebrow){max-width:510px;margin-bottom:25px;color:#c5d3eb;font-size:12px;line-height:1.8}.dark-tags{display:flex;flex-wrap:wrap;gap:9px}.dark-tag{display:inline-flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid #bfd6fc33;border-radius:8px;background:#ffffff10;color:#e5efff;font-size:10px;font-weight:680}.dark-tag i{width:6px;height:6px;border-radius:2px;background:#67a5ff}
+    .data-preview{padding:19px;border:1px solid #c7dcff30;border-radius:16px;background:#ffffff13;box-shadow:0 18px 48px #030c2238;backdrop-filter:blur(8px);transform:perspective(1000px) rotateY(-3deg);animation:rise 7s ease-in-out infinite}.preview-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:15px;border-bottom:1px solid #d1e0f82b}.preview-title{display:grid;gap:4px}.preview-title small{color:#a9c0e7;font-size:8px;font-weight:800;letter-spacing:.13em}.preview-title strong{color:#fff;font-size:12px;font-weight:700}.preview-status{display:inline-flex;align-items:center;gap:6px;color:#b8d3fa;font-size:9px}.preview-status i{width:6px;height:6px;border-radius:50%;background:#55c49c}.preview-main{display:grid;grid-template-columns:1.1fr .9fr;gap:12px;padding-top:15px}.preview-table{display:grid;gap:6px;align-content:start}.preview-row{display:grid;grid-template-columns:1.3fr repeat(3,.58fr);align-items:center;gap:5px;height:21px;padding:0 7px;border-radius:4px;background:#d5e5ff13}.preview-row:first-child{background:#7eb1f53d}.preview-row i{display:block;height:4px;border-radius:4px;background:#d9e8ff7a}.preview-row i:nth-child(2){width:75%;background:#6eaafae6}.preview-row i:nth-child(3){width:58%}.preview-row i:nth-child(4){width:82%;background:#60a2f8b8}.preview-chart{display:flex;height:127px;align-items:end;justify-content:space-around;gap:6px;padding:12px 10px 0;border-radius:8px;background:#d5e5ff12}.preview-chart i{width:11%;height:var(--bar);border-radius:3px 3px 0 0;background:linear-gradient(180deg,#65a8ff,#266fd0);transform-origin:bottom;animation:bars 3.7s ease-in-out infinite;animation-delay:var(--delay)}.preview-chart i:nth-child(2n){background:linear-gradient(180deg,#a1cbff,#5394e6)}.preview-bottom{display:flex;justify-content:space-between;gap:15px;margin-top:13px;color:#9eb6dc;font-size:8px;font-weight:700;letter-spacing:.08em}
+    .scope{padding-block:75px;background:var(--wash)}.scope-content{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:42px}.scope-content .eyebrow{margin-bottom:12px}.scope-content h2{margin-bottom:12px;font-size:clamp(28px,3.2vw,36px)}.scope-content>div:first-child>p:last-child{max-width:650px;margin-bottom:0;color:var(--muted);font-size:12px;line-height:1.75}.scope-stats{display:flex;gap:11px}.scope-stat{display:grid;min-width:110px;gap:4px;padding:15px;border:1px solid #e4eaf2;border-radius:10px;background:#fff}.scope-stat strong{color:var(--navy);font-size:20px;font-weight:780;letter-spacing:-.04em}.scope-stat small{color:#77859b;font-size:9px;line-height:1.4}
+    .closing{padding-block:70px 76px}.closing-panel{position:relative;display:flex;align-items:center;justify-content:space-between;gap:32px;overflow:hidden;padding:38px 44px;border-radius:17px;background:linear-gradient(115deg,#1d326f,#183472 74%,#1c438a);box-shadow:0 20px 42px #1d326f29;color:#fff}.closing-panel:after{position:absolute;top:-90px;right:250px;width:260px;height:260px;border:1px solid #d3e4ff21;border-radius:32px;box-shadow:0 0 0 18px #d3e4ff06,0 0 0 40px #d3e4ff05;content:"";transform:rotate(18deg)}.closing-panel .eyebrow{margin-bottom:12px;color:#a9ccff}.closing-panel h2{max-width:610px;color:#fff;font-size:clamp(28px,3.4vw,39px)}.closing-action{position:relative;z-index:1;display:grid;flex:none;justify-items:start;gap:10px}.closing-action .button{background:#fff;color:var(--navy);box-shadow:0 8px 21px #03123433}.closing-action .button:hover{background:#eaf2ff}.integrity-link{color:#c8dcfa;font-size:10px;font-weight:620;text-decoration:none}.integrity-link:hover{color:#fff;text-decoration:underline}
+    .footer{display:flex;min-height:96px;align-items:center;justify-content:space-between;gap:24px;border-top:1px solid var(--line);color:#7a879c}.footer-left{display:grid;gap:7px}.footer-brand{color:#596983;font-size:10px;font-weight:700;letter-spacing:.05em}.footer-owner{display:flex;flex-wrap:wrap;align-items:baseline;gap:5px 12px}.footer-owner strong{color:var(--ink);font-size:12px;font-weight:720}.footer-owner a{color:#64738b;font-size:11px;text-decoration:none}.footer-owner a:hover,.footer-links a:hover{color:var(--blue);text-decoration:underline}.footer-links{display:flex;flex-wrap:wrap;gap:20px}.footer-links a{color:#64738b;font-size:10px;font-weight:600;text-decoration:none}
+    @keyframes pulse{0%,100%{opacity:.66;transform:scale(.92)}50%{opacity:1;transform:scale(1.08)}}@keyframes rise{0%,100%{transform:perspective(1000px) rotateY(-3deg) translateY(0)}50%{transform:perspective(1000px) rotateY(-3deg) translateY(-5px)}}@keyframes bars{0%,100%{transform:scaleY(.94);opacity:.8}50%{transform:scaleY(1);opacity:1}}
+    @media(max-width:980px){.wrap{width:min(calc(100% - 40px),900px)}.hero{min-height:540px;padding-inline:48px;background-position:57% center}.hero:before{background:linear-gradient(90deg,#fffffff9 0%,#fffffff5 38%,#ffffffc7 56%,#ffffff1a 85%)}h1{max-width:540px;font-size:clamp(44px,6vw,60px)}.benefits{grid-template-columns:repeat(2,minmax(0,1fr))}.section{padding-block:78px}.section-head{align-items:flex-start;flex-direction:column;gap:15px}.section-head>p{max-width:620px}.dark-inner{grid-template-columns:minmax(0,1fr) minmax(310px,.9fr);gap:35px}.scope-content{grid-template-columns:1fr;gap:22px}.scope-stats{width:fit-content}}
+    @media(max-width:720px){.wrap{width:calc(100% - 36px)}.header{min-height:72px;gap:12px}.brand img{width:118px}.nav{display:none}.button-small{min-height:40px;margin-left:auto;padding-inline:13px;font-size:11px}.hero{min-height:660px;align-items:flex-start;margin-top:4px;padding:43px 28px 220px;background-position:68% center}.hero:before{background:linear-gradient(180deg,#fffffff9 0%,#fffffff7 34%,#ffffffd4 51%,#ffffff42 73%,#11244b0a 100%)}.hero:after{right:3%;bottom:18%;width:165px;height:165px}.hero-copy{max-width:570px}h1{font-size:clamp(43px,9vw,58px)}.hero-copy>p:not(.eyebrow){font-size:13px}.hero-label{right:19px;bottom:17px;font-size:9px}.benefits{margin-top:-14px;gap:9px}.benefit{min-height:88px;padding:13px}.benefit-icon{width:35px;height:35px;border-radius:10px}.benefit-copy strong{font-size:10px}.benefit-copy small{font-size:9px}.feature-grid{grid-template-columns:1fr;max-width:520px}.feature-card{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1fr);align-items:stretch}.feature-image{height:100%;min-height:190px;aspect-ratio:auto}.feature-content{display:flex;flex-direction:column;justify-content:center;padding:17px}.feature-content p{min-height:0}.feature-meta{font-size:8px}.feature-content h3{font-size:15px}.dark-inner{grid-template-columns:1fr;gap:30px;padding-block:62px}.data-preview{width:min(100%,560px);transform:none;animation-name:rise-mobile}.scope-stats{width:100%}.scope-stat{flex:1;min-width:0}.closing-panel{align-items:flex-start;flex-direction:column;padding:30px 27px}.footer{align-items:flex-start;flex-direction:column;justify-content:center;gap:13px;padding-block:20px}}
+    @keyframes rise-mobile{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+    @media(max-width:430px){.wrap{width:calc(100% - 30px)}.brand img{width:106px}.button-small{padding-inline:10px;font-size:10px}.hero{min-height:640px;padding:37px 21px 204px;border-radius:19px}h1{font-size:41px}.hero-copy>p:not(.eyebrow){font-size:12px}.hero-actions{align-items:stretch;flex-direction:column;gap:7px}.hero-actions .button{width:100%}.text-link{justify-content:center}.hero-meta{align-items:flex-start;flex-direction:column;gap:8px}.version{width:100%;flex-wrap:wrap}.hero-label{right:13px;bottom:13px}.benefits{grid-template-columns:1fr 1fr}.benefit{min-height:108px;align-items:flex-start;flex-direction:column;gap:8px}.benefit-copy small{font-size:8px}.section{padding-block:64px}h2{font-size:34px}.feature-card{grid-template-columns:1fr}.feature-image{height:auto;min-height:0;aspect-ratio:1.8}.feature-content{padding:17px 18px 19px}.feature-content p{min-height:0}.preview-main{grid-template-columns:1fr}.preview-chart{height:94px}.data-preview{padding:14px}.scope{padding-block:57px}.scope-stats{gap:7px}.scope-stat{padding:11px 9px}.scope-stat strong{font-size:18px}.scope-stat small{font-size:8px}.closing{padding-block:56px 60px}.closing-panel{padding:27px 21px}.closing-action .button{min-height:49px;padding-inline:15px;font-size:11px}.footer-links{gap:16px}}
+    @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
   </style>
 </head>
 <body>
-  <header class="site-header container">
-    <a class="brand" href="#inicio" aria-label="SPPtab — início">
-      <img src="assets/spptab-logo.svg" alt="SPPtab">
-    </a>
-    <nav class="main-nav" aria-label="Navegação principal">
-      <a class="nav-link" href="#fluxo">Como funciona</a>
-      <a class="nav-link" href="#escopo">Escopo atual</a>
-    </nav>
-    <a class="button button-small" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable.zip" aria-label="Baixar SPPtab portátil para Windows 64 bits">
-      Baixar SPPtab
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 16v2.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </a>
+  <header class="header wrap">
+    <a class="brand" href="#inicio" aria-label="SPPtab — início"><img src="assets/spptab-logo.svg" alt="SPPtab"></a>
+    <nav class="nav" aria-label="Navegação principal"><a href="#recursos">Recursos</a><a href="#fluxo">Como funciona</a><a href="#escopo">Escopo atual</a></nav>
+    <a class="button button-small" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable.zip" aria-label="Baixar SPPtab para Windows 64 bits">Baixar SPPtab <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 16v2.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
   </header>
-
   <main>
-    <section class="hero container" id="inicio" aria-labelledby="hero-title">
+    <section class="hero wrap" id="inicio" aria-labelledby="hero-title">
       <div class="hero-copy">
-        <p class="eyebrow"><span class="eyebrow-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span> Dados públicos · DATASUS</p>
-        <h1 id="hero-title">Tabulação de <span>dados públicos de saúde.</span></h1>
-        <p class="hero-lead">Localize arquivos ambulatoriais (SIA/SUS) e hospitalares (SIH/SUS) do Pará, converta DBC em DBF e monte tabulações com as definições oficiais do DATASUS.</p>
+        <p class="eyebrow"><span class="pixels" aria-hidden="true"><i></i><i></i><i></i><i></i></span> Dados públicos · DATASUS</p>
+        <h1 id="hero-title">Tabulação de dados<br><span>públicos de saúde.</span></h1>
+        <p>Uma forma mais direta de buscar arquivos ambulatoriais e hospitalares, preparar as bases e criar tabulações com as definições oficiais.</p>
         <div class="hero-actions">
-          <a class="button" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable.zip" aria-label="Baixar SPPtab portátil para Windows 64 bits">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.75v10.5m0 0 4.25-4.25M12 14.25l-4.25-4.25M5 16.25v2.5A1.25 1.25 0 0 0 6.25 20h11.5A1.25 1.25 0 0 0 19 18.75v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <span>Baixar SPPtab</span>
-          </a>
-          <a class="text-link" href="#fluxo">Ver etapas <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m0 0-4.5-4.5M15 10l-4.5 4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          <a class="button" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable.zip"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.75v10.5m0 0 4.25-4.25M12 14.25l-4.25-4.25M5 16.25v2.5A1.25 1.25 0 0 0 6.25 20h11.5A1.25 1.25 0 0 0 19 18.75v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Baixar SPPtab</a>
+          <a class="text-link" href="#fluxo">Conhecer a plataforma <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m0 0-4.5-4.5M15 10l-4.5 4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
         </div>
-        <p class="hero-note"><span class="tiny-pixels" aria-hidden="true"><i></i><i></i><i></i></span> Portátil para Windows 64 bits · Baixe, extraia e abra o SPPtab.exe</p>
-        <div class="release-status" aria-label="Versão disponível do SPPtab">
-          <span class="release-status__mark" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span class="release-status__copy"><small>Última versão publicada</small><strong id="releaseVersion" aria-live="polite">Consultando GitHub…</strong></span>
-          <a class="release-status__link" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest" target="_blank" rel="noreferrer">Ver versões ↗</a>
-        </div>
+        <div class="hero-meta"><span class="meta-dot"><i></i> Dados públicos do DATASUS</span><span class="version"><strong id="releaseVersion" aria-live="polite">Consultando versão…</strong><a href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest" target="_blank" rel="noreferrer">Ver versões ↗</a></span></div>
       </div>
-      <div class="hero-art" aria-hidden="true">
-        <div class="art-ring"></div>
-        <div class="brand-symbol"><i></i><i></i><i></i><i></i><i></i></div>
-        <div class="art-flow"><b>BUSCAR</b><span class="flow-track"></span><span>CONVERTER</span><span class="flow-track"></span><span>TABULAR</span></div>
+      <div class="hero-label"><i aria-hidden="true"></i> SIA/SUS · SIH/SUS · PARÁ</div>
+    </section>
+    <section class="benefits wrap" aria-label="Destaques do SPPtab">
+      <article class="benefit"><span class="benefit-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="18" cy="18" r="2" stroke="currentColor" stroke-width="1.7"/></svg></span><span class="benefit-copy"><strong>Busca automatizada</strong><small>Arquivos por sistema e competência.</small></span></article>
+      <article class="benefit"><span class="benefit-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M5 7h5v5H5zM14 12h5v5h-5zM10 9h4a2 2 0 0 1 2 2v1M14 15h-4a2 2 0 0 1-2-2v-1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="benefit-copy"><strong>Conversão acompanhada</strong><small>Progresso visível de DBC para DBF.</small></span></article>
+      <article class="benefit"><span class="benefit-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M5 4.5h14v15H5zM8 8h8M8 12h8M8 16h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="benefit-copy"><strong>Definições oficiais</strong><small>Rótulos e categorias dos arquivos DEF.</small></span></article>
+      <article class="benefit"><span class="benefit-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M7 6v6m10-6v12M4 18h16M7 12h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="7" cy="12" r="2" fill="white" stroke="currentColor" stroke-width="1.7"/><circle cx="17" cy="18" r="2" fill="white" stroke="currentColor" stroke-width="1.7"/></svg></span><span class="benefit-copy"><strong>Tabulação configurável</strong><small>Linhas, colunas, medidas e totais.</small></span></article>
+    </section>
+    <section class="section wrap" id="recursos" aria-labelledby="features-title">
+      <div class="section-head"><div><p class="eyebrow"><span class="pixels" aria-hidden="true"><i></i><i></i><i></i><i></i></span> Recursos da plataforma</p><h2 id="features-title">Uma rotina mais simples,<br>da busca à tabulação.</h2></div><p>As principais etapas do trabalho ficam organizadas em um só lugar, com informações claras para acompanhar cada arquivo.</p></div>
+      <div class="feature-grid" id="fluxo">
+        <article class="feature-card"><img class="feature-image" src="assets/feature-search.jpg" alt="Tela de dados públicos com arquivos organizados, filtros e indicadores de busca" loading="lazy"><div class="feature-content"><div class="feature-meta"><span><i></i> 01 · Encontrar</span><span>DATASUS</span></div><h3>Busca por competência</h3><p>Consulte os arquivos disponíveis por sistema, ano e mês. Os itens já baixados aparecem identificados.</p></div></article>
+        <article class="feature-card"><img class="feature-image" src="assets/feature-conversion.jpg" alt="Representação da conversão de um arquivo compactado em uma tabela estruturada" loading="lazy"><div class="feature-content"><div class="feature-meta"><span><i></i> 02 · Preparar</span><span>DBC → DBF</span></div><h3>Conversão acompanhada</h3><p>Converta a base e acompanhe o avanço até que ela esteja pronta para leitura e tabulação.</p></div></article>
+        <article class="feature-card"><img class="feature-image" src="assets/feature-tabulation.jpg" alt="Analista observando tabelas cruzadas, gráfico e categorias em painel de dados" loading="lazy"><div class="feature-content"><div class="feature-meta"><span><i></i> 03 · Analisar</span><span>DEF</span></div><h3>Tabulação com contexto</h3><p>Monte linhas e colunas, refine categorias e consulte o resultado com totais e descrições.</p></div></article>
       </div>
     </section>
-
-    <section class="flow-section" id="fluxo" aria-labelledby="flow-title">
-      <div class="container">
-        <div class="section-heading">
-          <div class="section-intro">
-            <p class="eyebrow"><span class="eyebrow-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span> Como funciona</p>
-            <h2 id="flow-title">Fluxo de trabalho<br>em três etapas.</h2>
-          </div>
-          <p class="section-description">O SPPtab organiza a seleção dos arquivos, a conversão de DBC para DBF e a configuração da tabulação.</p>
-        </div>
-        <div class="steps">
-          <article class="step-card">
-            <div class="step-top"><span class="step-number">01</span><span class="step-glyph" aria-hidden="true"><i></i><i></i><i></i></span></div>
-            <h3>Selecionar arquivos</h3>
-            <p>Escolha sistema, ano e competência. Veja os arquivos disponíveis e identifique os que já estão salvos.</p>
-          </article>
-          <article class="step-card">
-            <div class="step-top"><span class="step-number">02</span><span class="step-glyph" aria-hidden="true"><i></i><i></i><i></i></span></div>
-            <h3>Converter DBC em DBF</h3>
-            <p>Converta o DBC para DBF e acompanhe o progresso enquanto o arquivo fica pronto para leitura.</p>
-          </article>
-          <article class="step-card">
-            <div class="step-top"><span class="step-number">03</span><span class="step-glyph" aria-hidden="true"><i></i><i></i><i></i></span></div>
-            <h3>Configurar tabulação</h3>
-            <p>Selecione linhas, colunas, medidas e categorias. Abra o cruzamento com rótulos e totais.</p>
-          </article>
-        </div>
+    <section class="dark-band" aria-labelledby="data-title">
+      <div class="dark-inner wrap">
+        <div class="dark-copy"><p class="eyebrow"><span class="pixels" aria-hidden="true"><i></i><i></i><i></i><i></i></span> Leitura de dados públicos</p><h2 id="data-title">Mais contexto para cada cruzamento.</h2><p>O SPPtab combina as bases públicas com as definições de cada sistema para facilitar a seleção de informações e a leitura dos resultados.</p><div class="dark-tags" aria-label="Cobertura inicial"><span class="dark-tag"><i></i> SIA/SUS · Ambulatorial</span><span class="dark-tag"><i></i> SIH/SUS · Hospitalar</span><span class="dark-tag"><i></i> Pará · PA</span></div></div>
+        <div class="data-preview" aria-label="Ilustração de uma tabela e gráficos de dados"><div class="preview-top"><span class="preview-title"><small>VISÃO DE ANÁLISE</small><strong>Dados organizados para consulta</strong></span><span class="preview-status"><i></i> Estruturado</span></div><div class="preview-main"><div class="preview-table" aria-hidden="true"><span class="preview-row"><i></i><i></i><i></i><i></i></span><span class="preview-row"><i></i><i></i><i></i><i></i></span><span class="preview-row"><i></i><i></i><i></i><i></i></span><span class="preview-row"><i></i><i></i><i></i><i></i></span><span class="preview-row"><i></i><i></i><i></i><i></i></span><span class="preview-row"><i></i><i></i><i></i><i></i></span></div><div class="preview-chart" aria-hidden="true"><i style="--bar:43%;--delay:-.2s"></i><i style="--bar:67%;--delay:-.8s"></i><i style="--bar:52%;--delay:-1.4s"></i><i style="--bar:81%;--delay:-2s"></i><i style="--bar:61%;--delay:-2.6s"></i><i style="--bar:94%;--delay:-3.2s"></i></div></div><div class="preview-bottom"><span>LINHAS · COLUNAS</span><span>FILTROS · TOTAIS</span></div></div>
       </div>
     </section>
-
-    <section class="scope-section container" id="escopo" aria-labelledby="scope-title">
-      <div class="scope-panel">
-        <div>
-          <p class="eyebrow"><span class="eyebrow-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span> Fase inicial</p>
-          <h2 id="scope-title">Cobertura inicial: Pará.</h2>
-          <p>Nesta primeira versão, o SPPtab está focado em dados ambulatoriais e hospitalares do Pará. A ferramenta usa arquivos públicos do DATASUS e definições oficiais para apoiar a leitura.</p>
-        </div>
-        <div class="scope-tags" aria-label="Escopo atual">
-          <div class="scope-tag"><span class="tag-pixel" aria-hidden="true"></span> SIA/SUS · Ambulatorial</div>
-          <div class="scope-tag"><span class="tag-pixel" aria-hidden="true"></span> SIH/SUS · Hospitalar</div>
-          <div class="scope-tag"><span class="tag-pixel" aria-hidden="true"></span> Pará · PA</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="closing container" aria-labelledby="closing-title">
-      <div class="closing-panel">
-        <div>
-          <p class="eyebrow"><span class="eyebrow-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span> Download</p>
-          <h2 id="closing-title">Versão portátil do SPPtab para Windows.</h2>
-        </div>
-        <div class="closing-action">
-          <a class="button" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable.zip" aria-label="Baixar SPPtab portátil para Windows 64 bits">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.75v10.5m0 0 4.25-4.25M12 14.25l-4.25-4.25M5 16.25v2.5A1.25 1.25 0 0 0 6.25 20h11.5A1.25 1.25 0 0 0 19 18.75v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <span>Baixar para Windows 64 bits</span>
-          </a>
-          <a class="integrity-link" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable-SHA256SUM.txt">Verificar SHA-256 do pacote</a>
-        </div>
-      </div>
-    </section>
+    <section class="scope" id="escopo" aria-labelledby="scope-title"><div class="scope-content wrap"><div><p class="eyebrow"><span class="pixels" aria-hidden="true"><i></i><i></i><i></i><i></i></span> Escopo atual</p><h2 id="scope-title">Uma primeira etapa com foco definido.</h2><p>Nesta fase inicial, a plataforma atende às bases ambulatoriais e hospitalares do Pará. O objetivo é facilitar o acesso e a leitura de informações públicas do DATASUS.</p></div><div class="scope-stats" aria-label="Escopo do SPPtab"><div class="scope-stat"><strong>02</strong><small>Sistemas de informação</small></div><div class="scope-stat"><strong>03</strong><small>Etapas integradas</small></div><div class="scope-stat"><strong>PA</strong><small>Estado de cobertura</small></div></div></div></section>
+    <section class="closing wrap" aria-labelledby="closing-title"><div class="closing-panel"><div><p class="eyebrow"><span class="pixels" aria-hidden="true"><i></i><i></i><i></i><i></i></span> SPPtab para Windows</p><h2 id="closing-title">Explore dados públicos de saúde com mais clareza.</h2></div><div class="closing-action"><a class="button" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable.zip" aria-label="Baixar SPPtab portátil para Windows 64 bits"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.75v10.5m0 0 4.25-4.25M12 14.25l-4.25-4.25M5 16.25v2.5A1.25 1.25 0 0 0 6.25 20h11.5A1.25 1.25 0 0 0 19 18.75v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Baixar para Windows 64 bits</a><a class="integrity-link" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Portable-SHA256SUM.txt">Verificar SHA-256 do pacote</a></div></div></section>
   </main>
-
-  <footer class="site-footer container">
-    <div class="footer-identity">
-      <div class="footer-brand"><span>SPPtab</span><span>·</span><span>Saúde em dados</span></div>
-      <div class="footer-owner"><strong>Lisandro Ribeiro</strong><a href="mailto:lisandrowork1@gmail.com">lisandrowork1@gmail.com</a></div>
-    </div>
-    <div class="footer-links">
-      <a href="https://github.com/lisandro12matheus-cmd/SPPtab" target="_blank" rel="noreferrer">Código no GitHub</a>
-      <a href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest" target="_blank" rel="noreferrer">Versões</a>
-    </div>
-  </footer>
+  <footer class="footer wrap"><div class="footer-left"><div class="footer-brand">SPPtab · Saúde em dados</div><div class="footer-owner"><strong>Lisandro Ribeiro</strong><a href="mailto:lisandrowork1@gmail.com">lisandrowork1@gmail.com</a></div></div><div class="footer-links"><a href="https://github.com/lisandro12matheus-cmd/SPPtab" target="_blank" rel="noreferrer">Código no GitHub</a><a href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest" target="_blank" rel="noreferrer">Versões</a></div></footer>
   <script>
-    (() => {
-      const version = document.getElementById('releaseVersion');
-      fetch('https://api.github.com/repos/lisandro12matheus-cmd/SPPtab/releases/latest', {
-        headers: { Accept: 'application/vnd.github+json' }
-      })
-        .then((response) => {
-          if (!response.ok) throw new Error('Versão indisponível');
-          return response.json();
-        })
-        .then((release) => {
-          if (!release || typeof release.tag_name !== 'string') throw new Error('Versão indisponível');
-          const date = release.published_at ? new Date(release.published_at) : null;
-          const published = date && !Number.isNaN(date.getTime())
-            ? new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Sao_Paulo' }).format(date)
-            : '';
-          version.textContent = published ? `${release.tag_name} · ${published}` : release.tag_name;
-        })
-        .catch(() => { version.textContent = 'Consulte no GitHub'; });
-    })();
+    (function(){var version=document.getElementById('releaseVersion');fetch('https://api.github.com/repos/lisandro12matheus-cmd/SPPtab/releases/latest',{headers:{Accept:'application/vnd.github+json'}}).then(function(response){if(!response.ok)throw new Error('Versão indisponível');return response.json()}).then(function(release){if(!release||typeof release.tag_name!=='string')throw new Error('Versão indisponível');var date=release.published_at?new Date(release.published_at):null;var published=date&&!Number.isNaN(date.getTime())?new Intl.DateTimeFormat('pt-BR',{day:'numeric',month:'short',year:'numeric',timeZone:'America/Sao_Paulo'}).format(date):'';version.textContent=published?release.tag_name+' · '+published:release.tag_name}).catch(function(){version.textContent='Consulte as versões no GitHub'})}());
   </script>
 </body>
 </html>

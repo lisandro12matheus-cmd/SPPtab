@@ -7,7 +7,7 @@ declare(strict_types=1);
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f4f7f8">
   <title>SPPtab · DATASUS</title>
-  <link rel="stylesheet" href="assets/app.css?v=2">
+  <link rel="stylesheet" href="assets/app.css?v=7">
   <link rel="stylesheet" href="assets/brand.css?v=1">
   <link rel="stylesheet" href="assets/launch.css?v=2">
   <link rel="stylesheet" href="assets/search-loading.css?v=1">
@@ -30,7 +30,7 @@ declare(strict_types=1);
       <div class="nav-label">ESPAÇO DE TRABALHO</div>
       <nav aria-label="Navegação principal">
         <a class="nav-item active" href="#busca"><span class="nav-icon">⌕</span>Buscar arquivos</a>
-        <a class="nav-item" href="tabular.php"><span class="nav-icon">▦</span>Minhas bases</a>
+        <a class="nav-item" href="bases.php"><span class="nav-icon">▦</span>Minhas bases</a>
         <a class="nav-item" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a>
       </nav>
       <div class="sidebar-foot">
@@ -39,30 +39,53 @@ declare(strict_types=1);
       </div>
     </aside>
 
-    <main class="main-content" id="busca">
-      <header class="topbar"><div class="breadcrumb">Dados públicos <span>/</span> <strong>Busca de arquivos</strong></div><div class="top-tag"><span></span> PARÁ · PA</div></header>
-      <section class="intro">
+    <main class="main-content location-main" id="busca">
+      <header class="topbar"><div class="breadcrumb">Dados públicos <span>/</span> <strong>Busca de arquivos</strong></div><div class="top-tag" id="locationTag"><span></span><b>Escolha a UF</b></div></header>
+      <section class="intro" id="pageIntro">
         <div class="eyebrow"><span class="eyebrow-line"></span> IMPORTAÇÃO DE DADOS</div>
-        <h1>Encontre a base<br class="mobile-break"> que você precisa.</h1>
-        <p>Consulte as competências disponíveis no DATASUS e traga os arquivos para uma biblioteca organizada, prontos para a próxima etapa de leitura.</p>
+        <h1>Comece pela<br class="mobile-break"> localidade.</h1>
+        <p>Escolha o estado dos dados. Se quiser, defina também um município para usar como recorte na tabulação.</p>
       </section>
 
-      <section class="workspace" aria-label="Busca de arquivos DATASUS">
-        <div class="step-heading"><span class="step-number">01</span><div><h2>Escolha a competência</h2><p>Os arquivos são publicados por estado e mês.</p></div><span class="source-status"><span class="source-dot"></span> Consulta ao DATASUS</span></div>
+      <nav class="search-progress" aria-label="Etapas da busca de arquivos">
+        <div class="search-progress-step active" id="progressLocation" aria-current="step"><span>01</span><div><strong>Localidade</strong><small>Estado e recorte opcional</small></div></div>
+        <i aria-hidden="true"></i>
+        <div class="search-progress-step" id="progressFiles"><span>02</span><div><strong>Arquivos</strong><small>Base e competência</small></div></div>
+      </nav>
+
+      <section class="location-step-screen" id="locationStep" aria-label="Escolha da localidade">
+        <section class="location-picker" aria-labelledby="locationHeading">
+          <div class="map-panel">
+            <div class="location-panel-heading"><div><span class="location-step">BRASIL · 27 UNIDADES DA FEDERAÇÃO</span><h3 id="locationHeading">Selecione um estado</h3></div><div class="map-panel-utility"><span class="tile-motif" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span class="map-credit">Mapa · IBGE</span></div></div>
+            <div class="map-frame" id="mapMount" aria-busy="true"><div class="map-placeholder" role="status">Carregando mapa do Brasil…</div></div>
+            <div class="map-caption"><span class="map-key"><i></i><span id="mapKeyText">Selecione uma UF</span></span><span id="mapTooltip" aria-live="polite">Passe o cursor ou use o teclado</span></div>
+          </div>
+          <div class="location-controls">
+            <div class="location-copy"><div class="location-copy-kicker"><span class="tile-motif" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span class="location-kicker">ETAPA 01 · LOCALIDADE</span></div><h2>Onde estão os dados?</h2><p class="location-intro">Os arquivos do DATASUS são estaduais. O município é opcional e será usado somente para recortar a tabulação.</p></div>
+            <label class="field"><span>ESTADO / UNIDADE DA FEDERAÇÃO</span><select id="uf"><option value="">Selecione um estado…</option><option value="AC">Acre · AC</option><option value="AL">Alagoas · AL</option><option value="AP">Amapá · AP</option><option value="AM">Amazonas · AM</option><option value="BA">Bahia · BA</option><option value="CE">Ceará · CE</option><option value="DF">Distrito Federal · DF</option><option value="ES">Espírito Santo · ES</option><option value="GO">Goiás · GO</option><option value="MA">Maranhão · MA</option><option value="MT">Mato Grosso · MT</option><option value="MS">Mato Grosso do Sul · MS</option><option value="MG">Minas Gerais · MG</option><option value="PA">Pará · PA</option><option value="PB">Paraíba · PB</option><option value="PR">Paraná · PR</option><option value="PE">Pernambuco · PE</option><option value="PI">Piauí · PI</option><option value="RJ">Rio de Janeiro · RJ</option><option value="RN">Rio Grande do Norte · RN</option><option value="RS">Rio Grande do Sul · RS</option><option value="RO">Rondônia · RO</option><option value="RR">Roraima · RR</option><option value="SC">Santa Catarina · SC</option><option value="SP">São Paulo · SP</option><option value="SE">Sergipe · SE</option><option value="TO">Tocantins · TO</option></select></label>
+            <div class="municipality-picker"><label class="field"><span>RECORTE MUNICIPAL · OPCIONAL</span><input id="municipalitySearch" type="search" aria-label="Localizar município" placeholder="Localizar município" autocomplete="off" disabled></label><label class="field municipality-select-field"><span class="sr-only">Selecionar município</span><select id="municipality" aria-label="Selecionar município para a tabulação" disabled><option value="">Escolha primeiro um estado…</option></select></label></div>
+            <div class="location-hint" id="locationHint" role="status">Escolha uma UF no mapa ou na lista para continuar.</div>
+            <button class="button button-primary location-continue" id="advanceToFiles" type="button" disabled>Avançar para os arquivos <span aria-hidden="true">→</span></button>
+          </div>
+        </section>
+      </section>
+
+      <section class="workspace" id="filesStep" aria-label="Seleção de arquivos DATASUS" hidden>
+        <div class="files-step-heading"><div class="step-heading"><span class="step-number">02</span><div><h2>Selecione os arquivos</h2><p>Escolha a base, o ano e a competência para consultar o DATASUS.</p></div><span class="source-status"><span class="source-dot"></span> Fonte oficial</span></div><button class="button-secondary change-state" id="changeStateButton" type="button"><span aria-hidden="true">←</span> Trocar estado</button></div>
         <div class="filters">
           <label class="field field-system"><span>BASE DE DADOS</span><select id="system"><option value="sia">Ambulatorial · SIA/SUS</option><option value="sih">Hospitalar · SIH/SUS</option></select></label>
           <label class="field"><span>ANO</span><select id="year"></select></label>
           <label class="field"><span>COMPETÊNCIA</span><select id="month" disabled><option value="">Buscando períodos…</option></select></label>
           <button class="button button-primary" id="searchButton" type="button"><span class="search-glyph">⌕</span> Buscar arquivos</button>
         </div>
-        <div class="scope-note"><span class="info-icon">i</span><span>Os dados são do <strong>estado do Pará</strong>. Belém será aplicado como filtro municipal na tabulação, usando o código IBGE <strong>150140</strong>.</span></div>
+        <div class="scope-note"><span class="info-icon">i</span><span id="scopeCopy">A lista de arquivos acompanha o estado escolhido. O município selecionado será aplicado como filtro na tabulação; não altera a abrangência do arquivo DBC.</span></div>
 
         <div class="results" id="results" aria-live="polite">
           <div class="empty-state is-loading" id="emptyState">
             <div class="search-loader" id="searchLoader" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
             <div class="empty-icon" id="emptyIcon" hidden><span>⌕</span></div>
-            <strong id="emptyTitle">Indo ao DATASUS</strong>
-            <p id="emptyCopy">Consultando as competências disponíveis para o Pará.</p>
+            <strong id="emptyTitle">Escolha uma localidade</strong>
+            <p id="emptyCopy">Selecione uma UF no mapa ou na lista para consultar os arquivos estaduais.</p>
           </div>
           <div class="results-content" id="resultsContent" hidden>
             <div class="results-head"><div><div class="results-title"><h3>Arquivos encontrados</h3><span class="count-badge" id="fileCount">0</span></div><p id="resultsSummary">Selecione os arquivos que deseja importar.</p></div><button class="text-button" id="selectAll" type="button">Selecionar todos</button></div>
@@ -71,16 +94,15 @@ declare(strict_types=1);
           </div>
           <div class="notice" id="notice" hidden role="status"></div>
         </div>
+        <section class="library-card">
+          <div class="library-icon">▤</div><div class="library-copy"><strong>Uma biblioteca organizada, pronta para tabular</strong><p>Os arquivos ficam separados por sistema, ano, competência e tipo. Na próxima etapa, vamos cruzá-los com os arquivos de definição compatíveis com o TabWin.</p></div><div class="library-path"><span>ARQUIVOS LOCAIS</span><code>SPPtab / biblioteca</code></div>
+        </section>
       </section>
 
-      <section class="library-card">
-        <div class="library-icon">▤</div><div class="library-copy"><strong>Uma biblioteca organizada, pronta para tabular</strong><p>Os arquivos ficam separados por sistema, ano, competência e tipo. Na próxima etapa, vamos cruzá-los com os arquivos de definição compatíveis com o TabWin.</p></div><div class="library-path"><span>ARQUIVOS LOCAIS</span><code>SPPtab / biblioteca</code></div>
-      </section>
-
-      <footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> etapa 1 de 3</span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer>
+      <footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> <span id="pageStepLabel">etapa 1 de 3</span></span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer>
     </main>
   </div>
-  <script src="assets/app.js?v=4" defer></script>
+  <script src="assets/app.js?v=10" defer></script>
   <script src="assets/launch-splash.js?v=2" defer></script>
 </body>
 </html>

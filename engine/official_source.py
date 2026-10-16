@@ -16,6 +16,10 @@ DATA_KINDS = {
     "sia": ("AB", "ABO", "ACF", "AD", "AM", "AMP", "AN", "AQ", "AR", "ATD", "BI", "PA", "PS", "SAD"),
     "sih": ("CH", "CM", "ER", "RD", "RJ", "SP"),
 }
+VALID_UFS = {
+    "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG",
+    "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+}
 
 
 def _post_json(endpoint: str, fields: list[tuple[str, str]], timeout: int) -> object:
@@ -32,12 +36,15 @@ def _post_json(endpoint: str, fields: list[tuple[str, str]], timeout: int) -> ob
         return json.load(response)
 
 
-def list_files(system: str, year: int, month: int | None) -> list[str]:
-    """Lista arquivos PA pelo formulário HTTPS oficial, sem exigir a porta FTP."""
+def list_files(system: str, year: int, month: int | None, uf: str = "PA") -> list[str]:
+    """Lista arquivos estaduais pelo formulário HTTPS oficial, sem exigir a porta FTP."""
+    uf = uf.upper()
+    if uf not in VALID_UFS:
+        raise ValueError("Unidade da Federação inválida.")
     fields = [("tipo_arquivo[]", kind) for kind in DATA_KINDS[system]]
     fields += [("modalidade[]", "1"), ("fonte[]", "SIASUS" if system == "sia" else "SIHSUS"), ("ano[]", str(year))]
     fields += [("mes[]", f"{value:02d}") for value in ([month] if month else range(1, 13))]
-    fields.append(("uf[]", "PA"))
+    fields.append(("uf[]", uf))
     response = _post_json("ftp.php", fields, 25)
     if not isinstance(response, list):
         raise ValueError("O DATASUS não retornou uma lista de arquivos válida.")
