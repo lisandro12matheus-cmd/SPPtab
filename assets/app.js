@@ -703,7 +703,7 @@
   year.addEventListener('change', () => loadCompetencies());
   month.addEventListener('change', () => { if (!showCachedMonth()) searchFiles(); });
   searchButton.addEventListener('click', searchFiles);
-  downloadButton.addEventListener('click', downloadSelected);
+  downloadButton.addEventListener('click', () => downloadSelected());
   document.querySelector('#selectAll').addEventListener('click', () => {
     const boxes = [...fileRows.querySelectorAll('.file-check:not(:disabled)')];
     const shouldCheck = boxes.some((box) => !box.checked);
