@@ -80,7 +80,7 @@ internal static class LauncherProgram
 
     private static void StartServer(bool selfTest)
     {
-        if (!File.Exists(PhpPath) || !File.Exists(PythonPath) || !File.Exists(Path.Combine(AppPath, "index.php")))
+        if (!File.Exists(PhpPath) || !File.Exists(PythonPath) || !File.Exists(Path.Combine(AppPath, "index.php")) || !File.Exists(Path.Combine(AppPath, "bases.php")) || !File.Exists(Path.Combine(AppPath, "tabular.php")))
             throw new InvalidOperationException("A instalação está incompleta. Execute novamente o instalador do SPPtab.");
 
         if (selfTest)

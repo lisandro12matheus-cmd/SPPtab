@@ -7,10 +7,10 @@ declare(strict_types=1);
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f4f7f8">
   <title>SPPtab · DATASUS</title>
-  <link rel="stylesheet" href="assets/app.css?v=12">
+  <link rel="stylesheet" href="assets/app.css?v=14">
   <link rel="stylesheet" href="assets/brand.css?v=1">
   <link rel="stylesheet" href="assets/launch.css?v=2">
-  <link rel="stylesheet" href="assets/search-loading.css?v=1">
+  <link rel="stylesheet" href="assets/search-loading.css?v=3">
 </head>
 <body>
   <div class="launch-splash" id="launchSplash" role="status" aria-live="polite">
@@ -32,7 +32,6 @@ declare(strict_types=1);
         <a class="nav-item active" href="#busca"><span class="nav-icon">⌕</span>Buscar arquivos</a>
         <a class="nav-item" href="bases.php"><span class="nav-icon">▦</span>Minhas bases</a>
         <a class="nav-item" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a>
-        <a class="nav-item" href="pacotes.php"><span class="nav-icon">▧</span>Pacotes de dados</a>
         <a class="nav-item" id="savedTabulationsNav" href="minhas-tabulacoes.php" hidden><span class="nav-icon">▧</span>Minhas Tabulações</a>
       </nav>
       <div class="sidebar-foot">
@@ -89,9 +88,13 @@ declare(strict_types=1);
             <strong id="emptyTitle">Escolha uma localidade</strong>
             <p id="emptyCopy">Selecione uma UF no mapa ou na lista para consultar os arquivos estaduais.</p>
           </div>
+          <div class="query-progress" id="queryProgress" hidden aria-live="polite">
+            <div class="query-progress-meta"><span id="queryProgressStage">Preparando consulta</span><span id="queryProgressPercent">0%</span></div>
+            <div class="query-progress-track" id="queryProgressTrack" role="progressbar" aria-label="Andamento estimado da consulta" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Estimativa visual enquanto a fonte responde"><span id="queryProgressFill"></span></div>
+          </div>
           <div class="results-content" id="resultsContent" hidden>
             <div class="results-head"><div><div class="results-title"><h3>Arquivos encontrados</h3><span class="count-badge" id="fileCount">0</span></div><p id="resultsSummary">Selecione os arquivos que deseja importar.</p></div><button class="text-button" id="selectAll" type="button">Selecionar todos</button></div>
-            <div class="file-table-wrap"><table class="file-table"><thead><tr><th class="check-column"><span class="sr-only">Selecionar</span></th><th>ARQUIVO / CONTEÚDO</th><th>FAMÍLIA</th><th>TAMANHO</th><th>STATUS</th><th>MODIFICADO</th></tr></thead><tbody id="fileRows"></tbody></table></div>
+            <div class="file-table-wrap"><table class="file-table"><thead><tr><th class="check-column"><span class="sr-only">Selecionar</span></th><th>ARQUIVO / CONTEÚDO</th><th>FAMÍLIA</th><th>TAMANHO</th><th>STATUS</th><th>MODIFICADO</th><th class="file-action-heading">AÇÃO</th></tr></thead><tbody id="fileRows"></tbody></table></div>
             <div class="download-bar"><div class="selection-summary"><span class="selection-mark">✓</span><span><strong id="selectedCount">0 arquivos selecionados</strong><small id="selectedSize">Escolha um ou mais arquivos para continuar</small></span></div><button class="button button-primary" id="downloadButton" type="button" disabled>Adicionar à biblioteca <span aria-hidden="true">→</span></button></div>
           </div>
           <div class="notice" id="notice" hidden role="status"></div>
@@ -104,7 +107,7 @@ declare(strict_types=1);
       <footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> <span id="pageStepLabel">etapa 1 de 3</span></span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer>
     </main>
   </div>
-  <script src="assets/app.js?v=11" defer></script>
+  <script src="assets/app.js?v=16" defer></script>
   <script src="assets/tabulations-nav.js?v=1" defer></script>
   <script src="assets/launch-splash.js?v=2" defer></script>
 </body>

@@ -28,7 +28,9 @@ FILENAME = re.compile(r"^(?P<kind>[A-Z]{2,4}?)(?P<uf>[A-Z]{2})(?P<yy>\d{2})(?P<m
 SP_EXTRA_DIMENSIONS = (("SP_NAIH","AIH"),("SP_PF_DOC","CNS do profissional"))
 JOB_WRITE_LOCK = threading.Lock()
 SLOW_FALLBACK_LIMIT = 8 * 1024 * 1024
-NATIVE_TIMEOUT_SECONDS = 120
+# Bases DBC estaduais podem levar vários minutos para decodificar. O limite
+# anterior de dois minutos encerrava conversões válidas no Windows.
+NATIVE_TIMEOUT_SECONDS = 3600
 
 def dbf_reader():
     import sys
@@ -273,7 +275,7 @@ def catalog():
                 state=json.loads(statefile.read_text(encoding="utf-8"))
                 source=state.get("source_path")
                 if source and source not in active_jobs and state.get("status") in {"queued","running"} and time.time()-statefile.stat().st_mtime < 20:
-                    active_jobs[source]={"id":state.get("id"),"status":state.get("status"),"progress":state.get("progress",1),"stage":state.get("stage","Conversão em andamento"),"bytes_written":state.get("bytes_written",0),"temporary_path":state.get("temporary_path"),"converter":state.get("converter")}
+                    active_jobs[source]={"id":state.get("id"),"status":state.get("status"),"progress":state.get("progress",1),"stage":state.get("stage","Leitura em andamento"),"bytes_written":state.get("bytes_written",0),"temporary_path":state.get("temporary_path"),"converter":state.get("converter")}
             except Exception: pass
     for p in UPLOADS.glob("**/*.dbc"):
         try:
@@ -281,7 +283,8 @@ def catalog():
             converted=converted_relative(rel)
             dbf=UPLOADS/converted
             dbf_exists=dbf.is_file(); dbf_stat=dbf.stat() if dbf_exists else None
-            files.append({"path":rel,"name":p.name,"system":sysname,"kind":kind,"uf":m.group("uf").upper(),"year":2000+int(m.group("yy")),"month":int(m.group("mm")),"size":p.stat().st_size,"downloaded_at":info.get("downloaded_at"),"converted":dbf_exists,"dbf_path":converted if dbf_exists else None,"dbf_size":dbf_stat.st_size if dbf_stat else None,"dbf_mtime_ns":dbf_stat.st_mtime_ns if dbf_stat else None,"conversion":active_jobs.get(rel)})
+            source_stat=p.stat()
+            files.append({"path":rel,"name":p.name,"system":sysname,"kind":kind,"uf":m.group("uf").upper(),"year":2000+int(m.group("yy")),"month":int(m.group("mm")),"size":source_stat.st_size,"mtime_ns":source_stat.st_mtime_ns,"downloaded_at":info.get("downloaded_at"),"converted":dbf_exists,"dbf_path":converted if dbf_exists else None,"dbf_size":dbf_stat.st_size if dbf_stat else None,"dbf_mtime_ns":dbf_stat.st_mtime_ns if dbf_stat else None,"conversion":active_jobs.get(rel)})
         except Exception: continue
     files.sort(key=lambda x:(x["system"],-x["year"],-x["month"],x["name"]))
     return {"ok":True,"files":files,"library_root":str(UPLOADS)}
@@ -302,7 +305,7 @@ def delete_library_file(payload: dict[str,Any]):
                 pass
             else:
                 if state.get("source_path")==relative and state.get("status") in {"queued","running"} and time.time()-statefile.stat().st_mtime<20:
-                    raise ValueError("Este arquivo está sendo convertido. Aguarde a conversão terminar antes de removê-lo.")
+                    raise ValueError("Este arquivo está sendo preparado para leitura. Aguarde a conclusão antes de removê-lo.")
         tabulation_jobs=jobs/"tabulations"
         if tabulation_jobs.is_dir():
             for statefile in tabulation_jobs.glob("*.json"):
@@ -391,7 +394,7 @@ def start_conversion(source_relative: str):
     expected=32+32*len(fields)+1+records*(1+sum(f["length"] for f in fields))+1
     target=UPLOADS/converted_relative(source_relative); target.parent.mkdir(parents=True,exist_ok=True)
     if target.is_file() and target.stat().st_size==expected:
-        return {"ok":True,"done":True,"progress":100,"dbf_path":target.relative_to(UPLOADS).as_posix(),"message":"Este DBC já está convertido."}
+        return {"ok":True,"done":True,"progress":100,"dbf_path":target.relative_to(UPLOADS).as_posix(),"dbfIdentity":cache_file_identity(target),"message":"A leitura desta base já está preparada."}
     jobs=UPLOADS/".jobs"
     if jobs.exists():
         for statefile in jobs.glob("*.json"):
@@ -400,24 +403,24 @@ def start_conversion(source_relative: str):
                 if active.get("source_path")==source_relative and active.get("status") in {"queued","running"}:
                     if time.time()-statefile.stat().st_mtime < 20:
                         return {"ok":True,"done":False,"job_id":active["id"],"progress":active.get("progress",1),"stage":active.get("stage","Conversão em andamento")}
-                    active.update(status="error",stage="Conversão interrompida",message="A conversão anterior parou de atualizar. Inicie novamente para continuar.")
+                    active.update(status="error",stage="Leitura interrompida",message="A leitura anterior parou de atualizar. Inicie novamente para continuar.")
                     write_job(active["id"],active)
             except Exception: pass
     job_id=secrets.token_hex(16)
     dbf_relative=converted_relative(source_relative)
     temporary_relative=dbf_relative+f".{job_id}.part"
-    write_job(job_id,{"id":job_id,"status":"queued","progress":1,"stage":"Preparando a conversão","message":"O arquivo entrou na fila.","source_path":source_relative,"expected_size":expected,"dbf_path":dbf_relative,"temporary_path":temporary_relative})
+    write_job(job_id,{"id":job_id,"status":"queued","progress":1,"stage":"Preparando a leitura","message":"A base entrou na fila de leitura.","source_path":source_relative,"expected_size":expected,"dbf_path":dbf_relative,"temporary_path":temporary_relative})
     command=[sys.executable,str(Path(__file__).resolve()),"--worker",job_id]
     flags=getattr(subprocess,"DETACHED_PROCESS",0x00000008)|getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0x00000200) if os.name=="nt" else 0
     subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=flags,start_new_session=os.name!="nt",cwd=str(ROOT))
-    return {"ok":True,"done":False,"job_id":job_id,"progress":1,"stage":"Preparando a conversão"}
+    return {"ok":True,"done":False,"job_id":job_id,"progress":1,"stage":"Preparando a leitura"}
 
 def conversion_status(job_id: str):
     path=jobfile(job_id)
     if not path.is_file(): raise ValueError("Conversão não encontrada.")
     state=json.loads(path.read_text(encoding="utf-8"))
     if state.get("status") in {"queued","running"} and time.time()-path.stat().st_mtime >= 20:
-        state.update(status="error",stage="Conversão interrompida",message="A conversão parou de atualizar. Tente iniciar novamente.")
+        state.update(status="error",stage="Leitura interrompida",message="A preparação da leitura parou de atualizar. Tente iniciar novamente.")
         write_job(job_id,state)
     return {"ok":True,**state}
 
@@ -426,20 +429,20 @@ def run_conversion_worker(job_id: str):
     source=safe_file(source_rel); target=UPLOADS/converted_relative(source_rel); target.parent.mkdir(parents=True,exist_ok=True)
     temporary_output=target.with_name(target.name+f".{job_id}.part")
     try:
-        state.update(status="running",stage="Descompactando o DBC",progress=2,message="A conversão está em andamento."); write_job(job_id,state)
+        state.update(status="running",stage="Preparando a leitura do DBC",progress=2,message="A leitura da base está em andamento."); write_job(job_id,state)
         def progress(pct,size):
-            state.update(progress=pct,bytes_written=size,stage="Descompactando o DBC",status="running"); write_job(job_id,state)
+            state.update(progress=pct,bytes_written=size,stage="Lendo dados da base",status="running"); write_job(job_id,state)
         def method_changed(method,message):
             state.update(converter=method,message=message); write_job(job_id,state)
         dbc_header_info,records=dbc_header(source)
         expected=32+32*len(dbc_header_info)+1+records*(1+sum(f["length"] for f in dbc_header_info))+1
         decompressed=decompress(source,progress,expected,temporary_output,method_changed)
-        state.update(stage="Salvando o DBF",progress=98); write_job(job_id,state)
+        state.update(stage="Finalizando a leitura",progress=98); write_job(job_id,state)
         os.replace(decompressed,target)
-        state.update(status="done",stage="Conversão concluída",progress=100,dbf_path=target.relative_to(UPLOADS).as_posix(),bytes_written=target.stat().st_size,message="DBF pronto para tabulação."); write_job(job_id,state)
+        state.update(status="done",stage="Leitura preparada",progress=100,dbf_path=target.relative_to(UPLOADS).as_posix(),dbfIdentity=cache_file_identity(target),bytes_written=target.stat().st_size,message="A base está pronta para tabulação."); write_job(job_id,state)
     except Exception as exc:
         temporary_output.unlink(missing_ok=True)
-        state.update(status="error",stage="Não foi possível converter",message=str(exc)); write_job(job_id,state)
+        state.update(status="error",stage="Não foi possível preparar a leitura",message=str(exc)); write_job(job_id,state)
 
 def tabulation_jobfile(job_id: str) -> Path:
     if not re.fullmatch(r"[a-f0-9]{32}",str(job_id)): raise ValueError("Identificador de tabulação inválido.")
@@ -646,7 +649,7 @@ def relation_mapping(system: str, option):
 def schema(relative: str):
     path=safe_file(relative); system,kind,filename_match=meta(path); fields,records=dbc_header(path)
     converted=UPLOADS/converted_relative(relative)
-    if not converted.is_file(): raise ValueError("Converta este DBC para DBF na etapa 2 antes de abrir a tabulação.")
+    dbf_identity=cache_file_identity(converted) if converted.is_file() else None
     defname,definition=archive_def(system,kind)
     if definition is None: raise RuntimeError(f"A definição {defname or 'do arquivo'} não foi encontrada no pacote oficial {system}.")
     rows,cols,selections,increments,group=parse_def(definition,fields)
@@ -654,7 +657,7 @@ def schema(relative: str):
     relationFiles={item.get("relation", "").lower() for collection in (rows,cols,selections,increments) for item in collection if item.get("relation", "").lower().endswith(".cnv")}
     fieldnames={f["name"].upper() for f in fields}
     municipality=municipality_field(system,fieldnames)
-    return {"ok":True,"file":{"path":relative,"name":path.name,"system":system,"kind":kind,"uf":filename_match.group("uf").upper()},"dbfPath":converted.relative_to(UPLOADS).as_posix(),"dbfIdentity":cache_file_identity(converted),"definition":{"name":defname,"archive":f"uploads/DEFINICOES/originais/TAB_{system}.zip","size":len(definition),"relationFiles":len(relationFiles)},"fields":fields,"lineOptions":rows,"columnOptions":cols,"selectionOptions":selections,"increments":increments,"groupField":group,"municipalityField":municipality,"recordCount":records}
+    return {"ok":True,"file":{"path":relative,"name":path.name,"system":system,"kind":kind,"uf":filename_match.group("uf").upper()},"dbfPath":dbf_identity["path"] if dbf_identity else None,"dbfIdentity":dbf_identity,"sourceIdentity":cache_file_identity(path),"definition":{"name":defname,"archive":f"uploads/DEFINICOES/originais/TAB_{system}.zip","size":len(definition),"relationFiles":len(relationFiles)},"fields":fields,"lineOptions":rows,"columnOptions":cols,"selectionOptions":selections,"increments":increments,"groupField":group,"municipalityField":municipality,"recordCount":records}
 
 def preset_context(relative: str):
     path=safe_file(relative); system,kind,match=meta(path); fields,_=dbc_header(path)

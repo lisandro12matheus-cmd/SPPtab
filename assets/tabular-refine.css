@@ -175,6 +175,16 @@
 .tabular-main .column-filter,.tabular-main .filter-builder{background:#f5f8ff;border-color:#e3ebf8}
 .tabular-main .category-list:focus-within{border-color:#8eb3ed;box-shadow:0 0 0 3px #edf4ff}
 .tabular-main .category-option:hover{background:#f1f6ff}
+.reader-progress{display:flex;align-items:center;gap:14px;margin:14px 0;padding:14px 16px;border:1px solid #dce8fb;border-radius:11px;background:linear-gradient(110deg,#f8faff,#eff5ff)}
+.reader-progress[hidden]{display:none!important}
+.reader-progress__mark{width:38px;height:38px;flex:none}
+.reader-progress__content{flex:1;min-width:0}
+.reader-progress__meta{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#315582;font-size:11px}
+.reader-progress__meta span{font-variant-numeric:tabular-nums;font-weight:700}
+.reader-progress__track{height:7px;margin:8px 0 6px;overflow:hidden;border-radius:99px;background:#dfe9f8}
+.reader-progress__track>span{display:block;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#2365bc,#408cf2);transition:width .3s ease}
+.reader-progress__content small{display:block;color:#7285a0;font-size:10px;line-height:1.5}
+@media(max-width:520px){.reader-progress{align-items:flex-start;padding:12px}.reader-progress__mark{width:32px;height:32px}}
 .tabular-main .category-option input{accent-color:#2f78dc}
 .tabular-main .increment-option:has(input:checked){border-color:#a7c4f0;background:#f1f6ff;color:#315582}
 .tabular-main .filter-chip{border-color:#dce8fb;background:#f0f5ff;color:#315d96}

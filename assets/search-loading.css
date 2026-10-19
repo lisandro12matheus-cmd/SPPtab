@@ -60,3 +60,20 @@
 @media (max-width: 640px) {
   .results .empty-state.is-loading { min-height: 300px; }
 }
+
+.query-progress {
+  width: min(360px, calc(100% - 40px));
+  margin: -22px auto 24px;
+  padding: 12px 14px;
+  border: 1px solid #e4ebf5;
+  border-radius: 10px;
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 8px 24px rgba(33,76,133,.045);
+}
+.query-progress[hidden] { display: none; }
+.query-progress-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; color: #6c8098; font-size: 9px; }
+.query-progress-meta span:last-child { color: #2f78dc; font-weight: 700; font-variant-numeric: tabular-nums; }
+.query-progress-track { height: 6px; overflow: hidden; border-radius: 99px; background: #eaf0f8; }
+.query-progress-track > span { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#1f63bb,#3d8cef); box-shadow: 0 0 12px rgba(47,120,220,.22); transition: width .28s ease-out; }
+.query-progress-track.is-complete > span { background: #268c70; }
+@media (prefers-reduced-motion: reduce) { .query-progress-track > span { transition: none; } }

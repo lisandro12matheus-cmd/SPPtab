@@ -7,6 +7,7 @@
   const BROWSER_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
   const LOCATION_KEY = 'spptab-location-v1';
   const ACTIVE_FILE_KEY = 'spptab-active-file-v1';
+  const ACTIVE_STAGE_KEY = 'spptab-tabulation-stage-v1';
   const PENDING_PRESET_KEY = 'spptab-pending-preset-v1';
   const stateNames = {AC:'Acre',AL:'Alagoas',AP:'Amapá',AM:'Amazonas',BA:'Bahia',CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',MA:'Maranhão',MT:'Mato Grosso',MS:'Mato Grosso do Sul',MG:'Minas Gerais',PA:'Pará',PB:'Paraíba',PR:'Paraná',PE:'Pernambuco',PI:'Piauí',RJ:'Rio de Janeiro',RN:'Rio Grande do Norte',RS:'Rio Grande do Sul',RO:'Rondônia',RR:'Roraima',SC:'Santa Catarina',SP:'São Paulo',SE:'Sergipe',TO:'Tocantins'};
 
@@ -22,11 +23,15 @@
   let activeFilters = [];
   let tabFiles = [];
   let isTabulating = false;
+  let isPreparingReader = false;
+  let deferredCategoryLoad = false;
   let resultPopup = null;
   let resultRunId = '';
   let popupReady = false;
   let pendingPopupMessage = null;
   let applyingPreset = false;
+  let draftHydrated = false;
+  let pendingDraftColumnValue = '';
   let resultTabulationPayload = null;
   let resultExtraFilters = [];
 
@@ -59,6 +64,9 @@
   }
 
   function dbfFingerprint(file) {
+    if (file?.path && Number(file.size) > 0 && Number(file.mtime_ns) > 0) {
+      return `${encodeURIComponent(file.path)}:${file.size}:${file.mtime_ns}`;
+    }
     if (!file?.path || !file?.dbf_path || !Number(file.dbf_size) || !Number(file.dbf_mtime_ns)) return '';
     return `${encodeURIComponent(file.path)}:${encodeURIComponent(file.dbf_path)}:${file.dbf_size}:${file.dbf_mtime_ns}`;
   }
@@ -131,6 +139,7 @@
   }
 
   function setStage(stage) {
+    try { localStorage.setItem(ACTIVE_STAGE_KEY, String(stage)); } catch (_) {}
     document.querySelectorAll('.stage-panel').forEach((element) => {
       element.hidden = true;
     });
@@ -187,14 +196,27 @@
         : 'Importe primeiro um arquivo na etapa Buscar arquivos.';
       let activePath = '';
       try { activePath = localStorage.getItem(ACTIVE_FILE_KEY) || ''; } catch (_) {}
-      const remembered = files.find((file) => file.path === activePath);
+      const query = new URLSearchParams(location.search);
+      const requestedPath = query.get('file');
+      const preferredPath = requestedPath !== null ? requestedPath : activePath;
+      const remembered = files.find((file) => file.path === preferredPath);
       if (remembered) {
         fileSelect.value = remembered.path;
         chooseFile();
-        const query = new URLSearchParams(location.search);
         let pendingPresetId = '';
         try { pendingPresetId = localStorage.getItem(PENDING_PRESET_KEY) || ''; } catch (_) {}
-        if (remembered.converted && (query.get('stage') === '3' || pendingPresetId)) setStage(3);
+        let savedStage = 0;
+        try { savedStage = Number(localStorage.getItem(ACTIVE_STAGE_KEY)) || 0; } catch (_) {}
+        const requestedStage = Number(query.get('stage'));
+        const stage = pendingPresetId
+          ? 3
+          : [1, 2, 3].includes(requestedStage)
+            ? requestedStage
+            : [1, 2, 3].includes(savedStage)
+              ? savedStage
+              : activePath ? 3 : 1;
+        if (stage === 2) step2();
+        else setStage(stage);
       } else if (activePath) {
         try { localStorage.removeItem(ACTIVE_FILE_KEY); } catch (_) {}
         updateSavedTabulationsNav();
@@ -208,6 +230,8 @@
 
   function chooseFile() {
     selected = files.find((file) => file.path === fileSelect.value) || null;
+    draftHydrated = false;
+    pendingDraftColumnValue = '';
     try {
       if (selected) localStorage.setItem(ACTIVE_FILE_KEY, selected.path);
       else localStorage.removeItem(ACTIVE_FILE_KEY);
@@ -220,7 +244,7 @@
     activeFilters = [];
     $('#toConvert').disabled = !selected;
     $('#sourceDetails').textContent = selected
-      ? `${selected.system} · ${selected.kind} · competência ${String(selected.month).padStart(2, '0')}/${selected.year} · ${formatBytes(selected.size)}${selected.converted ? ' · DBF já convertido' : selected.conversion ? ' · conversão em andamento' : ''}`
+      ? `${selected.system} · ${selected.kind} · competência ${String(selected.month).padStart(2, '0')}/${selected.year} · ${formatBytes(selected.size)}${selected.converted ? ' · leitura já preparada' : ' · leitura automática na primeira tabulação'}`
       : 'Escolha um DBC da biblioteca.';
     $('#notice1').hidden = true;
   }
@@ -358,6 +382,68 @@
     }
   }
 
+  async function prepareFileForReading(file, onProgress = () => {}) {
+    if (!file) throw new Error('Selecione um arquivo DBC da biblioteca.');
+    if (file.converted && file.dbf_path) {
+      dbfPath = file.dbf_path;
+      return file;
+    }
+
+    onProgress(1, 'Preparando o DBC para leitura', 'A leitura inicial prepara uma cópia local para acelerar as próximas consultas.');
+    const started = await request({ action: 'convert_start', path: file.path });
+    if (started.done) {
+      file.converted = true;
+      file.dbf_path = started.dbf_path;
+      file.dbf_size = started.dbfIdentity?.size || file.dbf_size;
+      file.dbf_mtime_ns = started.dbfIdentity?.mtime || file.dbf_mtime_ns;
+      dbfPath = started.dbf_path;
+      try { localStorage.removeItem('tabwin2-job'); } catch (_) {}
+      return file;
+    }
+
+    const jobId = started.job_id;
+    if (!jobId) throw new Error('O serviço local não iniciou a leitura deste DBC.');
+    try { localStorage.setItem('tabwin2-job', jobId); } catch (_) {}
+    let failures = 0;
+    while (true) {
+      try {
+        const state = await request({ action: 'convert_status', job_id: jobId });
+        failures = 0;
+        const percent = Math.min(100, Math.max(1, Number(state.progress) || 1));
+        const detail = state.bytes_written
+          ? `${formatBytes(state.bytes_written)} preparados no computador. ${state.converter === 'rápido' ? 'Decodificador nativo.' : ''}`
+          : (state.message || 'Lendo a base local…');
+        onProgress(percent, state.stage || 'Preparando a leitura do DBC', detail);
+        if (state.status === 'error') throw new Error(state.message || 'Não foi possível preparar a leitura do DBC.');
+        if (state.status === 'done') {
+          file.converted = true;
+          file.dbf_path = state.dbf_path;
+          file.dbf_size = state.dbfIdentity?.size || state.bytes_written || file.dbf_size;
+          file.dbf_mtime_ns = state.dbfIdentity?.mtime || file.dbf_mtime_ns;
+          dbfPath = state.dbf_path;
+          try { localStorage.removeItem('tabwin2-job'); } catch (_) {}
+          onProgress(100, 'Leitura pronta', 'O arquivo foi preparado uma vez e poderá ser reutilizado nas próximas consultas.');
+          return file;
+        }
+      } catch (error) {
+        if (failures >= 2) throw error;
+        failures += 1;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    }
+  }
+
+  function showReaderProgress(percent, title, detail) {
+    const panel = $('#readerProgress');
+    if (!panel) return;
+    panel.hidden = false;
+    $('#readerProgressTitle').textContent = title;
+    $('#readerProgressPercent').textContent = `${Math.round(percent)}%`;
+    $('#readerProgressFill').style.width = `${percent}%`;
+    $('.reader-progress__track').setAttribute('aria-valuenow', String(Math.round(percent)));
+    $('#readerProgressText').textContent = detail;
+  }
+
   function optionList(select, items, placeholder, selectFirst = false) {
     select.replaceChildren();
     if (placeholder) select.add(new Option(placeholder, ''));
@@ -431,7 +517,7 @@
   }
 
   function updateRunButton() {
-    $('#runButton').disabled = isTabulating || !schema?.lineOptions.length || !$('#rowField').value || !selectedMetrics().length;
+    $('#runButton').disabled = isTabulating || isPreparingReader || !schema?.lineOptions.length || !$('#rowField').value || !selectedMetrics().length;
     $('#savePresetButton').disabled = !schema || !selected || !schema.lineOptions.length;
   }
 
@@ -491,6 +577,110 @@
     };
   }
 
+  function draftStorageKey() {
+    return selected?.path ? `spptab-tabulation-draft-v1:${encodeURIComponent(selected.path)}` : '';
+  }
+
+  function saveTabulationDraft() {
+    if (!draftHydrated || !schema || !selected) return;
+    const key = draftStorageKey();
+    if (!key) return;
+    const draft = {
+      options: currentPresetOptions(),
+      filterField: $('#filterField').value,
+      columnSearch: $('#columnSearch').value,
+      rowSearch: $('#rowSearch').value,
+      files: tabFiles.map((file) => file.path),
+      filters: activeFilters.map((filter) => ({ ...filter })),
+    };
+    try { localStorage.setItem(key, JSON.stringify(draft)); } catch (_) {}
+  }
+
+  async function restoreTabulationDraft() {
+    const key = draftStorageKey();
+    let draft = null;
+    try { draft = key ? JSON.parse(localStorage.getItem(key) || 'null') : null; } catch (_) {}
+
+    let pendingPreset = '';
+    try { pendingPreset = localStorage.getItem(PENDING_PRESET_KEY) || ''; } catch (_) {}
+    if (!draft || pendingPreset) {
+      draftHydrated = true;
+      if (tabFiles.some((file) => !file.converted || !file.dbf_path)) prepareSelectedFilesInBackground();
+      loadColumnValues();
+      updateRunButton();
+      return;
+    }
+
+    const options = draft.options || {};
+    const validRows = new Set(schema.lineOptions.map((item) => item.id));
+    const validColumns = new Set(schema.columnOptions.map((item) => item.id));
+    if (validRows.has(options.row)) $('#rowField').value = options.row;
+
+    const validMetrics = new Set(metricChoices().map((item) => item.id));
+    const wantedMetrics = new Set((Array.isArray(options.metrics) ? options.metrics : []).filter((item) => validMetrics.has(item)));
+    const metricInputs = Array.from(document.querySelectorAll('#incrementOptions input'));
+    if (wantedMetrics.size) metricInputs.forEach((input) => { input.checked = wantedMetrics.has(input.value); });
+    if (!selectedMetrics().length && metricInputs[0]) metricInputs[0].checked = true;
+
+    $('#columnField').value = selectedMetrics().length === 1 && validColumns.has(options.column) ? options.column : '';
+    $('#rowSearch').value = String(draft.rowSearch || '');
+    $('#columnSearch').value = String(draft.columnSearch || '');
+    filterOptionList($('#rowField'), $('#rowSearch').value, $('#rowListStatus'));
+    filterOptionList($('#columnField'), $('#columnSearch').value, $('#columnListStatus'));
+
+    if (typeof options.suppressRows === 'boolean') $('#suppressRows').checked = options.suppressRows;
+    if (typeof options.suppressColumns === 'boolean') $('#suppressColumns').checked = options.suppressColumns;
+    if (typeof options.testCrc === 'boolean') $('#testCrc').checked = options.testCrc;
+    if (typeof options.saveRecords === 'boolean') $('#saveRecords').checked = options.saveRecords;
+    const unclassified = document.querySelector(`input[name="unclassified"][value="${options.unclassified}"]`);
+    if (unclassified) unclassified.checked = true;
+
+    const municipalityAvailable = Boolean(schema.municipalityField && currentLocationSelection());
+    $('#municipalityFilter').checked = Boolean(options.municipalityFilter && municipalityAvailable);
+    activeFilters = (Array.isArray(draft.filters) ? draft.filters : []).flatMap((filter) => {
+      const definition = schema.selectionOptions.find((item) => item.id === filter.option);
+      if (!definition || !String(filter.value ?? '')) return [];
+      return [{
+        option: definition.id,
+        field: definition.field,
+        label: definition.label,
+        value: String(filter.value),
+        categoryLabel: String(filter.categoryLabel || filter.value),
+        mode: filter.mode === 'exclude' ? 'exclude' : 'include',
+      }];
+    }).slice(0, 300);
+
+    const rememberedFiles = (Array.isArray(draft.files) ? draft.files : [selected.path])
+      .map((path) => files.find((file) => file.path === path))
+      .filter((file) => file && file.system === selected.system && file.kind === selected.kind);
+    tabFiles = [selected, ...rememberedFiles.filter((file) => file.path !== selected.path)];
+    renderFiles();
+    if (tabFiles.some((file) => !file.converted || !file.dbf_path)) prepareSelectedFilesInBackground();
+    drawFilters();
+    updateMetricRules();
+
+    const column = $('#columnField').value;
+    if (column) {
+      const wasPreparing = isPreparingReader;
+      const values = await loadCategoryValues(column, $('#columnValue'), $('#columnValuesStatus'));
+      const wantedValue = options.columnFilter?.value;
+      if (wantedValue && wasPreparing) pendingDraftColumnValue = String(wantedValue);
+      else if (wantedValue && (values || []).some((item) => String(item.value) === String(wantedValue))) $('#columnValue').value = String(wantedValue);
+    } else {
+      loadColumnValues();
+    }
+
+    const rememberedFilterField = draft.filterField || options.filterField;
+    const filterField = schema.selectionOptions.some((item) => item.id === rememberedFilterField)
+      ? rememberedFilterField
+      : activeFilters[0]?.option || '';
+    $('#filterField').value = filterField;
+    if (filterField) await loadSelectionValues();
+    updateRunButton();
+    draftHydrated = true;
+    saveTabulationDraft();
+  }
+
   async function saveCurrentPreset(event) {
     event.preventDefault();
     if (!selected || !schema) return;
@@ -514,7 +704,7 @@
   }
 
   async function applyPendingPreset() {
-    if (applyingPreset || !selected || !schema) return;
+    if (applyingPreset || isPreparingReader || !selected || !schema) return;
     let presetId = '';
     try { presetId = localStorage.getItem(PENDING_PRESET_KEY) || ''; } catch (_) {}
     if (!presetId) return;
@@ -572,6 +762,7 @@
       updateMetricRules();
       updateRunButton();
       try { localStorage.removeItem(PENDING_PRESET_KEY); } catch (_) {}
+      saveTabulationDraft();
       notice(3, `Combinação “${preset.name}” aplicada. Confira as categorias selecionadas para esta competência antes de gerar.${missingColumnCategory ? ' Uma categoria de coluna não existe neste arquivo e foi deixada em “Todas as categorias”.' : ''}`, 'success');
     } catch (error) {
       try { localStorage.removeItem(PENDING_PRESET_KEY); } catch (_) {}
@@ -587,6 +778,11 @@
     select.disabled = true;
     if (!option) {
       status.textContent = 'Escolha uma coluna para carregar as categorias disponíveis.';
+      return null;
+    }
+    if (isPreparingReader) {
+      deferredCategoryLoad = true;
+      status.textContent = 'Os valores aparecerão assim que a leitura inicial estiver pronta.';
       return null;
     }
     status.textContent = 'Carregando categorias da base…';
@@ -690,6 +886,17 @@
       return;
     }
 
+    if (isPreparingReader) {
+      deferredCategoryLoad = true;
+      search.value = '';
+      search.disabled = true;
+      list.replaceChildren();
+      list.setAttribute('aria-disabled', 'true');
+      status.textContent = 'Os valores aparecerão assim que a leitura inicial estiver pronta.';
+      updateFilterButton();
+      return;
+    }
+
     search.value = '';
     search.disabled = true;
     list.replaceChildren();
@@ -770,6 +977,7 @@
     $('#filterCount').textContent = count
       ? `${count} ${count === 1 ? 'categoria' : 'categorias'}`
       : 'Nenhuma';
+    saveTabulationDraft();
   }
 
   function addFilter(mode) {
@@ -817,14 +1025,13 @@
 
   function renderFiles() {
     const select = $('#extraFile');
-    const compatible = files.filter((file) => file.converted
-      && selected
+    const compatible = files.filter((file) => selected
       && file.system === selected.system
       && file.kind === selected.kind
       && !tabFiles.some((chosen) => chosen.path === file.path));
 
     select.replaceChildren(new Option(
-      compatible.length ? 'Escolha outra competência…' : 'Nenhuma outra base convertida disponível',
+      compatible.length ? 'Escolha outra competência…' : 'Nenhuma outra base disponível',
       '',
     ));
     compatible.forEach((file) => {
@@ -835,8 +1042,8 @@
     $('#addFile').disabled = !select.value || compatible.length === 0;
     $('#fileCount').textContent = `${tabFiles.length} ${tabFiles.length === 1 ? 'base selecionada' : 'bases selecionadas'}`;
     $('#fileStatus').textContent = compatible.length
-      ? 'Confira se as bases têm a mesma estrutura; o sistema verifica isso antes de tabular.'
-      : `Nenhuma outra base ${selected ? `${selected.system} · ${selected.kind}` : ''} convertida está disponível.`;
+      ? 'O SPPtab prepara cada arquivo automaticamente; bases de competências diferentes também podem ser combinadas.'
+      : `Nenhuma outra base ${selected ? `${selected.system} · ${selected.kind}` : ''} está disponível.`;
 
     const box = $('#selectedFiles');
     box.replaceChildren();
@@ -859,10 +1066,12 @@
       remove.addEventListener('click', () => {
         tabFiles = tabFiles.filter((itemFile) => itemFile.path !== file.path);
         renderFiles();
+        if (schema) prepareSelectedFilesInBackground();
       });
       item.append(copy, remove);
       box.append(item);
     });
+    saveTabulationDraft();
   }
 
   function addFile() {
@@ -870,9 +1079,53 @@
     if (!file || tabFiles.some((item) => item.path === file.path)) return;
     tabFiles.push(file);
     renderFiles();
+    if (schema) prepareSelectedFilesInBackground();
   }
 
-  function applySchema(data, fromBrowserCache = false) {
+  async function prepareSelectedFilesInBackground() {
+    if (!schema || !tabFiles.length || isPreparingReader) return;
+    const pending = tabFiles.filter((file) => !file.converted || !file.dbf_path);
+    if (!pending.length) return;
+    isPreparingReader = true;
+    updateRunButton();
+    let failed = false;
+    try {
+      for (const file of pending) {
+        await prepareFileForReading(file, (percent, title, detail) => {
+          showReaderProgress(percent, `${title} · ${file.name}`, detail);
+        });
+      }
+      $('#readerProgress').hidden = true;
+      renderFiles();
+    } catch (error) {
+      failed = true;
+      showReaderProgress(0, 'Não foi possível preparar a leitura', error.message);
+      notice(3, error.message, 'error');
+    } finally {
+      isPreparingReader = false;
+      dbfPath = selected?.dbf_path || null;
+      const morePending = tabFiles.some((file) => !file.converted || !file.dbf_path);
+      if (!failed && morePending) {
+        prepareSelectedFilesInBackground();
+        return;
+      }
+      if (deferredCategoryLoad && !failed) {
+        deferredCategoryLoad = false;
+        const categoryLoad = loadColumnValues();
+        const wantedColumnValue = pendingDraftColumnValue;
+        pendingDraftColumnValue = '';
+        if (wantedColumnValue && categoryLoad) {
+          const values = await categoryLoad;
+          if ((values || []).some((item) => String(item.value) === wantedColumnValue)) $('#columnValue').value = wantedColumnValue;
+        }
+        if ($('#filterField').value) loadSelectionValues();
+      }
+      applyPendingPreset();
+      updateRunButton();
+    }
+  }
+
+  async function applySchema(data, fromBrowserCache = false) {
     schema = data;
     if (schema.dbfIdentity && selected) {
       Object.assign(selected, {
@@ -882,8 +1135,8 @@
         converted: true,
       });
     }
-    dbfPath = schema.dbfPath;
-    const cacheKey = browserCacheKey('schema', selected, 'prepared-definition-v4');
+    dbfPath = schema.dbfPath || selected?.dbf_path || null;
+    const cacheKey = browserCacheKey('schema', selected, 'prepared-definition-v5');
     writeBrowserCache(cacheKey, schema);
     const cacheLabel = fromBrowserCache ? ' · definição recuperada do cache deste navegador' : '';
     $('#definitionStatus').innerHTML = `<strong>${escapeHtml(schema.definition.name)}</strong> · ${Number(schema.recordCount).toLocaleString('pt-BR')} registros · ${schema.fields.length} campos compatíveis${cacheLabel}`;
@@ -931,7 +1184,8 @@
         ? `Escolha um município na tela inicial para ativar o filtro · campo ${schema.municipalityField}`
         : 'Este relatório não contém um campo municipal compatível.';
     setSchemaLoading(false);
-    loadColumnValues();
+    $('#readerProgress').hidden = true;
+    await restoreTabulationDraft();
     updateRunButton();
     if (!schema.lineOptions.length) {
       notice(3, 'A definição não encontrou opções de linha compatíveis com os campos desta base.', 'error');
@@ -945,16 +1199,16 @@
     if (!selected) return;
     if (schema && schema.file?.path === selected.path) return;
 
-    const schemaKey = browserCacheKey('schema', selected, 'prepared-definition-v4');
+    const schemaKey = browserCacheKey('schema', selected, 'prepared-definition-v5');
     const cachedSchema = readBrowserCache(schemaKey);
-    if (cachedSchema?.file?.path === selected.path && cachedSchema?.dbfPath && cachedSchema?.definition?.name && Array.isArray(cachedSchema.fields) && Array.isArray(cachedSchema.lineOptions)) {
+    if (cachedSchema?.file?.path === selected.path && cachedSchema?.definition?.name && Array.isArray(cachedSchema.fields) && Array.isArray(cachedSchema.lineOptions)) {
       $('#tabControls').hidden = true;
       $('#runButton').disabled = true;
-      applySchema(cachedSchema, true);
+      await applySchema(cachedSchema, true);
       return;
     }
 
-    $('#definitionStatus').textContent = 'Consultando o arquivo convertido e a definição oficial…';
+    $('#definitionStatus').textContent = 'Lendo a estrutura do DBC e consultando a definição oficial…';
     setSchemaLoading(true);
     $('#tabControls').hidden = true;
     $('#runButton').disabled = true;
@@ -965,6 +1219,10 @@
     $('#resultPanel').hidden = true;
     try {
       const data = await request({ action: 'schema', path: selected.path });
+      if (data.sourceIdentity) {
+        selected.size = data.sourceIdentity.size;
+        selected.mtime_ns = data.sourceIdentity.mtime;
+      }
       if (data.dbfIdentity) {
         Object.assign(selected, {
           dbf_path: data.dbfIdentity.path,
@@ -973,7 +1231,7 @@
           converted: true,
         });
       }
-      applySchema(data, false);
+      await applySchema(data, false);
     } catch (error) {
       schema = null;
       setSchemaLoading(false);
@@ -1116,7 +1374,7 @@
   }
 
   async function generate() {
-    if (!schema || !$('#rowField').value || !selectedMetrics().length || isTabulating) return;
+    if (!schema || !$('#rowField').value || !selectedMetrics().length || isTabulating || isPreparingReader) return;
 
     const popup = startPopup();
     const button = $('#runButton');
@@ -1129,6 +1387,19 @@
     const columnValue = $('#columnValue').value;
     try {
       resultExtraFilters = [];
+      for (const file of tabFiles) {
+        if (file.converted && file.dbf_path) continue;
+        await prepareFileForReading(file, (progress, stage, detail) => {
+          showReaderProgress(progress, `${stage} · ${file.name}`, detail);
+          notice(3, `${stage} · ${Math.round(progress)}%`);
+          if (popup && !popup.closed) {
+            pendingPopupMessage = { type: 'tabwin2-progress', runId: resultRunId, progress, stage: `${stage} · ${file.name}` };
+            sendPopupMessage();
+          }
+        });
+      }
+      $('#readerProgress').hidden = true;
+      dbfPath = selected?.dbf_path || null;
       resultTabulationPayload = {
         action: 'tabulate_start',
         path: selected.path,
@@ -1268,7 +1539,9 @@
   }
 
   fileSelect.addEventListener('change', chooseFile);
-  $('#toConvert').addEventListener('click', step2);
+  $('#stage3').addEventListener('change', saveTabulationDraft);
+  $('#stage3').addEventListener('input', saveTabulationDraft);
+  $('#toConvert').addEventListener('click', () => setStage(3));
   $('#startConvert').addEventListener('click', startConvert);
   $('#toTabulate').addEventListener('click', () => setStage(3));
   $('#rowSearch').addEventListener('input', () => filterOptionList($('#rowField'), $('#rowSearch').value, $('#rowListStatus')));
@@ -1308,12 +1581,12 @@
     button.addEventListener('click', () => {
       const stage = Number(button.dataset.stage);
       if (stage === 1) setStage(1);
-      if (stage === 2 && selected) step2();
-      if (stage === 3 && selected?.converted) setStage(3);
+      if (stage === 3 && selected) setStage(3);
     });
   });
 
   loadCatalog().then(() => {
+    if (new URLSearchParams(location.search).get('stage') === '3') return;
     const job = localStorage.getItem('tabwin2-job');
     if (!job || fileSelect.options.length <= 1) return;
     const match = files.find((file) => file.conversion?.id === job) || files.find((file) => !file.converted);
@@ -1321,10 +1594,6 @@
     selected = match;
     updateTabLocationTag();
     fileSelect.value = match.path;
-    step2();
-    if (match.conversion?.id !== job) {
-      $('#startConvert').hidden = true;
-      pollConversion(job);
-    }
+    setStage(3);
   });
 })();

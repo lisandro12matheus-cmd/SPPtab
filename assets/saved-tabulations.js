@@ -90,7 +90,7 @@
     const use = document.createElement('button');
     use.className = 'button button-primary';
     use.type = 'button';
-    use.innerHTML = `${activeFile.converted ? 'Usar nesta competência' : 'Converter e aplicar'} <span aria-hidden="true">→</span>`;
+    use.innerHTML = `${activeFile.converted ? 'Usar nesta competência' : 'Preparar e aplicar'} <span aria-hidden="true">→</span>`;
     use.addEventListener('click', () => usePreset(preset.id));
     const remove = document.createElement('button');
     remove.className = 'preset-delete';
@@ -105,7 +105,9 @@
   }
 
   function updateTabularLinks(file) {
-    const url = file?.converted ? 'tabular.php?stage=3' : 'tabular.php';
+    const url = file?.path
+      ? `tabular.php?stage=3&file=${encodeURIComponent(file.path)}`
+      : 'tabular.php?stage=3';
     $('#createPresetLink').href = url;
     $('#presetEmptyAction').href = url;
     $('#createPresetLink').hidden = !file;
@@ -210,7 +212,7 @@
       : files;
     fileSelect.replaceChildren(new Option(available.length ? 'Escolha um arquivo DBC…' : 'Nenhuma base compatível', ''));
     available.forEach((file) => {
-      const label = `${file.system} · ${file.kind} · ${period(file)} · ${file.name}${file.converted ? ' · DBF pronto' : ''}`;
+      const label = `${file.system} · ${file.kind} · ${period(file)} · ${file.name}${file.converted ? ' · leitura pronta' : ''}`;
       fileSelect.add(new Option(label, file.path));
     });
     if (available.some((file) => file.path === currentPath)) fileSelect.value = currentPath;

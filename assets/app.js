@@ -18,11 +18,17 @@
   const emptyState = document.querySelector('#emptyState');
   const emptyIcon = document.querySelector('#emptyIcon');
   const searchLoader = document.querySelector('#searchLoader');
+  const queryProgress = document.querySelector('#queryProgress');
+  const queryProgressTrack = document.querySelector('#queryProgressTrack');
+  const queryProgressFill = document.querySelector('#queryProgressFill');
+  const queryProgressStage = document.querySelector('#queryProgressStage');
+  const queryProgressPercent = document.querySelector('#queryProgressPercent');
   const results = document.querySelector('#results');
   const resultsContent = document.querySelector('#resultsContent');
   const fileRows = document.querySelector('#fileRows');
   const notice = document.querySelector('#notice');
   const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const ACTIVE_FILE_KEY = 'spptab-active-file-v1';
   const stateNames = {AC:'Acre',AL:'Alagoas',AP:'Amapá',AM:'Amazonas',BA:'Bahia',CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',MA:'Maranhão',MT:'Mato Grosso',MS:'Mato Grosso do Sul',MG:'Minas Gerais',PA:'Pará',PB:'Paraíba',PR:'Paraná',PE:'Pernambuco',PI:'Piauí',RJ:'Rio de Janeiro',RN:'Rio Grande do Norte',RS:'Rio Grande do Sul',RO:'Rondônia',RR:'Roraima',SC:'Santa Catarina',SP:'São Paulo',SE:'Sergipe',TO:'Tocantins'};
   const LOCATION_KEY = 'spptab-location-v1';
   let location = {uf:'', municipalityCode:'', municipalityName:''};
@@ -30,6 +36,17 @@
   let currentFiles = [];
   let busy = false;
   let loadingTimer = null;
+  let progressFinishTimer = null;
+  let progressStartedAt = 0;
+  let progressWasShown = false;
+  let activeLoadingStage = -1;
+  let competencyContext = '';
+  let competencyFilesByMonth = new Map();
+  let competencySourceMode = '';
+  let competencyCacheComplete = false;
+  let pendingCompetencyContext = '';
+  let pendingCompetencyPromise = null;
+  let prefetchTimer = null;
   let competenciesRequest = 0;
   let filesRequest = 0;
 
@@ -56,13 +73,69 @@
     return data;
   }
 
-  function stopLoading() {
+  function stopLoading(completed = false) {
     if (loadingTimer !== null) clearInterval(loadingTimer);
     loadingTimer = null;
     emptyState.classList.remove('is-loading');
     results.setAttribute('aria-busy', 'false');
     searchLoader.hidden = true;
     emptyIcon.hidden = false;
+    if (progressFinishTimer !== null) clearTimeout(progressFinishTimer);
+    progressFinishTimer = null;
+    if (completed && progressWasShown) {
+      queryProgress.hidden = false;
+      queryProgressStage.textContent = 'Consulta concluída';
+      queryProgressPercent.textContent = '100%';
+      queryProgressFill.style.width = '100%';
+      queryProgressTrack.setAttribute('aria-valuenow', '100');
+      queryProgressTrack.setAttribute('aria-valuetext', 'Consulta concluída');
+      queryProgressTrack.classList.add('is-complete');
+      progressFinishTimer = setTimeout(() => {
+        queryProgress.hidden = true;
+        queryProgressFill.style.width = '0%';
+        queryProgressTrack.setAttribute('aria-valuenow', '0');
+        queryProgressTrack.setAttribute('aria-valuetext', 'Estimativa visual enquanto a fonte responde');
+        queryProgressTrack.classList.remove('is-complete');
+        progressStartedAt = 0;
+        progressWasShown = false;
+      }, 300);
+    } else {
+      queryProgress.hidden = true;
+      queryProgressFill.style.width = '0%';
+      queryProgressTrack.setAttribute('aria-valuenow', '0');
+      queryProgressTrack.setAttribute('aria-valuetext', 'Estimativa visual enquanto a fonte responde');
+      queryProgressTrack.classList.remove('is-complete');
+      progressStartedAt = 0;
+      progressWasShown = false;
+    }
+  }
+
+  function startEstimatedProgress(messages, updateEmptyState) {
+    progressStartedAt = Date.now();
+    activeLoadingStage = -1;
+    progressWasShown = false;
+    const showProgress = () => {
+      const elapsed = Date.now() - progressStartedAt;
+      const stageIndex = Math.min(messages.length - 1, elapsed < 1400 ? 0 : elapsed < 5000 ? 1 : 2);
+      const message = messages[stageIndex];
+      if (updateEmptyState && stageIndex !== activeLoadingStage) {
+        emptyTitle.textContent = message.title;
+        emptyCopy.textContent = message.copy;
+      }
+      activeLoadingStage = stageIndex;
+      queryProgressStage.textContent = message.title;
+      if (elapsed >= 180) {
+        queryProgress.hidden = false;
+        progressWasShown = true;
+      }
+      const percent = Math.min(92, Math.round(94 * (1 - Math.exp(-elapsed / 4200))));
+      queryProgressPercent.textContent = `~${percent}%`;
+      queryProgressFill.style.width = `${percent}%`;
+      queryProgressTrack.setAttribute('aria-valuenow', String(percent));
+      queryProgressTrack.setAttribute('aria-valuetext', `Estimativa visual de ${percent}% enquanto a fonte responde`);
+    };
+    showProgress();
+    loadingTimer = setInterval(showProgress, 120);
   }
 
   function setLoading(messages) {
@@ -73,15 +146,13 @@
     results.setAttribute('aria-busy', 'true');
     emptyIcon.hidden = true;
     searchLoader.hidden = false;
-    let messageIndex = 0;
-    const showMessage = () => {
-      const message = messages[messageIndex % messages.length];
-      emptyTitle.textContent = message.title;
-      emptyCopy.textContent = message.copy;
-      messageIndex += 1;
-    };
-    showMessage();
-    loadingTimer = setInterval(showMessage, 4500);
+    startEstimatedProgress(messages, true);
+  }
+
+  function setBackgroundLoading(messages) {
+    stopLoading();
+    results.setAttribute('aria-busy', 'true');
+    startEstimatedProgress(messages, false);
   }
 
   function setEmpty(title, copy) {
@@ -232,6 +303,7 @@
     try { localStorage.setItem(LOCATION_KEY, JSON.stringify(location)); } catch (_) {}
     updateLocationSummary();
     loadMunicipalities(uf, 'all');
+    scheduleCompetencyPrefetch();
   }
 
   function handleMunicipalityChange() {
@@ -254,6 +326,7 @@
     advanceButton.disabled = false;
     location = {uf:saved.uf, municipalityCode:'', municipalityName:'Todo o estado'};
     updateLocationSummary();
+    scheduleCompetencyPrefetch();
     await loadMunicipalities(saved.uf, saved.municipalityCode || 'all');
   }
 
@@ -298,6 +371,14 @@
 
   async function loadCompetencies(preferredMonth = null) {
     if (!location.uf || !location.municipalityName) return;
+    const requestedSystem = system.value;
+    const requestedYear = Number(year.value);
+    const context = competencyKey(requestedSystem, requestedYear, location.uf);
+    if (context === competencyContext && showCachedCompetencies(preferredMonth)) return;
+    competencyContext = '';
+    competencyFilesByMonth = new Map();
+    competencySourceMode = '';
+    competencyCacheComplete = false;
     const requestId = ++competenciesRequest;
     filesRequest += 1;
     const requestedUf = location.uf;
@@ -307,28 +388,29 @@
     searchButton.disabled = true;
     month.disabled = true;
     month.innerHTML = '<option value="">Buscando períodos…</option>';
-    const base = system.value === 'sia' ? 'ambulatorial' : 'hospitalar';
+    const base = requestedSystem === 'sia' ? 'ambulatorial' : 'hospitalar';
     setLoading([
       {title:'Indo ao DATASUS', copy:`Abrindo a consulta da base ${base} de ${stateLabel()} para ${year.value}.`},
       {title:'Consultando as competências', copy:'Verificando quais meses já foram publicados na fonte oficial.'},
-      {title:'Conferindo a base mais recente', copy:'Organizando os períodos disponíveis para você escolher.'}
+      {title:'A consulta ainda está ativa', copy:'Aguarde mais um pouco. Assim que o DATASUS responder, mostraremos os períodos disponíveis.'}
     ]);
     try {
-      const data = await request({action:'competencies', system:system.value, year:Number(year.value), uf:location.uf});
+      const data = await fetchCompetencies(context, requestedSystem, requestedYear, requestedUf);
       if (requestId !== competenciesRequest || requestedUf !== location.uf) return;
-      month.innerHTML = '';
-      if (!data.months.length) {
-        month.add(new Option('Nenhuma competência', ''));
-        setEmpty('Ainda sem arquivos neste ano', `Escolha outro ano para consultar as competências disponíveis em ${stateNames[location.uf]}.`);
-        return;
-      }
-      data.months.forEach((m) => month.add(new Option(monthNames[m - 1], String(m).padStart(2, '0'))));
-      month.disabled = false;
-      const selected = data.months.includes(Number(preferredMonth)) ? Number(preferredMonth) : data.months[data.months.length - 1];
-      month.value = String(selected).padStart(2, '0');
       if (Array.isArray(data.files)) {
-        showFileResults({...data, files: data.files.filter((file) => Number(file.month) === selected)});
+        cacheCompetencyRows(context, data.files, data.source_mode, data.months || [], true);
+        showCachedCompetencies(preferredMonth);
       } else {
+        month.innerHTML = '';
+        if (!data.months.length) {
+          month.add(new Option('Nenhuma competência', ''));
+          setEmpty('Ainda sem arquivos neste ano', `Escolha outro ano para consultar as competências disponíveis em ${stateNames[location.uf]}.`);
+          return;
+        }
+        data.months.forEach((m) => month.add(new Option(monthNames[m - 1], String(m).padStart(2, '0'))));
+        month.disabled = false;
+        const selected = data.months.includes(Number(preferredMonth)) ? Number(preferredMonth) : data.months[data.months.length - 1];
+        month.value = String(selected).padStart(2, '0');
         await searchFiles();
       }
     } catch (error) {
@@ -342,7 +424,7 @@
   }
 
   function renderFiles(files) {
-    stopLoading();
+    stopLoading(true);
     currentFiles = files;
     fileRows.innerHTML = '';
     files.forEach((file, index) => {
@@ -351,10 +433,28 @@
         ? `${file.modified.slice(6,8)}/${file.modified.slice(4,6)}/${file.modified.slice(0,4)}` : '—';
       const isSaved = Boolean(file.downloaded);
       const status = isSaved ? '<span class="saved-pill">Na biblioteca</span>' : file.incomplete ? '<span class="incomplete-pill">Importação incompleta</span>' : '<span class="pending-pill">Disponível</span>';
-      row.innerHTML = `<td><input class="file-check" type="checkbox" aria-label="Selecionar ${escapeHtml(file.name)}" data-index="${index}" ${isSaved ? 'disabled' : ''}></td>
+      row.innerHTML = `<td><input class="file-check" type="checkbox" aria-label="Selecionar ${escapeHtml(file.name)}" data-index="${index}"></td>
         <td><div class="file-identity"><span class="file-icon">DBC</span><span><strong>${escapeHtml(file.name)}</strong><small>${escapeHtml(stateNames[file.uf || location.uf] || file.uf || location.uf)} · competência ${String(file.month).padStart(2,'0')}/${year.value}</small></span></div></td>
         <td><span class="type-pill"><b>${escapeHtml(file.kind)}</b> ${escapeHtml(file.label)}</span></td>
-        <td>${escapeHtml(file.size_label || '—')}</td><td>${status}</td><td>${updated}</td>`;
+        <td>${escapeHtml(file.size_label || '—')}</td><td>${status}</td><td>${updated}</td><td class="file-action-cell"></td>`;
+      {
+        const actionCell = row.querySelector('.file-action-cell');
+        const openTabulation = document.createElement('button');
+        openTabulation.type = 'button';
+        openTabulation.className = 'file-action-link';
+        openTabulation.textContent = 'Abrir tabulação';
+        openTabulation.setAttribute('aria-label', isSaved ? `Abrir ${file.name} para tabular` : `Baixar e abrir ${file.name} para tabular`);
+        if (!isSaved) openTabulation.title = 'O arquivo será baixado antes de abrir a tabulação.';
+        openTabulation.addEventListener('click', () => {
+          if (isSaved && file.local_path) {
+            try { localStorage.setItem(ACTIVE_FILE_KEY, file.local_path); } catch (_) {}
+            window.location.href = `tabular.php?stage=3&file=${encodeURIComponent(file.local_path)}`;
+            return;
+          }
+          downloadSelected(file, openTabulation);
+        });
+        actionCell.append(openTabulation);
+      }
       fileRows.append(row);
     });
     document.querySelector('#fileCount').textContent = String(files.length);
@@ -401,23 +501,115 @@
     }
   }
 
+  function competencyKey(systemCode = system.value, dataYear = year.value, uf = location.uf) {
+    return `${systemCode}:${dataYear}:${uf}`;
+  }
+
+  function cacheCompetencyRows(context, files, sourceMode, months = [], complete = true) {
+    const byMonth = new Map();
+    months.forEach((value) => byMonth.set(Number(value), {files:[], sourceMode}));
+    files.forEach((file) => {
+      const key = Number(file.month);
+      if (!byMonth.has(key)) byMonth.set(key, {files:[], sourceMode});
+      byMonth.get(key).files.push(file);
+    });
+    competencyContext = context;
+    competencyFilesByMonth = byMonth;
+    competencySourceMode = sourceMode || '';
+    competencyCacheComplete = complete;
+  }
+
+  function fetchCompetencies(context, systemCode, dataYear, uf) {
+    if (pendingCompetencyContext === context && pendingCompetencyPromise) return pendingCompetencyPromise;
+    const promise = request({action:'competencies', system:systemCode, year:dataYear, uf});
+    pendingCompetencyContext = context;
+    pendingCompetencyPromise = promise;
+    const clearPending = () => {
+      if (pendingCompetencyPromise === promise) {
+        pendingCompetencyContext = '';
+        pendingCompetencyPromise = null;
+      }
+    };
+    promise.then(clearPending, clearPending);
+    return promise;
+  }
+
+  function prefetchCompetencies(uf = location.uf) {
+    if (!uf) return;
+    const systemCode = system.value;
+    const dataYear = Number(year.value);
+    const context = competencyKey(systemCode, dataYear, uf);
+    if (competencyCacheComplete && competencyContext === context) return;
+    fetchCompetencies(context, systemCode, dataYear, uf).then((data) => {
+      if (competencyKey() !== context || !Array.isArray(data.files)) return;
+      cacheCompetencyRows(context, data.files, data.source_mode, data.months || [], true);
+    }).catch(() => {});
+  }
+
+  function scheduleCompetencyPrefetch() {
+    if (prefetchTimer !== null) clearTimeout(prefetchTimer);
+    const uf = location.uf;
+    prefetchTimer = setTimeout(() => {
+      prefetchTimer = null;
+      if (uf === location.uf) prefetchCompetencies(uf);
+    }, 250);
+  }
+
+  function showCachedCompetencies(preferredMonth = null) {
+    if (!competencyCacheComplete || competencyContext !== competencyKey()) return false;
+    const months = [...competencyFilesByMonth.keys()].sort((a, b) => a - b);
+    month.innerHTML = '';
+    if (!months.length) {
+      month.add(new Option('Nenhuma competência', ''));
+      month.disabled = true;
+      searchButton.disabled = true;
+      setEmpty('Ainda sem arquivos neste ano', `Escolha outro ano para consultar as competências disponíveis em ${stateNames[location.uf]}.`);
+      return true;
+    }
+    months.forEach((value) => month.add(new Option(monthNames[value - 1], String(value).padStart(2, '0'))));
+    month.disabled = false;
+    const preferred = Number(preferredMonth || month.value);
+    const selected = months.includes(preferred) ? preferred : months[months.length - 1];
+    month.value = String(selected).padStart(2, '0');
+    searchButton.disabled = false;
+    clearNotice();
+    showFileResults({files:competencyFilesByMonth.get(selected)?.files || [], source_mode:competencySourceMode});
+    return true;
+  }
+
+  function showCachedMonth() {
+    const selectedMonth = Number(month.value);
+    if (!selectedMonth || competencyContext !== competencyKey() || !competencyFilesByMonth.has(selectedMonth)) return false;
+    clearNotice();
+    const cached = competencyFilesByMonth.get(selectedMonth);
+    showFileResults({files:cached.files, source_mode:cached.sourceMode || competencySourceMode});
+    return true;
+  }
+
   async function searchFiles() {
     if (!month.value) return;
     const requestId = ++filesRequest;
     const requestedUf = location.uf;
     const requestedMonth = month.value;
     const requestedSystem = system.value;
+    const requestedYear = Number(year.value);
     clearNotice();
     searchButton.disabled = true;
-    const period = `${monthNames[Number(month.value) - 1]} de ${year.value}`;
+    const period = `${monthNames[Number(requestedMonth) - 1]} de ${requestedYear}`;
     setLoading([
       {title:'Consultando o DATASUS', copy:`Localizando os arquivos de ${period} para ${stateLabel()}.`},
       {title:'Conferindo os arquivos', copy:'Verificando o que está disponível e o que já foi salvo neste computador.'},
-      {title:'Preparando a lista', copy:'Organizando os arquivos para você selecionar os que precisa.'}
+      {title:'A consulta ainda está ativa', copy:'Aguarde mais um pouco. A lista aparecerá assim que o DATASUS responder.'}
     ]);
     try {
-      const data = await request({action:'files', system:requestedSystem, year:Number(year.value), month:Number(requestedMonth), uf:requestedUf});
+      const data = await request({action:'files', system:requestedSystem, year:requestedYear, month:Number(requestedMonth), uf:requestedUf});
       if (requestId !== filesRequest || requestedUf !== location.uf) return;
+      const context = competencyKey(requestedSystem, requestedYear, requestedUf);
+      if (competencyContext !== context) cacheCompetencyRows(context, data.files || [], data.source_mode, [Number(requestedMonth)], false);
+      else {
+        competencyFilesByMonth.set(Number(requestedMonth), {files:data.files || [], sourceMode:data.source_mode || ''});
+        competencySourceMode = data.source_mode || competencySourceMode;
+      }
       showFileResults(data);
     } catch (error) {
       if (requestId !== filesRequest || requestedUf !== location.uf) return;
@@ -428,8 +620,10 @@
     }
   }
 
-  async function downloadSelected() {
-    const names = [...fileRows.querySelectorAll('.file-check:checked')].map((box) => currentFiles[Number(box.dataset.index)].name);
+  async function downloadSelected(openFile = null, openButton = null) {
+    const names = openFile
+      ? [openFile.name]
+      : [...fileRows.querySelectorAll('.file-check:checked')].map((box) => currentFiles[Number(box.dataset.index)].name);
     if (!names.length || busy) return;
     busy = true;
     changeStateButton.disabled = true;
@@ -437,19 +631,43 @@
     municipalitySelect.disabled = true;
     document.querySelector('#municipalitySearch').disabled = true;
     downloadButton.disabled = true;
+    if (openButton) {
+      openButton.disabled = true;
+      openButton.textContent = 'Baixando…';
+    }
     searchButton.disabled = true;
     downloadButton.innerHTML = '<span class="spinner"></span> Importando arquivos…';
-    showNotice('A transferência está em andamento. Arquivos grandes podem levar alguns minutos.', 'info');
+    showNotice(openFile
+      ? `Baixando ${openFile.name} para abrir a tabulação. Arquivos grandes podem levar alguns minutos.`
+      : 'A transferência está em andamento. Arquivos grandes podem levar alguns minutos.', 'info');
+    setBackgroundLoading([
+      {title:'Solicitando os arquivos ao DATASUS', copy:'Conectando à fonte oficial.'},
+      {title:'Recebendo os arquivos', copy:'O tempo depende do tamanho dos arquivos e da conexão.'},
+      {title:'Validando e salvando na biblioteca', copy:'Aguarde a confirmação antes de fechar esta tela.'}
+    ]);
     try {
       const data = await request({action:'download', system:system.value, year:Number(year.value), month:Number(month.value), uf:location.uf, names});
       const count = data.files.length;
       const already = data.files.filter((file) => file.already_present).length;
       const suffix = already ? ` ${already} ${already === 1 ? 'já estava na biblioteca.' : 'já estavam na biblioteca.'}` : '';
       showNotice(`${count} ${count === 1 ? 'arquivo salvo' : 'arquivos salvos'} em uploads/${system.value.toUpperCase()}/${year.value}/${String(month.value).padStart(2,'0')}.${suffix}`, 'success');
-      const saved = new Set(data.files.map((file) => file.name.toUpperCase()));
-      currentFiles = currentFiles.map((file) => saved.has(file.name.toUpperCase()) ? {...file, downloaded:true, incomplete:false} : file);
+      const saved = new Map(data.files.map((file) => [file.name.toUpperCase(), file]));
+      const markImported = (file) => {
+        const imported = saved.get(file.name.toUpperCase());
+        return imported ? {...file, downloaded:true, incomplete:false, local_path:imported.path || file.local_path, size:imported.size || file.size} : file;
+      };
+      currentFiles = currentFiles.map(markImported);
+      competencyFilesByMonth.forEach((cached) => { cached.files = cached.files.map(markImported); });
       renderFiles(currentFiles);
+      if (openFile) {
+        const imported = saved.get(openFile.name.toUpperCase());
+        const path = imported?.path || openFile.local_path;
+        if (!path) throw new Error('O arquivo foi salvo, mas não foi possível localizar seu caminho na biblioteca.');
+        try { localStorage.setItem(ACTIVE_FILE_KEY, path); } catch (_) {}
+        window.location.href = `tabular.php?stage=3&file=${encodeURIComponent(path)}`;
+      }
     } catch (error) {
+      stopLoading();
       showNotice(error.message, 'error');
     } finally {
       busy = false;
@@ -459,6 +677,10 @@
       document.querySelector('#municipalitySearch').disabled = !ufSelect.value;
       downloadButton.innerHTML = 'Adicionar à biblioteca <span aria-hidden="true">→</span>';
       searchButton.disabled = false;
+      if (openButton?.isConnected) {
+        openButton.disabled = false;
+        openButton.textContent = 'Abrir tabulação';
+      }
       updateSelection();
     }
   }
@@ -470,7 +692,7 @@
   document.querySelector('#municipalitySearch').addEventListener('input', filterMunicipalityOptions);
   system.addEventListener('change', () => loadCompetencies());
   year.addEventListener('change', () => loadCompetencies());
-  month.addEventListener('change', searchFiles);
+  month.addEventListener('change', () => { if (!showCachedMonth()) searchFiles(); });
   searchButton.addEventListener('click', searchFiles);
   downloadButton.addEventListener('click', downloadSelected);
   document.querySelector('#selectAll').addEventListener('click', () => {

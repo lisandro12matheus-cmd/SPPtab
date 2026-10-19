@@ -40,15 +40,12 @@ if (!is_array($payload)) {
 
 $action = $payload['action'] ?? '';
 $tabulationActions = ['catalog', 'delete_file', 'schema', 'preset_list', 'preset_save', 'preset_get', 'preset_delete', 'column_values', 'category_values', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status'];
-$packageActions = ['package_catalog', 'package_download_start', 'package_status', 'package_list', 'package_schema', 'package_delete', 'package_enrich_start', 'package_enrich_status'];
 $dataActions = ['competencies', 'files', 'download', 'municipalities'];
-if (!in_array($action, [...$dataActions, ...$tabulationActions, ...$packageActions], true)) {
+if (!in_array($action, [...$dataActions, ...$tabulationActions], true)) {
     respond(['ok' => false, 'error' => 'Ação não reconhecida.'], 400);
 }
 
 if (in_array($action, $tabulationActions, true)) {
-    $payload['action'] = $action;
-} elseif (in_array($action, $packageActions, true)) {
     $payload['action'] = $action;
 } elseif ($action === 'municipalities') {
     $uf = strtoupper((string) ($payload['uf'] ?? ''));
@@ -99,7 +96,7 @@ $candidates = array_filter([
     ...($localPython ?: []),
     'python',
 ]);
-$engine = in_array($action, $tabulationActions, true) ? 'tabulation.py' : (in_array($action, $packageActions, true) ? 'packages.py' : 'datasus.py');
+$engine = in_array($action, $tabulationActions, true) ? 'tabulation.py' : 'datasus.py';
 $script = __DIR__ . DIRECTORY_SEPARATOR . 'engine' . DIRECTORY_SEPARATOR . $engine;
 $lastError = '';
 

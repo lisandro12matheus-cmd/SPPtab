@@ -13,12 +13,7 @@
   let filterRowSequence = 0;
   let filterRequestSequence = 0;
   const pendingFilterValueRequests = new Map();
-  let enrichment = null;
-  let enrichmentPackages = [];
-  let enrichmentSchema = null;
-  let selectedEnrichmentFields = new Set();
-  let enrichmentBusy = false;
-  let enrichmentJobTimer = 0;
+
 
   const fmt = (value) => {
     const number = Number(value);
@@ -40,11 +35,7 @@
   function valueFor(row, key) {
     if (key === 'row') return String(row.label ?? '');
     if (key === 'rowtotal') return String(row.total ?? '');
-    const extra = /^enrichment:(\d+)$/.exec(key);
-    if (extra && enrichment) {
-      const field = enrichment.fields[Number(extra[1])];
-      return String(enrichment.byKey?.[String(row.key ?? '')]?.[field?.name] ?? '');
-    }
+
     const match = /^value:(\d+)$/.exec(key);
     return match ? String(row.values?.[Number(match[1])] ?? '') : '';
   }
@@ -116,13 +107,7 @@
         td.textContent = fmt((row.values || []).reduce((sum, value) => sum + numeric(value), 0));
         tr.append(td);
       }
-      const extra = enrichment?.byKey?.[String(row.key ?? '')] || {};
-      (enrichment?.fields || []).forEach((field) => {
-        const td = document.createElement('td');
-        td.className = 'result-enrichment-cell';
-        td.textContent = extra[field.name] || '—';
-        tr.append(td);
-      });
+
       body.append(tr);
     });
 
@@ -146,12 +131,7 @@
       td.textContent = fmt(total);
       totalRow.append(td);
     }
-    (enrichment?.fields || []).forEach(() => {
-      const td = document.createElement('td');
-      td.textContent = '—';
-      td.className = 'result-enrichment-total';
-      totalRow.append(td);
-    });
+
     foot.append(totalRow);
 
     updateFilterSummary(rows);
@@ -315,7 +295,7 @@
     tr.append(makeHeader('Linha', 'row'));
     columns.forEach((label, index) => tr.append(makeHeader(label, `value:${index}`)));
     if (showRowTotal) tr.append(makeHeader('Total da linha', 'rowtotal'));
-    (enrichment?.fields || []).forEach((field, index) => tr.append(makeHeader(field.label, `enrichment:${index}`)));
+
     head.replaceChildren(tr);
   }
 
@@ -590,284 +570,6 @@
     $('#printTable').disabled = false;
   }
 
-  async function packageRequest(payload) {
-    const response = await fetch('api.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(payload) });
-    const raw = await response.text();
-    let data;
-    try { data = JSON.parse(raw); } catch (_) { throw new Error(`O serviço local não respondeu corretamente (HTTP ${response.status}).`); }
-    if (!response.ok || !data.ok) throw new Error(data.error || `Não foi possível concluir (HTTP ${response.status}).`);
-    return data;
-  }
-
-  function enrichmentNotice(message, error = false) {
-    const status = $('#enrichmentStatus');
-    status.textContent = message;
-    status.classList.toggle('error', Boolean(error));
-  }
-
-  function preferredEnrichmentField(schema) {
-    const fields = schema.fields || [];
-    const rowText = `${result?.rowDimension?.field || ''} ${result?.rowDimension?.label || ''}`.toLocaleUpperCase('pt-BR');
-    const preferProfessional = schema.module === 'PF' && /CNS|PROFISSIONAL/.test(rowText);
-    const preferred = schema.module === 'SIGTAP' ? ['CO_PROCEDIMENTO'] : schema.module === 'PF' && preferProfessional ? ['CNS_PROF', 'CO_CNS', 'NU_CNS'] : ['CNES', 'CO_CNES'];
-    return preferred.find((name) => fields.some((field) => field.name === name)) || '';
-  }
-
-  function updateEnrichmentMatchCopy() {
-    const row = result?.rowDimension || {};
-    const join = $('#enrichmentJoinField').value;
-    const source = row.label ? `“${row.label}” (${row.field || 'código da linha'})` : 'o código de cada linha';
-    const target = enrichmentSchema?.fields?.find((field) => field.name === join);
-    $('#enrichmentMatchCopy').textContent = join
-      ? `Vai comparar ${source} com “${target?.label || join}” (${join}) no pacote.`
-      : `As chaves virão de ${source}. Escolha o campo de destino no pacote.`;
-  }
-
-  function renderEnrichmentFields() {
-    const box = $('#enrichmentFields');
-    const schema = enrichmentSchema;
-    box.replaceChildren();
-    if (!schema) {
-      const empty = document.createElement('span');
-      empty.className = 'result-enrichment__empty';
-      empty.textContent = 'Escolha um pacote para listar os campos disponíveis.';
-      box.append(empty);
-      return;
-    }
-    const query = $('#enrichmentFieldSearch').value.trim().toLocaleLowerCase('pt-BR');
-    const join = $('#enrichmentJoinField').value;
-    const choices = schema.fields.filter((field) => field.name !== join && `${field.label} ${field.name}`.toLocaleLowerCase('pt-BR').includes(query));
-    const profId = ['CNS_PROF', 'CO_CNS', 'NU_CNS', 'CPF_PROF', 'CO_PROFISSIONAL', 'CO_PROF'].find((name) => schema.fields.some((field) => field.name === name && name !== join));
-    const canCountProfessionals = schema.module === 'PF' && ['CNES', 'CO_CNES'].includes(join) && Boolean(profId);
-    if (canCountProfessionals && (!query || 'profissionais vinculados contagem cns distintos'.includes(query))) {
-      const label = document.createElement('label');
-      label.className = 'result-enrichment-field';
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.value = '__PROFESSIONAL_COUNT';
-      checkbox.checked = selectedEnrichmentFields.has(checkbox.value);
-      checkbox.disabled = enrichmentBusy || (!checkbox.checked && selectedEnrichmentFields.size >= 8);
-      const copy = document.createElement('span');
-      const name = document.createElement('strong'); name.textContent = 'Profissionais vinculados';
-      const code = document.createElement('small'); code.textContent = 'Contagem de identificadores profissionais distintos por CNES';
-      copy.append(name, code); label.append(checkbox, copy); box.append(label);
-      checkbox.addEventListener('change', () => {
-        checkbox.checked ? selectedEnrichmentFields.add(checkbox.value) : selectedEnrichmentFields.delete(checkbox.value);
-        renderEnrichmentFields();
-        updateEnrichmentControls();
-      });
-    }
-    choices.forEach((field) => {
-      const label = document.createElement('label');
-      label.className = 'result-enrichment-field';
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.value = field.name;
-      checkbox.checked = selectedEnrichmentFields.has(field.name);
-      checkbox.disabled = enrichmentBusy || (!checkbox.checked && selectedEnrichmentFields.size >= 8);
-      const copy = document.createElement('span');
-      const name = document.createElement('strong'); name.textContent = field.label;
-      const code = document.createElement('small'); code.textContent = `${field.name} · ${field.type || 'campo'}`;
-      copy.append(name, code); label.append(checkbox, copy); box.append(label);
-      checkbox.addEventListener('change', () => {
-        checkbox.checked ? selectedEnrichmentFields.add(field.name) : selectedEnrichmentFields.delete(field.name);
-        renderEnrichmentFields();
-        updateEnrichmentControls();
-      });
-    });
-    if (!choices.length && !canCountProfessionals) {
-      const empty = document.createElement('span');
-      empty.className = 'result-enrichment__empty';
-      empty.textContent = query ? 'Nenhum campo corresponde à busca.' : 'Este pacote não tem outros campos para adicionar.';
-      box.append(empty);
-    }
-  }
-
-  function updateEnrichmentControls() {
-    const hasKeys = (result?.rows || []).some((row) => String(row.key || '').trim());
-    const selected = selectedEnrichmentFields.size;
-    $('#applyEnrichment').disabled = enrichmentBusy || !enrichmentSchema || !$('#enrichmentJoinField').value || !hasKeys || !selected;
-    $('#applyEnrichment').textContent = selected ? `Cruzar e adicionar ${selected} coluna${selected === 1 ? '' : 's'}` : 'Cruzar e adicionar colunas';
-    $('#clearEnrichment').hidden = !enrichment;
-  }
-
-  async function loadEnrichmentSchema(path) {
-    enrichmentSchema = null;
-    selectedEnrichmentFields.clear();
-    const joinSelect = $('#enrichmentJoinField');
-    joinSelect.disabled = true;
-    joinSelect.replaceChildren(new Option('Carregando campos…', ''));
-    renderEnrichmentFields();
-    updateEnrichmentControls();
-    if (!path) { updateEnrichmentMatchCopy(); return; }
-    try {
-      const schema = await packageRequest({ action: 'package_schema', path });
-      enrichmentSchema = schema;
-      joinSelect.replaceChildren(new Option('Selecione o campo para cruzar', ''));
-      schema.fields.forEach((field) => joinSelect.add(new Option(`${field.label} · ${field.name}`, field.name)));
-      joinSelect.value = preferredEnrichmentField(schema);
-      joinSelect.disabled = enrichmentBusy;
-      joinSelect.onchange = () => {
-        selectedEnrichmentFields.clear();
-        renderEnrichmentFields();
-        updateEnrichmentMatchCopy();
-        updateEnrichmentControls();
-      };
-      $('#enrichmentFieldSearch').value = '';
-      const moduleHelp = schema.module === 'SIGTAP'
-        ? 'SIGTAP: relacione o código do procedimento para acrescentar descrição, complexidade e valores oficiais da competência.'
-        : schema.module === 'LT'
-        ? 'Leitos: os campos de quantidade serão somados por estabelecimento; as categorias e os demais campos serão resumidos.'
-        : schema.module === 'PF'
-          ? 'Profissionais: relacione por CNES para contar identificadores profissionais ou pelo CNS para trazer campos do cadastro.'
-        : schema.module === 'ST'
-            ? 'Estabelecimentos: relacione pelo código CNES para acrescentar dados de identificação e cadastro básico.'
-            : schema.module === 'DC'
-              ? 'Dados complementares: relacione pelo código CNES para acrescentar informações de gestão, natureza e caracterização.'
-              : schema.module === 'HB'
-                ? 'Habilitações: relacione pelo código CNES para acrescentar as habilitações registradas.'
-                : schema.module === 'EQ'
-              ? 'Equipamentos: os campos de quantidade serão somados por estabelecimento; os demais campos serão resumidos.'
-              : schema.module === 'EP'
-                ? 'Equipes: relacione pelo código CNES para acrescentar os campos das equipes cadastradas.'
-                : 'Serviços especializados: relacione pelo código CNES para acrescentar serviços e classificações.';
-      $('#enrichmentHelp').textContent = `${moduleHelp} É preciso pelo menos uma linha com código para comparar.`;
-      renderEnrichmentFields();
-      updateEnrichmentMatchCopy();
-      updateEnrichmentControls();
-      enrichmentNotice(`${schema.records.toLocaleString('pt-BR')} registros · ${schema.fields.length} campos disponíveis.`);
-    } catch (error) {
-      joinSelect.replaceChildren(new Option('Falha ao ler o pacote', ''));
-      enrichmentNotice(error.message, true);
-    }
-  }
-
-  async function loadEnrichmentPackages() {
-    const select = $('#enrichmentPackage');
-    select.disabled = true;
-    select.replaceChildren(new Option('Localizando pacotes…', ''));
-    enrichmentNotice('Procurando pacotes CNES e SIGTAP prontos neste computador…');
-    try {
-      const data = await packageRequest({ action: 'package_list', uf: result?.uf || '' });
-      enrichmentPackages = data.packages || [];
-      select.replaceChildren(new Option('Escolha um pacote CNES', ''));
-      enrichmentPackages.forEach((item) => {
-        const label = `${item.label} · ${item.uf} · ${String(item.month).padStart(2, '0')}/${item.year} · ${fmt(item.records)} registros`;
-        select.add(new Option(label, item.path));
-      });
-      select.disabled = enrichmentBusy || !enrichmentPackages.length;
-      select.onchange = () => loadEnrichmentSchema(select.value);
-      if (enrichmentPackages.length) {
-        enrichmentNotice(`${enrichmentPackages.length} pacote(s) local(is). Os pacotes de ${result?.uf || 'outra UF'} aparecem primeiro na biblioteca.`);
-      } else {
-        select.replaceChildren(new Option('Nenhum pacote neste estado', ''));
-        enrichmentNotice('Ainda não há pacote compatível neste estado. Abra Pacotes de dados e baixe os módulos CNES ou a tabela SIGTAP da competência.', true);
-      }
-    } catch (error) {
-      select.replaceChildren(new Option('Não foi possível carregar', ''));
-      enrichmentNotice(error.message, true);
-    }
-  }
-
-  function setEnrichmentBusy(value) {
-    enrichmentBusy = Boolean(value);
-    $('#enrichmentPackage').disabled = enrichmentBusy || !enrichmentPackages.length;
-    $('#enrichmentJoinField').disabled = enrichmentBusy || !enrichmentSchema;
-    $('#enrichmentFieldSearch').disabled = enrichmentBusy;
-    $('#closeEnrichment').disabled = enrichmentBusy;
-    renderEnrichmentFields();
-    updateEnrichmentControls();
-  }
-
-  function showEnrichmentProgress(state) {
-    const box = $('#enrichmentProgress');
-    box.hidden = false;
-    const progress = Math.max(1, Math.min(100, Number(state.progress) || 0));
-    $('#enrichmentProgressStage').textContent = state.stage || 'Lendo o pacote CNES';
-    $('#enrichmentProgressPercent').textContent = `${progress}%`;
-    $('#enrichmentProgressFill').style.width = `${progress}%`;
-    box.querySelector('.progress-track').setAttribute('aria-valuenow', String(progress));
-    $('#enrichmentProgressCopy').textContent = state.message || 'Comparando os códigos das linhas com o pacote local.';
-  }
-
-  async function pollEnrichment(jobId) {
-    clearTimeout(enrichmentJobTimer);
-    try {
-      const state = await packageRequest({ action: 'package_enrich_status', job_id: jobId });
-      showEnrichmentProgress(state);
-      if (state.status === 'done') {
-        const selected = state.result?.fields || [];
-        const fields = selected.map((name) => name === '__PROFESSIONAL_COUNT'
-          ? { name, label: 'Profissionais vinculados', type: 'N' }
-          : enrichmentSchema.fields.find((field) => field.name === name) || { name, label: name });
-        enrichment = { fields, byKey: state.result?.by_key || {} };
-        filterState = new Map([...filterState].filter(([key]) => !key.startsWith('enrichment:')));
-        renderHeader();
-        renderVisibleTable();
-        setEnrichmentBusy(false);
-        enrichmentNotice(`${fmt(state.result?.matched || 0)} de ${fmt(state.result?.rows || 0)} linhas encontraram dados no pacote. Os totais numéricos seguem os da consulta original.`);
-        $('#clearEnrichment').hidden = false;
-        return;
-      }
-      if (state.status === 'error') {
-        setEnrichmentBusy(false);
-        enrichmentNotice(state.message || 'Não foi possível cruzar os pacotes.', true);
-        return;
-      }
-      enrichmentJobTimer = window.setTimeout(() => pollEnrichment(jobId), 900);
-    } catch (error) {
-      setEnrichmentBusy(false);
-      enrichmentNotice(error.message, true);
-    }
-  }
-
-  async function startEnrichment() {
-    if (enrichmentBusy || !enrichmentSchema) return;
-    const keys = [...new Set((result?.rows || []).map((row) => String(row.key || '').trim()).filter(Boolean))];
-    if (!keys.length) {
-      enrichmentNotice('A dimensão de linha desta consulta não contém códigos para cruzar. Escolha uma linha com CNES ou CNS e gere novamente.', true);
-      return;
-    }
-    const fields = [...selectedEnrichmentFields];
-    if (!fields.length) return;
-    setEnrichmentBusy(true);
-    $('#enrichmentProgress').hidden = false;
-    showEnrichmentProgress({ progress: 1, stage: 'Preparando cruzamento', message: 'Abrindo o pacote local e comparando os códigos.' });
-      enrichmentNotice(`${fmt(keys.length)} códigos da tabela serão comparados com ${enrichmentSchema.name}.`);
-    try {
-      const data = await packageRequest({ action: 'package_enrich_start', path: enrichmentSchema.path, join_field: $('#enrichmentJoinField').value, fields, keys });
-      pollEnrichment(data.job_id);
-    } catch (error) {
-      setEnrichmentBusy(false);
-      enrichmentNotice(error.message, true);
-    }
-  }
-
-  function setupEnrichment() {
-    $('#addEnrichment').onclick = async () => {
-      $('#resultEnrichment').hidden = false;
-      $('#resultEnrichment').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      if (!enrichmentPackages.length) await loadEnrichmentPackages();
-      else if (!enrichmentSchema && enrichmentPackages.length === 1) {
-        $('#enrichmentPackage').value = enrichmentPackages[0].path;
-        await loadEnrichmentSchema(enrichmentPackages[0].path);
-      }
-    };
-    $('#closeEnrichment').onclick = () => { $('#resultEnrichment').hidden = true; };
-    $('#enrichmentFieldSearch').oninput = renderEnrichmentFields;
-    $('#applyEnrichment').onclick = startEnrichment;
-    $('#clearEnrichment').onclick = () => {
-      enrichment = null;
-      filterState = new Map([...filterState].filter(([key]) => !key.startsWith('enrichment:')));
-      renderHeader();
-      renderVisibleTable();
-      enrichmentNotice('As colunas complementares foram removidas.');
-      updateEnrichmentControls();
-    };
-    $('#enrichmentPackage').onchange = () => loadEnrichmentSchema($('#enrichmentPackage').value);
-    updateEnrichmentControls();
-  }
-
   function escapeCsv(value) {
     return `"${String(value ?? '').replace(/"/g, '""')}"`;
   }
@@ -876,23 +578,22 @@
     if (!result) return;
     const rows = visibleRows();
     const columns = result.columns || [];
-    const extraFields = enrichment?.fields || [];
+
     const showRowTotal = (result.metrics || []).length === 1 && (columns.length > 1 || columns[0] !== 'Total');
     const header = ['Linha', ...columns];
     if (showRowTotal) header.push('Total da linha');
-    header.push(...extraFields.map((field) => field.label));
+
     const lines = [header, ...rows.map((row) => {
       const values = [row.label, ...(row.values || [])];
       if (showRowTotal) values.push((row.values || []).reduce((sum, value) => sum + numeric(value), 0));
-      const extra = enrichment?.byKey?.[String(row.key ?? '')] || {};
-      values.push(...extraFields.map((field) => extra[field.name] || ''));
+
       return values;
     })];
     const filtered = activeFilterCount() > 0;
     const totals = columns.map((_, index) => filtered
       ? rows.reduce((sum, row) => sum + numeric(row.values?.[index]), 0)
       : numeric(result.columnTotals?.[index]));
-    lines.push(['Total geral', ...totals, ...(showRowTotal ? [filtered ? totals.reduce((sum, value) => sum + value, 0) : result.total] : []), ...extraFields.map(() => '')]);
+
     const blob = new Blob(['\ufeff' + lines.map((row) => row.map(escapeCsv).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -903,7 +604,7 @@
   });
 
   $('#printTable').addEventListener('click', () => window.print());
-  setupEnrichment();
+
   document.addEventListener('click', () => closeFilterMenu());
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeFilterMenu();

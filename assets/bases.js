@@ -49,9 +49,9 @@
   function clearNotice() { notice.hidden = true; notice.textContent = ''; }
 
   function statusOf(file) {
-    if (file.converted) return {label:'DBF pronto', kind:'ready', detail:'Pronto para tabular'};
-    if (file.conversion?.status === 'running' || file.conversion?.status === 'queued') return {label:'Convertendo', kind:'working', detail:'Conversão em andamento'};
-    return {label:'DBC importado', kind:'pending', detail:'Aguardando conversão'};
+    if (file.converted) return {label:'Leitura preparada', kind:'ready', detail:'Pronto para tabular'};
+    if (file.conversion?.status === 'running' || file.conversion?.status === 'queued') return {label:'Lendo base', kind:'working', detail:'Preparando leitura em segundo plano'};
+    return {label:'Pronto para leitura', kind:'pending', detail:'Preparação automática na primeira tabulação'};
   }
 
   function makeCell(className = '') {
@@ -107,7 +107,7 @@
     const actionsCell = makeCell('bases-actions-cell');
     const tabulate = document.createElement('a');
     tabulate.className = 'bases-action-link';
-    tabulate.href = file.converted ? 'tabular.php?stage=3' : 'tabular.php';
+    tabulate.href = `tabular.php?stage=3&file=${encodeURIComponent(file.path)}`;
     tabulate.textContent = 'Tabular';
     tabulate.setAttribute('aria-label', `Selecionar ${file.name} para tabular`);
     tabulate.addEventListener('click', () => {
@@ -124,7 +124,7 @@
     const converting = file.conversion?.status === 'running' || file.conversion?.status === 'queued';
     if (converting) {
       remove.disabled = true;
-      remove.title = 'Aguarde a conversão terminar para remover este arquivo.';
+      remove.title = 'Aguarde a leitura terminar para remover este arquivo.';
     }
     remove.addEventListener('click', () => openRemoveDialog(file));
     actionsCell.append(tabulate, remove);
@@ -176,7 +176,7 @@
     $('#removeError').textContent = '';
     $('#removeFileName').textContent = `${file.name} · ${file.system} · ${String(file.month).padStart(2, '0')}/${file.year}`;
     if (typeof dialog.showModal === 'function') dialog.showModal();
-    else if (window.confirm(`Remover ${file.name}? O DBC e o DBF convertido serão excluídos deste computador.`)) removeFile();
+    else if (window.confirm(`Remover ${file.name}? O DBC e os dados preparados para leitura serão excluídos deste computador.`)) removeFile();
   }
 
   async function removeFile() {
