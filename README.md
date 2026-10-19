@@ -4,11 +4,11 @@ Ferramenta local para buscar, converter e tabular microdados ambulatoriais (SIA/
 
 ## Baixar o SPPtab
 
-Os pacotes para Windows estão na página de [Releases](https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest). O pacote portátil pode ser extraído em uma pasta e iniciado pelo `SPPtab.exe`; não é necessário instalar PHP, Python ou XAMPP separadamente. A versão empacotada atualmente é destinada a Windows 64 bits.
+Baixe `SPPtab-Setup.exe` na página de [Releases](https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest) e abra o arquivo. O executável já contém o SPPtab, o PHP e o Python necessários: ele prepara os componentes automaticamente no computador e inicia o sistema no navegador, sem pedir para extrair ou organizar pastas. A biblioteca de dados permanece na conta do usuário para não ser perdida quando o programa for atualizado. Não é necessário instalar XAMPP, PHP ou Python separadamente. A versão empacotada é destinada a Windows 64 bits.
 
 O SPPtab está em fase inicial e, nesta versão, trabalha com dados ambulatoriais e hospitalares das 27 unidades da Federação. Na busca, escolha uma UF no mapa ou na lista; a consulta estadual começa imediatamente. A lista municipal vem da API oficial do [IBGE](https://servicodados.ibge.gov.br/api/docs/localidades), fica salva em cache neste computador e é opcional. Os arquivos DBC continuam sendo estaduais; a escolha do município só é aplicada depois, na tabulação. Se a lista municipal estiver indisponível, a busca estadual continua normalmente. É necessário acesso à internet para buscar arquivos e definições oficiais do DATASUS. A consulta usa primeiro o [serviço HTTPS de transferência de arquivos do DATASUS](https://datasus.saude.gov.br/transferencia-de-arquivos/) e recorre ao FTP público se necessário. Quando ambos estão indisponíveis, as competências já salvas continuam visíveis na biblioteca local.
 
-O pacote portátil ainda não possui assinatura digital. O Windows pode mostrar um aviso de aplicativo não reconhecido ao executar o programa pela primeira vez. Confira se o download veio da página oficial do projeto e compare o SHA-256 com o arquivo `SPPtab-Portable-SHA256SUM.txt` da mesma versão. Assinar futuras versões com um certificado reconhecido é a solução para identificar o publicador no Windows; uma assinatura criada pelo próprio projeto não eliminaria o aviso.
+O executável ainda não possui assinatura digital. O Windows pode mostrar um aviso de aplicativo não reconhecido na primeira execução. Confira se o download veio da página oficial do projeto e, se desejar, compare o SHA-256 com `SHA256SUM.txt` na mesma versão. Uma assinatura reconhecida exige um certificado de publicação para Windows.
 
 ## Fluxo de trabalho
 

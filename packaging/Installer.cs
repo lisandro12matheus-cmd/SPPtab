@@ -13,9 +13,7 @@ internal sealed class InstallerForm : Form
     private readonly Label detail;
     private readonly Label status;
     private readonly ProgressBar progress;
-    private readonly Button install;
-    private readonly CheckBox openWhenDone;
-    private bool finished;
+    private readonly Button closeButton;
 
     [STAThread]
     private static void Main(string[] args)
@@ -32,7 +30,7 @@ internal sealed class InstallerForm : Form
 
     private InstallerForm()
     {
-        Text = "Instalar SPPtab";
+        Text = "Iniciando SPPtab";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = true;
@@ -41,20 +39,18 @@ internal sealed class InstallerForm : Form
         Font = new Font("Segoe UI", 9F);
 
         Label title = new Label { Left = 28, Top = 22, Width = 450, Height = 32, Text = "SPPtab para Windows", Font = new Font("Segoe UI Semibold", 16F) };
-        detail = new Label { Left = 30, Top = 68, Width = 448, Height = 66, Text = "Este instalador configura o app e seus componentes nesta conta do Windows.\nNão é necessário instalar XAMPP ou Python. Os dados públicos serão baixados quando você pedir." };
+        detail = new Label { Left = 30, Top = 68, Width = 448, Height = 66, Text = "O aplicativo e seus componentes estão dentro deste executável. Vamos preparar o SPPtab automaticamente para esta conta do Windows." };
         progress = new ProgressBar { Left = 30, Top = 153, Width = 448, Height = 20, Style = ProgressBarStyle.Continuous };
-        status = new Label { Left = 30, Top = 182, Width = 448, Height = 22, Text = "Pronto para instalar." };
-        openWhenDone = new CheckBox { Left = 30, Top = 211, Width = 260, Height = 22, Text = "Abrir o SPPtab ao concluir", Checked = true };
-        install = new Button { Left = 360, Top = 216, Width = 118, Height = 34, Text = "Instalar" };
-        install.Click += delegate { if (finished) Close(); else BeginInstall(); };
-        Controls.Add(title); Controls.Add(detail); Controls.Add(progress); Controls.Add(status); Controls.Add(openWhenDone); Controls.Add(install);
+        status = new Label { Left = 30, Top = 182, Width = 448, Height = 22, Text = "Preparando o aplicativo…" };
+        closeButton = new Button { Left = 360, Top = 216, Width = 118, Height = 34, Text = "Fechar", Visible = false };
+        closeButton.Click += delegate { Close(); };
+        Controls.Add(title); Controls.Add(detail); Controls.Add(progress); Controls.Add(status); Controls.Add(closeButton);
+        Shown += delegate { BeginInstall(); };
     }
 
     private void BeginInstall()
     {
-        install.Enabled = false;
-        openWhenDone.Enabled = false;
-        status.Text = "Preparando os arquivos…";
+        status.Text = "Preparando os arquivos do SPPtab…";
         BackgroundWorker worker = new BackgroundWorker();
         worker.WorkerReportsProgress = true;
         worker.DoWork += delegate(object sender, DoWorkEventArgs e) { InstallPayload((BackgroundWorker)sender); };
@@ -67,21 +63,26 @@ internal sealed class InstallerForm : Form
         {
             if (e.Error != null)
             {
-                status.Text = "A instalação não foi concluída.";
-                install.Enabled = true; openWhenDone.Enabled = true;
-                MessageBox.Show("Não foi possível instalar o SPPtab.\n\n" + e.Error.Message, "SPPtab", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                status.Text = "Não foi possível preparar o SPPtab.";
+                detail.Text = "Confira se há espaço livre no computador e tente executar este arquivo novamente.";
+                closeButton.Visible = true;
+                MessageBox.Show("Não foi possível preparar o SPPtab.\n\n" + e.Error.Message, "SPPtab", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
-            finished = true;
             progress.Value = 100;
-            status.Text = "Instalado. O atalho foi criado na Área de Trabalho.";
-            detail.Text = "O SPPtab fica instalado para esta conta do Windows. Os arquivos que baixar ficam em uma pasta local separada do programa.";
-            install.Text = "Concluir";
-            install.Enabled = true;
-            if (openWhenDone.Checked)
+            status.Text = "Abrindo o SPPtab…";
+            detail.Text = "O aplicativo está pronto. Esta janela fechará quando o SPPtab abrir no navegador.";
+            try
             {
-                try { Process.Start(new ProcessStartInfo(Path.Combine(InstallDirectory, "SPPtab.exe")) { UseShellExecute = true }); }
-                catch (Exception ex) { MessageBox.Show("O app foi instalado, mas não abriu automaticamente. Use o atalho da Área de Trabalho.\n\n" + ex.Message); }
+                Process.Start(new ProcessStartInfo(Path.Combine(InstallDirectory, "SPPtab.exe")) { UseShellExecute = true });
+                Close();
+            }
+            catch (Exception ex)
+            {
+                status.Text = "O SPPtab foi preparado, mas não abriu automaticamente.";
+                detail.Text = "Use o atalho do SPPtab criado na Área de Trabalho.\n" + ex.Message;
+                closeButton.Visible = true;
+                MessageBox.Show("O SPPtab foi preparado. Use o atalho criado na Área de Trabalho para abri-lo.\n\n" + ex.Message, "SPPtab", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         };
         worker.RunWorkerAsync();
