@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json, os, re, subprocess, tempfile, zipfile, secrets, threading, time, sys, mmap, hashlib, stat
+from contextlib import contextmanager
 from ftplib import FTP
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
@@ -27,6 +28,7 @@ DEF_MAP = {
 FILENAME = re.compile(r"^(?P<kind>[A-Z]{2,4}?)(?P<uf>[A-Z]{2})(?P<yy>\d{2})(?P<mm>\d{2})(?:[A-Z])?\.DBC$", re.I)
 SP_EXTRA_DIMENSIONS = (("SP_NAIH","AIH"),("SP_PF_DOC","CNS do profissional"))
 JOB_WRITE_LOCK = threading.Lock()
+ATOMIC_JOB_WRITE_LOCK = threading.RLock()
 SLOW_FALLBACK_LIMIT = 8 * 1024 * 1024
 # Bases DBC estaduais podem levar vários minutos para decodificar. O limite
 # anterior de dois minutos encerrava conversões válidas no Windows.
@@ -272,7 +274,7 @@ def catalog():
     if jobs.is_dir():
         for statefile in sorted(jobs.glob("*.json"),key=lambda p:p.stat().st_mtime,reverse=True):
             try:
-                state=json.loads(statefile.read_text(encoding="utf-8"))
+                state=read_job_state(statefile)
                 source=state.get("source_path")
                 if source and source not in active_jobs and state.get("status") in {"queued","running"} and time.time()-statefile.stat().st_mtime < 20:
                     active_jobs[source]={"id":state.get("id"),"status":state.get("status"),"progress":state.get("progress",1),"stage":state.get("stage","Leitura em andamento"),"bytes_written":state.get("bytes_written",0),"temporary_path":state.get("temporary_path"),"converter":state.get("converter")}
@@ -300,7 +302,7 @@ def delete_library_file(payload: dict[str,Any]):
     if jobs.is_dir():
         for statefile in jobs.glob("*.json"):
             try:
-                state=json.loads(statefile.read_text(encoding="utf-8"))
+                state=read_job_state(statefile)
             except Exception:
                 pass
             else:
@@ -310,7 +312,7 @@ def delete_library_file(payload: dict[str,Any]):
         if tabulation_jobs.is_dir():
             for statefile in tabulation_jobs.glob("*.json"):
                 try:
-                    state=json.loads(statefile.read_text(encoding="utf-8"))
+                    state=read_job_state(statefile)
                 except Exception:
                     pass
                 else:
@@ -363,26 +365,72 @@ def jobfile(job_id: str) -> Path:
     folder=UPLOADS/".jobs"; folder.mkdir(parents=True,exist_ok=True)
     return folder/(job_id+".json")
 
+@contextmanager
+def _job_directory_lock(folder: Path):
+    """Serialize job status replacements across the web process and workers."""
+    lock_path=folder/".job-write.lock"
+    with lock_path.open("a+b") as lock:
+        if os.name=="nt":
+            import msvcrt
+            lock.seek(0,os.SEEK_END)
+            if lock.tell()==0:
+                lock.write(b"\0")
+                lock.flush()
+            acquired=False
+            for _ in range(240):
+                lock.seek(0)
+                try:
+                    msvcrt.locking(lock.fileno(),msvcrt.LK_NBLCK,1)
+                    acquired=True
+                    break
+                except OSError:
+                    time.sleep(.05)
+            if not acquired:
+                raise TimeoutError("O status do processamento está sendo atualizado por outra tarefa.")
+            try:
+                yield
+            finally:
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(),msvcrt.LK_UNLCK,1)
+        else:
+            import fcntl
+            fcntl.flock(lock.fileno(),fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock.fileno(),fcntl.LOCK_UN)
+
 def atomic_job_write(target: Path, data: dict[str,Any]):
     target.parent.mkdir(parents=True,exist_ok=True)
-    descriptor,temp_name=tempfile.mkstemp(prefix=f".{target.stem}.{os.getpid()}.{threading.get_ident()}.",suffix=".part",dir=str(target.parent))
-    temporary=Path(temp_name)
-    try:
-        with os.fdopen(descriptor,"w",encoding="utf-8") as stream:
-            stream.write(json.dumps(data,ensure_ascii=True))
-            stream.flush()
-        for attempt in range(80):
+    with ATOMIC_JOB_WRITE_LOCK, _job_directory_lock(target.parent):
+        descriptor,temp_name=tempfile.mkstemp(prefix=f".{target.stem}.{os.getpid()}.{threading.get_ident()}.",suffix=".part",dir=str(target.parent))
+        temporary=Path(temp_name)
+        try:
+            with os.fdopen(descriptor,"w",encoding="utf-8") as stream:
+                stream.write(json.dumps(data,ensure_ascii=True))
+                stream.flush()
+            for attempt in range(80):
+                try:
+                    os.replace(temporary,target)
+                    return
+                except PermissionError:
+                    if os.name=="nt" and attempt==0 and target.exists():
+                        try: os.chmod(target,target.stat().st_mode|stat.S_IWRITE)
+                        except OSError: pass
+                    if attempt==79: raise
+                    time.sleep(min(.12,.025*(attempt+1)))
+        finally:
+            temporary.unlink(missing_ok=True)
+
+def read_job_state(target: Path) -> dict[str,Any]:
+    """Read a job snapshot without racing its atomic replacement on Windows."""
+    with ATOMIC_JOB_WRITE_LOCK, _job_directory_lock(target.parent):
+        for attempt in range(6):
             try:
-                os.replace(temporary,target)
-                return
+                return json.loads(target.read_text(encoding="utf-8"))
             except PermissionError:
-                if os.name=="nt" and attempt==0 and target.exists():
-                    try: os.chmod(target,target.stat().st_mode|stat.S_IWRITE)
-                    except OSError: pass
-                if attempt==79: raise
-                time.sleep(min(.12,.025*(attempt+1)))
-    finally:
-        temporary.unlink(missing_ok=True)
+                if attempt == 5: raise
+                time.sleep(.04 * (attempt + 1))
 
 def write_job(job_id: str, data: dict[str,Any]):
     target=jobfile(job_id)
@@ -399,7 +447,7 @@ def start_conversion(source_relative: str):
     if jobs.exists():
         for statefile in jobs.glob("*.json"):
             try:
-                active=json.loads(statefile.read_text(encoding="utf-8"))
+                active=read_job_state(statefile)
                 if active.get("source_path")==source_relative and active.get("status") in {"queued","running"}:
                     if time.time()-statefile.stat().st_mtime < 20:
                         return {"ok":True,"done":False,"job_id":active["id"],"progress":active.get("progress",1),"stage":active.get("stage","Conversão em andamento")}
@@ -418,14 +466,14 @@ def start_conversion(source_relative: str):
 def conversion_status(job_id: str):
     path=jobfile(job_id)
     if not path.is_file(): raise ValueError("Conversão não encontrada.")
-    state=json.loads(path.read_text(encoding="utf-8"))
+    state=read_job_state(path)
     if state.get("status") in {"queued","running"} and time.time()-path.stat().st_mtime >= 20:
         state.update(status="error",stage="Leitura interrompida",message="A preparação da leitura parou de atualizar. Tente iniciar novamente.")
         write_job(job_id,state)
     return {"ok":True,**state}
 
 def run_conversion_worker(job_id: str):
-    state=json.loads(jobfile(job_id).read_text(encoding="utf-8")); source_rel=state["source_path"]
+    state=read_job_state(jobfile(job_id)); source_rel=state["source_path"]
     source=safe_file(source_rel); target=UPLOADS/converted_relative(source_rel); target.parent.mkdir(parents=True,exist_ok=True)
     temporary_output=target.with_name(target.name+f".{job_id}.part")
     try:
@@ -456,8 +504,20 @@ def write_tabulation_job(job_id: str, state: dict[str,Any]):
 
 def start_tabulation(payload: dict[str,Any]):
     if len(json.dumps(payload,ensure_ascii=True))>100000: raise ValueError("A configuração da tabulação é grande demais.")
+    request_hash=hashlib.sha256(json.dumps(payload,sort_keys=True,ensure_ascii=True,separators=(",",":")).encode("utf-8")).hexdigest()
+    folder=UPLOADS/".jobs"/"tabulations"
+    folder.mkdir(parents=True,exist_ok=True)
+    for existing in folder.glob("*.json"):
+        try:
+            state=read_job_state(existing)
+            if state.get("request_hash")!=request_hash or state.get("status") not in {"queued","running"}:
+                continue
+            if time.time()-existing.stat().st_mtime<300:
+                return {"ok":True,"job_id":state["id"],"status":state["status"],"progress":state.get("progress",1),"stage":state.get("stage","Tabulação em andamento"),"reused":True}
+        except (OSError,ValueError,TypeError,KeyError):
+            continue
     job_id=secrets.token_hex(16)
-    write_tabulation_job(job_id,{"id":job_id,"status":"queued","progress":1,"stage":"Preparando tabulação","payload":payload})
+    write_tabulation_job(job_id,{"id":job_id,"request_hash":request_hash,"status":"queued","progress":1,"stage":"Preparando tabulação","payload":payload})
     command=[sys.executable,str(Path(__file__).resolve()),"--tabulate-worker",job_id]
     flags=getattr(subprocess,"DETACHED_PROCESS",0x00000008)|getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0x00000200) if os.name=="nt" else 0
     try:
@@ -470,7 +530,7 @@ def start_tabulation(payload: dict[str,Any]):
 def tabulation_status(job_id: str):
     path=tabulation_jobfile(job_id)
     if not path.is_file(): raise ValueError("Tabulação não encontrada.")
-    state=json.loads(path.read_text(encoding="utf-8"))
+    state=read_job_state(path)
     if state.get("status") in {"queued","running"} and time.time()-path.stat().st_mtime>300:
         state.update(status="error",stage="Tabulação interrompida",message="A leitura parou de atualizar. Inicie a tabulação novamente.")
         state.pop("payload",None)
@@ -484,7 +544,7 @@ def tabulation_status(job_id: str):
 
 def run_tabulation_worker(job_id: str):
     path=tabulation_jobfile(job_id)
-    state=json.loads(path.read_text(encoding="utf-8"))
+    state=read_job_state(path)
     payload=state.pop("payload")
     try:
         def progress(pct,stage):

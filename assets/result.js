@@ -7,6 +7,7 @@
   let result = null;
   let activeFilterMenu = null;
   let filterState = new Map();
+  const filterSortDirections = new Map();
   let resultFilterRows = [];
   let isUpdatingResultFilters = false;
   let resultFilterError = '';
@@ -44,6 +45,34 @@
     return [...new Set((data.rows || []).map((row) => valueFor(row, key)))].sort((a, b) =>
       a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' }),
     );
+  }
+
+  function numberForSort(value) {
+    const raw = String(value ?? '').trim().replace(/\s/g, '');
+    if (!raw) return null;
+    const normalized = raw.includes(',')
+      ? raw.includes('.') ? raw.replace(/\./g, '').replace(',', '.') : raw.replace(',', '.')
+      : raw;
+    if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(normalized)) return null;
+    const number = Number(normalized);
+    return Number.isFinite(number) ? number : null;
+  }
+
+  function sortFilterValues(values, direction) {
+    const nonempty = values.filter((value) => String(value).trim() !== '');
+    const numericValues = nonempty.map(numberForSort);
+    const numericSort = nonempty.length > 0 && numericValues.every((value) => value !== null);
+    const sign = direction === 'desc' ? -1 : 1;
+    const sorted = [...values].sort((left, right) => {
+      const leftEmpty = String(left).trim() === '';
+      const rightEmpty = String(right).trim() === '';
+      if (leftEmpty !== rightEmpty) return leftEmpty ? 1 : -1;
+      const comparison = numericSort
+        ? numberForSort(left) - numberForSort(right)
+        : left.localeCompare(right, 'pt-BR', { numeric: true, sensitivity: 'base' });
+      return comparison * sign;
+    });
+    return { values: sorted, numericSort };
   }
 
   function activeFilterCount() {
@@ -164,10 +193,16 @@
 
   function renderFilterMenuOptions(state) {
     const all = distinctValuesFor(result, state.key);
+    const direction = filterSortDirections.get(state.key) || 'asc';
+    const sorted = sortFilterValues(all, direction);
     const selected = filterState.get(state.key);
     const query = state.search.value.trim().toLocaleLowerCase('pt-BR');
-    const matches = query ? all.filter((value) => value.toLocaleLowerCase('pt-BR').includes(query)) : all;
+    const matches = query ? sorted.values.filter((value) => value.toLocaleLowerCase('pt-BR').includes(query)) : sorted.values;
     const shown = matches.slice(0, MAX_FILTER_OPTIONS);
+    state.sortButton.textContent = sorted.numericSort
+      ? direction === 'asc' ? 'Menor → maior' : 'Maior → menor'
+      : direction === 'asc' ? 'A → Z' : 'Z → A';
+    state.sortButton.setAttribute('aria-label', `Ordenar ${state.key === 'row' ? 'linhas' : 'valores'} ${direction === 'asc' ? 'em ordem decrescente' : 'em ordem crescente'}`);
     state.count.textContent = selected === undefined || selected === null
       ? `${fmt(all.length)} valores · todos incluídos`
       : `${fmt(selected.size)} de ${fmt(all.length)} valores incluídos`;
@@ -232,7 +267,10 @@
     const noneButton = document.createElement('button');
     noneButton.type = 'button';
     noneButton.textContent = 'Limpar seleção';
-    actions.append(allButton, noneButton);
+    const sortButton = document.createElement('button');
+    sortButton.type = 'button';
+    sortButton.className = 'result-filter-sort';
+    actions.append(allButton, noneButton, sortButton);
     const count = document.createElement('div');
     count.className = 'result-filter-count';
     const list = document.createElement('div');
@@ -242,7 +280,7 @@
     menu.append(heading, search, actions, count, list, limit);
     document.body.append(menu);
 
-    const state = { key, trigger, menu, search, count, list, limit };
+    const state = { key, trigger, menu, search, count, list, limit, sortButton };
     activeFilterMenu = state;
     trigger.setAttribute('aria-expanded', 'true');
     const rect = trigger.getBoundingClientRect();
@@ -252,6 +290,10 @@
 
     allButton.addEventListener('click', () => setFilter(key, null));
     noneButton.addEventListener('click', () => setFilter(key, new Set()));
+    sortButton.addEventListener('click', () => {
+      filterSortDirections.set(key, (filterSortDirections.get(key) || 'asc') === 'asc' ? 'desc' : 'asc');
+      renderFilterMenuOptions(state);
+    });
     search.addEventListener('input', () => renderFilterMenuOptions(state));
     menu.addEventListener('click', (event) => event.stopPropagation());
     renderFilterMenuOptions(state);
@@ -307,9 +349,50 @@
     const options = new Map();
     for (const item of result?.filterOptions || []) options.set(resultFilterKey(item.optionType, item.id), item);
     for (const row of resultFilterRows) {
-      if (row.option && row.optionType) options.set(resultFilterKey(row.optionType, row.option), row);
+      if (row.option && row.optionType) {
+        const key = resultFilterKey(row.optionType, row.option);
+        if (!options.has(key)) {
+          // `row.id` identifica a linha visual; aqui `id` precisa ser o ID
+          // oficial da variável para que o select continue selecionado.
+          options.set(key, { id: row.option, option: row.option, optionType: row.optionType, label: row.label, field: row.field });
+        }
+      }
     }
     return [...options.values()];
+  }
+
+  function preserveAppliedResultFilters(filters) {
+    const previousRows = resultFilterRows;
+    const rowsByKey = new Map(previousRows
+      .filter((row) => row.option && row.optionType)
+      .map((row) => [resultFilterKey(row.optionType, row.option), row]));
+    const appliedRows = (filters || []).map((filter) => {
+      const option = String(filter.option || '');
+      const optionType = String(filter.optionType || '');
+      const key = resultFilterKey(optionType, option);
+      const row = rowsByKey.get(key) || {
+        id: `result-filter-${++filterRowSequence}`,
+        option,
+        optionType,
+        label: String(filter.label || ''),
+        field: '',
+        value: '',
+        values: [],
+        truncated: false,
+        loading: false,
+        error: '',
+        requestId: '',
+      };
+      row.option = option;
+      row.optionType = optionType;
+      row.value = String(filter.value || '');
+      if (filter.label) row.label = String(filter.label);
+      return row;
+    });
+    const appliedIds = new Set(appliedRows.map((row) => row.id));
+    const drafts = previousRows.filter((row) => (!row.option || !row.value) && !appliedIds.has(row.id));
+    resultFilterRows = [...appliedRows, ...drafts];
+    appliedRows.filter((row) => !row.values.length && !row.loading).forEach(requestResultFilterValues);
   }
 
   function resultFilterPayload() {
@@ -526,6 +609,7 @@
       filterState = preserved;
     }
     result = data;
+    if (updating && Array.isArray(data.resultFilters)) preserveAppliedResultFilters(data.resultFilters);
     closeFilterMenu();
     $('#resultTitle').textContent = 'Resultado da tabulação';
     const processed = Number(data.processedRecords || data.records || 0);
@@ -605,11 +689,21 @@
 
   $('#printTable').addEventListener('click', () => window.print());
 
-  document.addEventListener('click', () => closeFilterMenu());
+  document.addEventListener('click', (event) => {
+    if (!activeFilterMenu) return;
+    const target = event.target;
+    if (target instanceof Node && (activeFilterMenu.menu.contains(target) || activeFilterMenu.trigger.contains(target))) return;
+    closeFilterMenu();
+  });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeFilterMenu();
   });
-  window.addEventListener('scroll', () => closeFilterMenu(), true);
+  window.addEventListener('scroll', (event) => {
+    // A rolagem da lista de opções faz parte da navegação do filtro; só feche
+    // quando a página ou outro elemento fora do menu for rolado.
+    if (event.target instanceof Node && activeFilterMenu?.menu.contains(event.target)) return;
+    closeFilterMenu();
+  }, true);
   window.addEventListener('resize', () => closeFilterMenu());
 
   if (!/^[a-f0-9]{32}$/.test(runId || '')) {

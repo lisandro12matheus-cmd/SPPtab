@@ -19,8 +19,8 @@
     const raw = await response.text();
     let data;
     try { data = JSON.parse(raw); }
-    catch (_) { throw new Error(`O serviço local não retornou uma resposta válida${response.status ? ` (HTTP ${response.status})` : ''}.`); }
-    if (!response.ok || !data.ok) throw new Error(data.error || `Não foi possível consultar as combinações (HTTP ${response.status}).`);
+    catch (_) { throw new Error('O serviço local não retornou uma resposta válida' + (response.status ? ' (HTTP ' + response.status + ').' : '.')); }
+    if (!response.ok || !data.ok) throw new Error(data.error || 'Não foi possível concluir a solicitação (HTTP ' + response.status + ').');
     return data;
   }
 
@@ -31,7 +31,7 @@
   }
 
   function period(file) {
-    return `${String(file.month).padStart(2, '0')}/${file.year}`;
+    return String(file.month).padStart(2, '0') + '/' + file.year;
   }
 
   function setNotice(message, isError = false) {
@@ -51,7 +51,7 @@
     const chip = document.createElement('span');
     chip.className = 'preset-chip';
     const strong = document.createElement('strong');
-    strong.textContent = `${title}:`;
+    strong.textContent = title + ':';
     const value = document.createElement('span');
     value.textContent = text;
     chip.append(strong, value);
@@ -71,18 +71,18 @@
     title.textContent = preset.name || 'Combinação sem nome';
     const family = document.createElement('span');
     family.className = 'preset-family';
-    family.textContent = `${preset.system || activeFile.system} · ${preset.kind || activeFile.kind} · ${preset.uf || activeFile.uf}`;
+    family.textContent = (preset.system || activeFile.system) + ' · ' + (preset.kind || activeFile.kind) + ' · ' + (preset.uf || activeFile.uf);
     titleRow.append(title, family);
     const meta = document.createElement('p');
     meta.className = 'preset-card-meta';
-    meta.textContent = `Salva em ${formatDate(preset.createdAt)} · definição ${preset.definition || 'oficial'}`;
+    meta.textContent = 'Salva em ' + formatDate(preset.createdAt) + ' · definição ' + (preset.definition || 'oficial');
     const summary = document.createElement('div');
     summary.className = 'preset-card-summary';
     addChip(summary, 'Linha', preset.rowLabel || 'Configuração salva');
     addChip(summary, 'Coluna', preset.columnLabel || 'Não ativa');
     const metrics = Array.isArray(preset.metricLabels) ? preset.metricLabels.join(' · ') : 'Medidas salvas';
     addChip(summary, 'Medidas', metrics);
-    if (Number(preset.filterCount)) addChip(summary, 'Seleções', `${Number(preset.filterCount)} categoria(s)`);
+    if (Number(preset.filterCount)) addChip(summary, 'Seleções', Number(preset.filterCount) + ' categoria(s)');
     main.append(titleRow, meta, summary);
 
     const actions = document.createElement('div');
@@ -90,13 +90,13 @@
     const use = document.createElement('button');
     use.className = 'button button-primary';
     use.type = 'button';
-    use.innerHTML = `${activeFile.converted ? 'Usar nesta competência' : 'Preparar e aplicar'} <span aria-hidden="true">→</span>`;
+    use.textContent = activeFile.converted ? 'Usar nesta competência →' : 'Preparar e aplicar →';
     use.addEventListener('click', () => usePreset(preset.id));
     const remove = document.createElement('button');
     remove.className = 'preset-delete';
     remove.type = 'button';
     remove.textContent = '×';
-    remove.setAttribute('aria-label', `Remover combinação ${preset.name || ''}`);
+    remove.setAttribute('aria-label', 'Remover combinação ' + (preset.name || ''));
     remove.title = 'Remover combinação';
     remove.addEventListener('click', () => removePreset(preset.id, preset.name || 'esta combinação', card, remove));
     actions.append(use, remove);
@@ -105,8 +105,8 @@
   }
 
   function updateTabularLinks(file) {
-    const url = file?.path
-      ? `tabular.php?stage=3&file=${encodeURIComponent(file.path)}`
+    const url = file && file.path
+      ? 'tabular.php?stage=3&file=' + encodeURIComponent(file.path)
       : 'tabular.php?stage=3';
     $('#createPresetLink').href = url;
     $('#presetEmptyAction').href = url;
@@ -135,8 +135,7 @@
       renderEmpty('Selecione uma base para começar', 'Depois de escolher o DBC, mostraremos as combinações que podem ser aplicadas a ele.');
       return;
     }
-    setInfo(`${activeFile.system} · ${activeFile.kind} · ${activeFile.uf} · competência ${period(activeFile)} · ${activeFile.name}. A lista considera o mesmo estado, estrutura e definição.`);
-    $('#selectedFileTag').textContent = `${activeFile.uf} · ${period(activeFile)}`;
+    setInfo(activeFile.system + ' · ' + activeFile.kind + ' · ' + activeFile.uf + ' · competência ' + period(activeFile) + ' · ' + activeFile.name + '. A lista considera o mesmo estado, estrutura e definição.');
     updateTabularLinks(activeFile);
     try {
       const data = await request({ action: 'preset_list', path: activeFile.path });
@@ -145,7 +144,7 @@
       $('#presetLoading').hidden = true;
       $('#presetCount').textContent = String(presets.length);
       $('#presetListDescription').textContent = presets.length
-        ? `Modelos compatíveis com ${data.file.name} · ${data.definition || 'definição oficial'}`
+        ? 'Combinações compatíveis com ' + data.file.name + ' · ' + (data.definition || 'definição oficial')
         : 'Nenhuma combinação compatível foi salva para esta estrutura.';
       if (!presets.length) {
         renderEmpty('Ainda não há combinações para esta estrutura', 'Monte uma tabulação, salve as opções e depois escolha outra competência compatível para reaproveitá-la.');
@@ -174,7 +173,7 @@
   }
 
   async function removePreset(id, name, card, button) {
-    if (!activeFile || !window.confirm(`Remover a combinação “${name}”?`)) return;
+    if (!activeFile || !window.confirm('Remover a combinação “' + name + '”?')) return;
     button.disabled = true;
     try {
       await request({ action: 'preset_delete', path: activeFile.path, preset_id: id });
@@ -182,7 +181,7 @@
       const count = Math.max(0, Number($('#presetCount').textContent) - 1);
       $('#presetCount').textContent = String(count);
       if (!count) renderEmpty('Ainda não há combinações para esta estrutura', 'Monte uma tabulação, salve as opções e depois escolha outra competência compatível para reaproveitá-la.');
-      setNotice(`“${name}” foi removida deste computador.`);
+      setNotice('“' + name + '” foi removida deste computador.');
     } catch (error) {
       button.disabled = false;
       setNotice(error.message, true);
@@ -198,8 +197,7 @@
       } catch (_) {}
       window.dispatchEvent(new Event('spptab-active-file-change'));
     }
-    if (activeFile) $('#selectedFileTag').textContent = `${activeFile.uf} · ${period(activeFile)}`;
-    else $('#selectedFileTag').textContent = 'Selecione um arquivo';
+    $('#selectedFileTag').textContent = activeFile ? activeFile.uf + ' · ' + period(activeFile) : 'Selecione um arquivo';
     populateFileChoices(activeFile);
     updateTabularLinks(activeFile);
     loadPresets();
@@ -212,7 +210,7 @@
       : files;
     fileSelect.replaceChildren(new Option(available.length ? 'Escolha um arquivo DBC…' : 'Nenhuma base compatível', ''));
     available.forEach((file) => {
-      const label = `${file.system} · ${file.kind} · ${period(file)} · ${file.name}${file.converted ? ' · leitura pronta' : ''}`;
+      const label = file.system + ' · ' + file.kind + ' · ' + period(file) + ' · ' + file.name + (file.converted ? ' · leitura pronta' : '');
       fileSelect.add(new Option(label, file.path));
     });
     if (available.some((file) => file.path === currentPath)) fileSelect.value = currentPath;
@@ -242,5 +240,6 @@
   }
 
   fileSelect.addEventListener('change', () => chooseFile(fileSelect.value));
+
   init();
 })();
