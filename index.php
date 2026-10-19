@@ -8,6 +8,7 @@ declare(strict_types=1);
   <meta name="theme-color" content="#f4f7f8">
   <title>SPPtab · DATASUS</title>
   <link rel="stylesheet" href="assets/app.css?v=14">
+  <link rel="stylesheet" href="assets/file-selection.css?v=1">
   <link rel="stylesheet" href="assets/brand.css?v=1">
   <link rel="stylesheet" href="assets/launch.css?v=2">
   <link rel="stylesheet" href="assets/search-loading.css?v=3">
@@ -107,7 +108,7 @@ declare(strict_types=1);
       <footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> <span id="pageStepLabel">etapa 1 de 3</span></span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer>
     </main>
   </div>
-  <script src="assets/app.js?v=16" defer></script>
+  <script src="assets/app.js?v=17" defer></script>
   <script src="assets/tabulations-nav.js?v=1" defer></script>
   <script src="assets/launch-splash.js?v=2" defer></script>
 </body>

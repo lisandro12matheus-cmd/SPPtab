@@ -429,6 +429,7 @@
     fileRows.innerHTML = '';
     files.forEach((file, index) => {
       const row = document.createElement('tr');
+      row.className = 'file-data-row';
       const updated = file.modified && /^\d{14}$/.test(file.modified)
         ? `${file.modified.slice(6,8)}/${file.modified.slice(4,6)}/${file.modified.slice(0,4)}` : '—';
       const isSaved = Boolean(file.downloaded);
@@ -470,6 +471,9 @@
 
   function updateSelection() {
     const checked = [...fileRows.querySelectorAll('.file-check:checked')];
+    fileRows.querySelectorAll('.file-check').forEach((box) => {
+      box.closest('tr')?.classList.toggle('is-selected', box.checked);
+    });
     const totalSize = checked.reduce((sum, box) => sum + (Number(currentFiles[Number(box.dataset.index)]?.size) || 0), 0);
     document.querySelector('#selectedCount').textContent = `${checked.length} ${checked.length === 1 ? 'arquivo selecionado' : 'arquivos selecionados'}`;
     document.querySelector('#selectedSize').textContent = checked.length ? `Total aproximado · ${formatBytes(totalSize)}` : 'Escolha um ou mais arquivos para continuar';
@@ -702,6 +706,15 @@
     updateSelection();
   });
   fileRows.addEventListener('change', updateSelection);
+  fileRows.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
+    const row = event.target.closest('tr.file-data-row');
+    if (!row || !fileRows.contains(row) || event.target.closest('button, a, input, select, textarea, label')) return;
+    const checkbox = row.querySelector('.file-check:not(:disabled)');
+    if (!checkbox) return;
+    checkbox.checked = !checkbox.checked;
+    checkbox.dispatchEvent(new Event('change', {bubbles:true}));
+  });
 
   const spinnerStyle = document.createElement('style');
   spinnerStyle.textContent = '.spinner{width:12px;height:12px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .75s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}';

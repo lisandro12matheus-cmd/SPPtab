@@ -1,0 +1,3 @@
+.file-table tbody tr.file-data-row{cursor:pointer}
+.file-table tbody tr.file-data-row:hover td{background:#f8faff}
+.file-table tbody tr.file-data-row.is-selected td{background:#edf4ff}
