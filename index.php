@@ -108,7 +108,7 @@ declare(strict_types=1);
       <footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> <span id="pageStepLabel">etapa 1 de 3</span></span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer>
     </main>
   </div>
-  <script src="assets/app.js?v=17" defer></script>
+  <script src="assets/app.js?v=18" defer></script>
   <script src="assets/tabulations-nav.js?v=1" defer></script>
   <script src="assets/launch-splash.js?v=2" defer></script>
 </body>

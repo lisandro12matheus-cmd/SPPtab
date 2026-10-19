@@ -625,10 +625,15 @@
   }
 
   async function downloadSelected(openFile = null, openButton = null) {
+    if (busy) return;
     const names = openFile
       ? [openFile.name]
-      : [...fileRows.querySelectorAll('.file-check:checked')].map((box) => currentFiles[Number(box.dataset.index)].name);
-    if (!names.length || busy) return;
+      : [...fileRows.querySelectorAll('.file-check:checked')].map((box) => currentFiles[Number(box.dataset.index)]?.name);
+    const validNames = names.filter((name) => typeof name === 'string' && name.trim()).map((name) => name.trim());
+    if (!validNames.length) {
+      showNotice('Não foi possível identificar o arquivo selecionado. Atualize a lista e selecione novamente.', 'error');
+      return;
+    }
     busy = true;
     changeStateButton.disabled = true;
     ufSelect.disabled = true;
@@ -650,7 +655,7 @@
       {title:'Validando e salvando na biblioteca', copy:'Aguarde a confirmação antes de fechar esta tela.'}
     ]);
     try {
-      const data = await request({action:'download', system:system.value, year:Number(year.value), month:Number(month.value), uf:location.uf, names});
+      const data = await request({action:'download', system:system.value, year:Number(year.value), month:Number(month.value), uf:location.uf, names:validNames});
       const count = data.files.length;
       const already = data.files.filter((file) => file.already_present).length;
       const suffix = already ? ` ${already} ${already === 1 ? 'já estava na biblioteca.' : 'já estavam na biblioteca.'}` : '';

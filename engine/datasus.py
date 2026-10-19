@@ -255,9 +255,23 @@ def list_municipalities(uf: str) -> dict[str, Any]:
 def download_selected(system: str, year: int, month: int, requested_names: list[str], available: list[dict[str, Any]] | None = None, uf: str = "PA") -> dict[str, Any]:
     if available is None:
         available = select_files(system, year, month, uf)
-    allowed = {item["name"].upper(): item for item in available}
-    names = list(dict.fromkeys(name.upper() for name in requested_names))
-    if not names or any(name not in allowed for name in names):
+    allowed = {
+        item["name"].strip().upper(): item
+        for item in available
+        if isinstance(item, dict) and isinstance(item.get("name"), str) and item["name"].strip()
+    }
+    if isinstance(requested_names, str):
+        requested_names = [requested_names]
+    if not isinstance(requested_names, (list, tuple)):
+        requested_names = []
+    names = list(dict.fromkeys(
+        name.strip().upper()
+        for name in requested_names
+        if isinstance(name, str) and name.strip()
+    ))
+    if not names:
+        raise SourceError("Nenhum arquivo válido foi selecionado. Marque os arquivos novamente e tente outra vez.")
+    if any(name not in allowed for name in names):
         raise SourceError("A seleção contém arquivo que não existe na competência escolhida.")
 
     results = []
