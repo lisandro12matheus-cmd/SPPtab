@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>Minhas Tabulações · SPPtab</title>
   <link rel="stylesheet" href="assets/app.css?v=14"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/tabular-refine.css?v=18"><link rel="stylesheet" href="assets/presets.css?v=3">
-<link rel="stylesheet" href="assets/workspace-layout.css?v=1"></head>
+</head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">

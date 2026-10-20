@@ -15,7 +15,7 @@ tabwin2_page_security();
   <link rel="stylesheet" href="assets/brand.css?v=1">
   <link rel="stylesheet" href="assets/launch.css?v=2">
   <link rel="stylesheet" href="assets/search-loading.css?v=3">
-<link rel="stylesheet" href="assets/workspace-layout.css?v=1"></head>
+</head>
 <body>
   <div class="launch-splash" id="launchSplash" role="status" aria-live="polite">
     <img class="launch-splash__logo" src="assets/spptab-logo.svg?v=1" alt="SPPtab">
