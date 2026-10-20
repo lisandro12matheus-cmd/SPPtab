@@ -100,43 +100,6 @@ def connect() -> FTP:
     return ftp
 
 
-def download_direct_ftp(remote: str, expected_name: str, destination: Path) -> int:
-    """Receive the official DBC directly, without DATASUS creating a ZIP wrapper."""
-    if remote.rsplit("/", 1)[0] not in REMOTE.values():
-        raise SourceError("O caminho FTP do arquivo oficial é inválido.")
-    if remote.rsplit("/", 1)[-1].upper() != expected_name.upper() or not FILENAME_PATTERN.fullmatch(expected_name):
-        raise SourceError("O nome do arquivo FTP não corresponde ao selecionado.")
-
-    ftp = FTP(HOST, timeout=4)
-    try:
-        ftp.login()
-        ftp.set_pasv(True)
-        expected_size = ftp.size(remote)
-        if expected_size is not None and (expected_size < 32 or expected_size > MAX_DBC_DOWNLOAD_BYTES):
-            raise SourceError("O tamanho publicado pelo DATASUS está fora do limite permitido.")
-        if expected_size is not None and shutil.disk_usage(destination.parent).free < expected_size + 16 * 1024 * 1024:
-            raise SourceError("Não há espaço livre suficiente para salvar o arquivo selecionado.")
-
-        written = 0
-        with destination.open("wb") as stream:
-            def write_chunk(chunk: bytes) -> None:
-                nonlocal written
-                if written + len(chunk) > MAX_DBC_DOWNLOAD_BYTES or (expected_size is not None and written + len(chunk) > expected_size):
-                    raise SourceError("O arquivo recebido ultrapassou o tamanho permitido ou publicado pelo DATASUS.")
-                stream.write(chunk)
-                written += len(chunk)
-
-            ftp.retrbinary(f"RETR {remote}", write_chunk, blocksize=1024 * 1024)
-        if written < 32 or (expected_size is not None and written != expected_size):
-            raise SourceError(f"O arquivo {expected_name} chegou incompleto ({written} de {expected_size or 'tamanho não informado'} bytes).")
-        return written
-    finally:
-        try:
-            ftp.quit()
-        except Exception:
-            ftp.close()
-
-
 def source_cache(system: str, year: int, uf: str = "PA") -> Path:
     folder = UPLOADS / ".cache" / "source-files"
     folder.mkdir(parents=True, exist_ok=True)
@@ -361,25 +324,34 @@ def download_selected(system: str, year: int, month: int, requested_names: list[
         try:
             if item["size"] is not None and shutil.disk_usage(folder).free < item["size"] + 16 * 1024 * 1024:
                 raise SourceError("Não há espaço livre suficiente para salvar o arquivo selecionado.")
-            direct_ftp_error = None
-            if ALLOW_FTP_FALLBACK:
+            try:
+                portal_download_file(item["remote"], item["name"], Path(temporary))
+                written = Path(temporary).stat().st_size
+            except Exception as https_error:
+                if not ALLOW_FTP_FALLBACK:
+                    raise SourceError(f"Não foi possível baixar {item['name']} por HTTPS. O fallback FTP está desativado nesta instalação. Detalhe: {https_error}") from https_error
                 try:
-                    written = download_direct_ftp(item["remote"], item["name"], Path(temporary))
-                    source_mode = "FTP direto · DATASUS"
-                except Exception as exc:
-                    direct_ftp_error = exc
-
-            if not written:
-                try:
-                    portal_download_file(item["remote"], item["name"], Path(temporary))
-                    written = Path(temporary).stat().st_size
-                except Exception as https_error:
-                    if direct_ftp_error is not None:
-                        raise SourceError(
-                            f"Não foi possível baixar {item['name']} diretamente por FTP nem pelo serviço HTTPS do DATASUS. "
-                            f"FTP: {direct_ftp_error}; HTTPS: {https_error}"
-                        ) from https_error
-                    raise SourceError(f"Não foi possível baixar {item['name']} por HTTPS. Detalhe: {https_error}") from https_error
+                    ftp = connect()
+                    try:
+                        with open(temporary, "wb") as stream:
+                            def write_chunk(chunk: bytes) -> None:
+                                nonlocal written
+                                if written + len(chunk) > MAX_DBC_DOWNLOAD_BYTES or (item["size"] is not None and written + len(chunk) > item["size"]):
+                                    raise SourceError("O arquivo recebido ultrapassou o tamanho permitido ou declarado pelo DATASUS.")
+                                stream.write(chunk)
+                                written += len(chunk)
+                            ftp.retrbinary(f"RETR {item['remote']}", write_chunk, blocksize=1024 * 128)
+                    finally:
+                        try:
+                            ftp.quit()
+                        except Exception:
+                            ftp.close()
+                    source_mode = "FTP · DATASUS"
+                except Exception as ftp_error:
+                    raise SourceError(
+                        f"Não foi possível baixar {item['name']} por HTTPS nem FTP. "
+                        f"HTTPS: {https_error}; FTP: {ftp_error}"
+                    ) from ftp_error
             if item["size"] is not None and written != item["size"]:
                 raise SourceError(f"O arquivo {item['name']} chegou incompleto ({written} de {item['size']} bytes).")
             if written > MAX_DBC_DOWNLOAD_BYTES:

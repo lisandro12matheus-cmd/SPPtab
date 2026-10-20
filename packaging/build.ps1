@@ -120,7 +120,7 @@ Uma janela pequena mantém o serviço local ligado e o app abre no navegador pad
 
 Em uma pasta nova, os arquivos baixados e convertidos ficam em data, ao lado de SPPtab.exe. Se você já usava outra versão, o app reaproveita a biblioteca existente. Se a pasta escolhida não permitir gravação, usa uma pasta local da sua conta. Para levar a biblioteca para outro computador, copie a pasta de dados indicada na etapa de conversão.
 
-Para buscar bases e definições oficiais, conecte-se à internet e use a tela “Buscar arquivos”. O SPPtab tenta receber o DBC diretamente do FTP público oficial e recorre automaticamente ao HTTPS se a rede bloquear FTP. A conexão FTP pública não é criptografada; o arquivo é validado antes de ser salvo. Se a rede bloquear ambas as fontes, você ainda pode copiar a pasta data de outro computador e trabalhar com os arquivos já salvos.
+Para buscar bases e definições oficiais, conecte-se à internet e use a tela “Buscar arquivos”. A consulta usa HTTPS e, se necessário, tenta o FTP. Se a rede bloquear ambos, você ainda pode copiar a pasta data de outro computador e trabalhar com os arquivos já salvos.
 
 Este pacote não possui assinatura digital; o Windows pode exibir um aviso de aplicativo não reconhecido na primeira execução. Confira a origem do download e compare o SHA-256 do ZIP com o arquivo SPPtab-Portable-SHA256SUM.txt da mesma versão antes de executá-lo.
 '@ | Set-Content -LiteralPath (Join-Path $AppPayload 'LEIA-ME.txt') -Encoding UTF8
