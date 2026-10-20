@@ -6,3 +6,13 @@
 - O fallback puro em Python foi adaptado de `dbc-to-dbf` (licença zlib em `DBC-TO-DBF-LICENSE`).
 
 Os binários e fontes são usados localmente para converter arquivos DBC do DATASUS para DBF.
+
+## Integridade dos binários versionados
+
+SHA-256 dos executáveis atualmente incluídos neste repositório:
+
+- `dbc_reader/bin/blast-dbf.exe`: `927eae2f1a5ffa80e413eab4ad3a5696095862ad63fc671a9e08e258364c12a9`
+- `dbc_reader/bin/blast-dbf-linux`: `3a86694fc643c5ca2454565df27c540f3fd2c87fce6ba8aeeb24b3744eb75ea1`
+- `dbc_reader/bin/blast-dbf-darwin`: `16d26c07ae6d2fd90fe57e020200d13eb9287b0a41eacc81b1546238d6d8d0f4`
+
+O código-fonte C correspondente está neste diretório. O hash identifica os arquivos versionados, mas não substitui uma recompilação reprodutível: a toolchain e os parâmetros usados para produzir os executáveis existentes não foram verificados nesta revisão.

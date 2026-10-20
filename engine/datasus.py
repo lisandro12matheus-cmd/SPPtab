@@ -7,6 +7,7 @@ import json
 import gzip
 import os
 import re
+import shutil
 import sys
 import tempfile
 import time
@@ -17,7 +18,14 @@ from ftplib import FTP
 from pathlib import Path
 from typing import Any
 
-from official_source import download_file as portal_download_file, list_files as portal_list_files
+from official_source import download_file as portal_download_file, list_files as portal_list_files, open_verified_https
+from storage_lock import interprocess_lock
+
+ALLOW_FTP_FALLBACK = os.environ.get("TABWIN2_ALLOW_FTP_FALLBACK", "1").strip().lower() not in {"0", "false", "no", "off"}
+try:
+    MAX_DBC_DOWNLOAD_BYTES = max(64 * 1024 * 1024, min(int(os.environ.get("TABWIN2_MAX_DBC_BYTES", str(4 * 1024 * 1024 * 1024))), 16 * 1024 * 1024 * 1024))
+except ValueError:
+    MAX_DBC_DOWNLOAD_BYTES = 4 * 1024 * 1024 * 1024
 
 HOST = "ftp.datasus.gov.br"
 REMOTE = {
@@ -60,6 +68,29 @@ SIH_LABELS = {
 
 class SourceError(Exception):
     pass
+
+
+def validate_dbc_header(path: Path) -> None:
+    with path.open("rb") as stream:
+        header = stream.read(32)
+        if len(header) < 32:
+            raise SourceError("O arquivo DBC chegou incompleto.")
+        header_length = int.from_bytes(header[8:10], "little")
+        if header_length < 65 or header_length > 65535:
+            raise SourceError("O cabeçalho do arquivo DBC não é válido.")
+        stream.seek(0)
+        raw = stream.read(header_length)
+    fields = 0
+    offset = 32
+    while offset + 32 <= len(raw) and raw[offset] != 0x0D:
+        descriptor = raw[offset:offset + 32]
+        name = descriptor[:11].split(b"\0", 1)[0].decode("ascii", "replace").strip()
+        if not name or descriptor[16] < 1:
+            raise SourceError("O cabeçalho do arquivo DBC está incompleto.")
+        fields += 1
+        offset += 32
+    if fields == 0:
+        raise SourceError("O arquivo DBC não contém campos válidos.")
 
 
 def connect() -> FTP:
@@ -220,12 +251,14 @@ def list_municipalities(uf: str) -> dict[str, Any]:
     url = f"https://servicodados.ibge.gov.br/api/v1/localidades/estados/{IBGE_UF_IDS[uf]}/municipios?orderBy=nome"
     try:
         request = urllib.request.Request(url, headers={"User-Agent": "SPPtab/1.0", "Accept": "application/json"})
-        with urllib.request.urlopen(request, timeout=20) as response:
-            if urllib.parse.urlparse(response.geturl()).hostname != "servicodados.ibge.gov.br":
-                raise ValueError("A consulta do IBGE foi redirecionada para outro domínio.")
-            body = response.read()
+        with open_verified_https(request, "servicodados.ibge.gov.br", 20) as response:
+            body = response.read(16 * 1024 * 1024 + 1)
+            if len(body) > 16 * 1024 * 1024:
+                raise ValueError("O IBGE retornou uma resposta grande demais.")
             if response.headers.get("Content-Encoding", "").lower() == "gzip" or body.startswith(b"\x1f\x8b"):
                 body = gzip.decompress(body)
+                if len(body) > 64 * 1024 * 1024:
+                    raise ValueError("A resposta compactada do IBGE ultrapassou o limite permitido.")
             data = json.loads(body.decode("utf-8"))
         if not isinstance(data, list):
             raise ValueError("O IBGE não retornou a lista de municípios esperada.")
@@ -281,23 +314,30 @@ def download_selected(system: str, year: int, month: int, requested_names: list[
         folder.mkdir(parents=True, exist_ok=True)
         target = folder / item["name"]
         if target.exists() and target.stat().st_size > 0 and (item["size"] is None or target.stat().st_size == item["size"]):
-            results.append({"name": item["name"], "path": str(target.relative_to(UPLOADS)).replace("\\", "/"), "size": target.stat().st_size, "already_present": True})
+            results.append({"name": item["name"], "path": str(target.relative_to(UPLOADS)).replace("\\", "/"), "size": target.stat().st_size, "already_present": True, "source_mode": "biblioteca local"})
             continue
 
         fd, temporary = tempfile.mkstemp(prefix=f".{item['name']}.", suffix=".part", dir=folder)
         os.close(fd)
         written = 0
+        source_mode = "HTTPS · DATASUS"
         try:
+            if item["size"] is not None and shutil.disk_usage(folder).free < item["size"] + 16 * 1024 * 1024:
+                raise SourceError("Não há espaço livre suficiente para salvar o arquivo selecionado.")
             try:
                 portal_download_file(item["remote"], item["name"], Path(temporary))
                 written = Path(temporary).stat().st_size
             except Exception as https_error:
+                if not ALLOW_FTP_FALLBACK:
+                    raise SourceError(f"Não foi possível baixar {item['name']} por HTTPS. O fallback FTP está desativado nesta instalação. Detalhe: {https_error}") from https_error
                 try:
                     ftp = connect()
                     try:
                         with open(temporary, "wb") as stream:
                             def write_chunk(chunk: bytes) -> None:
                                 nonlocal written
+                                if written + len(chunk) > MAX_DBC_DOWNLOAD_BYTES or (item["size"] is not None and written + len(chunk) > item["size"]):
+                                    raise SourceError("O arquivo recebido ultrapassou o tamanho permitido ou declarado pelo DATASUS.")
                                 stream.write(chunk)
                                 written += len(chunk)
                             ftp.retrbinary(f"RETR {item['remote']}", write_chunk, blocksize=1024 * 128)
@@ -306,6 +346,7 @@ def download_selected(system: str, year: int, month: int, requested_names: list[
                             ftp.quit()
                         except Exception:
                             ftp.close()
+                    source_mode = "FTP · DATASUS"
                 except Exception as ftp_error:
                     raise SourceError(
                         f"Não foi possível baixar {item['name']} por HTTPS nem FTP. "
@@ -313,6 +354,9 @@ def download_selected(system: str, year: int, month: int, requested_names: list[
                     ) from ftp_error
             if item["size"] is not None and written != item["size"]:
                 raise SourceError(f"O arquivo {item['name']} chegou incompleto ({written} de {item['size']} bytes).")
+            if written > MAX_DBC_DOWNLOAD_BYTES:
+                raise SourceError("O arquivo recebido ultrapassou o limite configurado de download.")
+            validate_dbc_header(Path(temporary))
             os.replace(temporary, target)
         except Exception:
             try:
@@ -320,31 +364,37 @@ def download_selected(system: str, year: int, month: int, requested_names: list[
             except OSError:
                 pass
             raise
-        results.append({"name": item["name"], "path": str(target.relative_to(UPLOADS)).replace("\\", "/"), "size": written, "already_present": False})
+        results.append({"name": item["name"], "path": str(target.relative_to(UPLOADS)).replace("\\", "/"), "size": written, "already_present": False, "source_mode": source_mode})
 
     manifest_path = UPLOADS / "manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    existing = []
-    if manifest_path.exists():
+    with interprocess_lock(UPLOADS / ".jobs" / "storage.lock"):
+        existing = []
+        if manifest_path.exists():
+            try:
+                existing = json.loads(manifest_path.read_text(encoding="utf-8"))
+                if not isinstance(existing, list): existing = []
+            except (OSError, json.JSONDecodeError): existing = []
+        by_path = {entry.get("path"): entry for entry in existing if isinstance(entry, dict) and entry.get("path")}
+        for result in results:
+            if result.get("source_mode") == "biblioteca local" and result["path"] in by_path:
+                continue
+            item = allowed[result["name"].upper()]
+            source_mode = result.get("source_mode", "")
+            https_used = source_mode.startswith("HTTPS")
+            by_path[result["path"]] = {
+                "path": result["path"], "filename": result["name"], "system": system.upper(),
+                "type": item["kind"], "year": year, "month": month,
+                "source": "https://datasus.saude.gov.br" if https_used else f"ftp://{HOST}{item['remote']}" if source_mode.startswith("FTP") else "biblioteca local (origem anterior desconhecida)",
+                "source_mode": source_mode, "source_size_bytes": item["size"],
+                "downloaded_size_bytes": result["size"], "downloaded_at": datetime.now(timezone.utc).isoformat(),
+            }
+        temporary_manifest = manifest_path.with_name(f"manifest-{os.getpid()}-{time.time_ns()}.json.part")
         try:
-            existing = json.loads(manifest_path.read_text(encoding="utf-8"))
-            if not isinstance(existing, list):
-                existing = []
-        except (OSError, json.JSONDecodeError):
-            existing = []
-    by_path = {entry.get("path"): entry for entry in existing if isinstance(entry, dict) and entry.get("path")}
-    for result in results:
-        item = allowed[result["name"].upper()]
-        by_path[result["path"]] = {
-            "path": result["path"], "filename": result["name"], "system": system.upper(),
-            "type": item["kind"], "year": year, "month": month,
-            "source": f"ftp://{HOST}{item['remote']}", "source_size_bytes": item["size"],
-            "downloaded_size_bytes": result["size"], "downloaded_at": datetime.now(timezone.utc).isoformat(),
-        }
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_manifest = manifest_path.with_suffix(".json.part")
-    temporary_manifest.write_text(json.dumps(list(by_path.values()), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(temporary_manifest, manifest_path)
+            temporary_manifest.write_text(json.dumps(list(by_path.values()), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            os.replace(temporary_manifest, manifest_path)
+        finally:
+            temporary_manifest.unlink(missing_ok=True)
     return {"files": results, "folder": library_folder(system, year, month)}
 
 

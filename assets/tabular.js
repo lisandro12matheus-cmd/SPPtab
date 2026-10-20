@@ -3,7 +3,7 @@
 
   const $ = (selector) => document.querySelector(selector);
   const fileSelect = $('#sourceFile');
-  const BROWSER_CACHE_PREFIX = 'spptab-tabulation-v1:';
+  const BROWSER_CACHE_PREFIX = 'spptab-tabulation-v2:';
   const BROWSER_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
   const LOCATION_KEY = 'spptab-location-v1';
   const ACTIVE_FILE_KEY = 'spptab-active-file-v1';
@@ -18,6 +18,8 @@
   let lastResult = null;
   let dbfPath = null;
   let pollTimer = null;
+  const pollDelay = (attempt) => Math.min(1600, Math.round(450 * (1.32 ** Math.min(attempt, 8))));
+  const waitForPoll = (attempt) => new Promise((resolve) => setTimeout(resolve, pollDelay(attempt)));
   const categoryRequests = { column: 0, selection: 0 };
   let selectionValues = [];
   let activeFilters = [];
@@ -64,11 +66,17 @@
   }
 
   function dbfFingerprint(file) {
-    if (file?.path && Number(file.size) > 0 && Number(file.mtime_ns) > 0) {
-      return `${encodeURIComponent(file.path)}:${file.size}:${file.mtime_ns}`;
-    }
-    if (!file?.path || !file?.dbf_path || !Number(file.dbf_size) || !Number(file.dbf_mtime_ns)) return '';
-    return `${encodeURIComponent(file.path)}:${encodeURIComponent(file.dbf_path)}:${file.dbf_size}:${file.dbf_mtime_ns}`;
+    if (!file?.path) return '';
+    const source = Number(file.size) > 0 && Number(file.mtime_ns) > 0
+      ? `${encodeURIComponent(file.path)}:${file.size}:${file.mtime_ns}`
+      : encodeURIComponent(file.path);
+    const dbf = file.dbf_path && Number(file.dbf_size) > 0 && Number(file.dbf_mtime_ns) > 0
+      ? `${encodeURIComponent(file.dbf_path)}:${file.dbf_size}:${file.dbf_mtime_ns}`
+      : 'dbf-pending';
+    const definition = file.definitionIdentity
+      ? `${encodeURIComponent(file.definitionIdentity.path || '')}:${file.definitionIdentity.size || 0}:${file.definitionIdentity.mtime || 0}`
+      : 'definition-pending';
+    return `${source}|dbf=${dbf}|definition=${definition}`;
   }
 
   function browserCacheKey(kind, file, detail = '') {
@@ -109,7 +117,7 @@
   async function request(payload) {
     const response = await fetch('api.php', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-SPPtab-CSRF': document.querySelector('meta[name="csrf-token"]')?.content || '' },
       credentials: 'same-origin',
       body: JSON.stringify(payload),
     });
@@ -184,7 +192,8 @@
   async function loadCatalog() {
     try {
       const data = await request({ action: 'catalog' });
-      files = data.files;
+      const definitionIdentities = data.definitionIdentities || {};
+      files = data.files.map((file) => ({ ...file, definitionIdentity: definitionIdentities[file.system] || null }));
       libraryRoot = data.library_root || '';
       fileSelect.replaceChildren(new Option(files.length ? 'Selecione uma base…' : 'Nenhuma base importada', ''));
       files.forEach((file) => {
@@ -335,7 +344,7 @@
     }
   }
 
-  async function pollConversion(job, failures = 0) {
+  async function pollConversion(job, failures = 0, pollAttempt = 0) {
     clearTimeout(pollTimer);
     try {
       const data = await request({ action: 'convert_status', job_id: job });
@@ -369,7 +378,7 @@
         $('#startConvert').disabled = false;
         return;
       }
-      pollTimer = setTimeout(() => pollConversion(job), 700);
+      pollTimer = setTimeout(() => pollConversion(job, 0, pollAttempt + 1), pollDelay(pollAttempt));
     } catch (error) {
       if (failures < 2) {
         pollTimer = setTimeout(() => pollConversion(job, failures + 1), 1500);
@@ -405,6 +414,7 @@
     if (!jobId) throw new Error('O serviço local não iniciou a leitura deste DBC.');
     try { localStorage.setItem('tabwin2-job', jobId); } catch (_) {}
     let failures = 0;
+    let pollAttempt = 0;
     while (true) {
       try {
         const state = await request({ action: 'convert_status', job_id: jobId });
@@ -429,7 +439,7 @@
         if (failures >= 2) throw error;
         failures += 1;
       }
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      await waitForPoll(pollAttempt++);
     }
   }
 
@@ -1136,7 +1146,7 @@
       });
     }
     dbfPath = schema.dbfPath || selected?.dbf_path || null;
-    const cacheKey = browserCacheKey('schema', selected, 'prepared-definition-v5');
+    const cacheKey = browserCacheKey('schema', selected, 'prepared-definition-v6');
     writeBrowserCache(cacheKey, schema);
     const cacheLabel = fromBrowserCache ? ' · definição recuperada do cache deste navegador' : '';
     $('#definitionStatus').innerHTML = `<strong>${escapeHtml(schema.definition.name)}</strong> · ${Number(schema.recordCount).toLocaleString('pt-BR')} registros · ${schema.fields.length} campos compatíveis${cacheLabel}`;
@@ -1199,7 +1209,7 @@
     if (!selected) return;
     if (schema && schema.file?.path === selected.path) return;
 
-    const schemaKey = browserCacheKey('schema', selected, 'prepared-definition-v5');
+    const schemaKey = browserCacheKey('schema', selected, 'prepared-definition-v6');
     const cachedSchema = readBrowserCache(schemaKey);
     if (cachedSchema?.file?.path === selected.path && cachedSchema?.definition?.name && Array.isArray(cachedSchema.fields) && Array.isArray(cachedSchema.lineOptions)) {
       $('#tabControls').hidden = true;
@@ -1231,6 +1241,7 @@
           converted: true,
         });
       }
+      if (data.definition?.identity) selected.definitionIdentity = data.definition.identity;
       await applySchema(data, false);
     } catch (error) {
       schema = null;
@@ -1283,6 +1294,7 @@
     try {
       const payload = { ...resultTabulationPayload, filters: [...(resultTabulationPayload.filters || []), ...resultExtraFilters], column, columnFilter: column ? resultTabulationPayload.columnFilter : null, additionalColumns: columns, testCrc: false, saveRecords: false };
       const job = await request(payload);
+      let pollAttempt = 0;
       while (true) {
         const state = await request({ action: 'tabulate_status', job_id: job.job_id });
         if (state.status === 'error') throw new Error(state.message || 'Não foi possível atualizar as colunas.');
@@ -1299,7 +1311,7 @@
         pendingPopupMessage = { type: 'tabwin2-progress', runId: resultRunId, progress, stage };
         sendPopupMessage();
         notice(3, `${stage} · ${progress}%`);
-        await new Promise((resolve) => setTimeout(resolve, 700));
+        await waitForPoll(pollAttempt++);
       }
     } catch (error) {
       pendingPopupMessage = { type: 'tabwin2-column-error', runId: resultRunId, message: error.message };
@@ -1343,6 +1355,7 @@
     try {
       const payload = { ...resultTabulationPayload, filters: [...(resultTabulationPayload.filters || []), ...cleaned], testCrc: false, saveRecords: false };
       const job = await request(payload);
+      let pollAttempt = 0;
       while (true) {
         const state = await request({ action: 'tabulate_status', job_id: job.job_id });
         if (state.status === 'error') throw new Error(state.message || 'Não foi possível aplicar os filtros.');
@@ -1360,7 +1373,7 @@
         pendingPopupMessage = { type: 'tabwin2-progress', runId: resultRunId, progress, stage };
         sendPopupMessage();
         notice(3, `${stage} · ${progress}%`);
-        await new Promise((resolve) => setTimeout(resolve, 700));
+        await waitForPoll(pollAttempt++);
       }
     } catch (error) {
       pendingPopupMessage = { type: 'tabwin2-filter-error', runId: resultRunId, message: error.message };
@@ -1421,6 +1434,7 @@
       };
       const job = await request(resultTabulationPayload);
 
+      let pollAttempt = 0;
       while (true) {
         const state = await request({ action: 'tabulate_status', job_id: job.job_id });
         if (state.status === 'error') throw new Error(state.message || 'Não foi possível concluir a tabulação.');
@@ -1437,7 +1451,7 @@
           pendingPopupMessage = { type: 'tabwin2-progress', runId: resultRunId, progress, stage };
           sendPopupMessage();
         }
-        await new Promise((resolve) => setTimeout(resolve, 700));
+        await waitForPoll(pollAttempt++);
       }
 
       if (popup && !popup.closed) {
@@ -1529,7 +1543,12 @@
       ...lastResult.rows.map((row) => [row.label, ...row.values, ...(showTotal ? [row.total] : [])]),
       ['Total geral', ...lastResult.columnTotals, ...(showTotal ? [lastResult.total] : [])],
     ];
-    const csv = `\ufeff${rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(';')).join('\r\n')}`;
+    const csvCell = (value, textual) => {
+      let text = String(value ?? '');
+      if (textual && /^[\u0000-\u0020]*[=+\-@]/.test(text)) text = `'${text}`;
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+    const csv = `\ufeff${rows.map((row, rowIndex) => row.map((value, columnIndex) => csvCell(value, rowIndex === 0 || columnIndex === 0)).join(';')).join('\r\n')}`;
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const anchor = document.createElement('a');
     anchor.href = url;

@@ -7,10 +7,11 @@ from ftplib import FTP
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 from itertools import product
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 from official_source import download_file as portal_download_file
+from storage_lock import interprocess_lock
 
 ROOT = Path(__file__).resolve().parents[1]
 UPLOADS = Path(os.environ.get("TABWIN2_DATA_DIR", ROOT / "uploads")).expanduser().resolve()
@@ -33,6 +34,11 @@ SLOW_FALLBACK_LIMIT = 8 * 1024 * 1024
 # Bases DBC estaduais podem levar vários minutos para decodificar. O limite
 # anterior de dois minutos encerrava conversões válidas no Windows.
 NATIVE_TIMEOUT_SECONDS = 3600
+ALLOW_FTP_FALLBACK = os.environ.get("TABWIN2_ALLOW_FTP_FALLBACK", "1").strip().lower() not in {"0", "false", "no", "off"}
+try:
+    MAX_HEAVY_JOBS = max(1, min(int(os.environ.get("TABWIN2_MAX_HEAVY_JOBS", "2")), 8))
+except ValueError:
+    MAX_HEAVY_JOBS = 2
 
 def dbf_reader():
     import sys
@@ -40,19 +46,42 @@ def dbf_reader():
     from dbfread import DBF
     return DBF
 
-def safe_file(relative: str) -> Path:
-    if not isinstance(relative, str) or "\x00" in relative:
+def safe_upload_relative(relative: str, suffix: str) -> tuple[Path, str]:
+    if not isinstance(relative, str) or not relative or len(relative) > 600 or "\x00" in relative:
         raise ValueError("Arquivo inválido.")
-    path = (UPLOADS / relative.replace("\\", "/")).resolve()
-    if not path.is_relative_to(UPLOADS) or path.suffix.lower() != ".dbc" or not path.is_file():
+    normalized=relative.replace("\\", "/")
+    posix=PurePosixPath(normalized); windows=PureWindowsPath(relative)
+    parts=normalized.split("/")
+    if posix.is_absolute() or windows.is_absolute() or windows.drive or any(part in {"", ".", ".."} or ":" in part for part in parts):
+        raise ValueError("O caminho do arquivo é inválido.")
+    path=(UPLOADS.joinpath(*parts)).resolve()
+    if not path.is_relative_to(UPLOADS) or path.suffix.lower()!=suffix.lower() or not path.is_file():
         raise ValueError("O arquivo não existe na biblioteca ou o caminho é inválido.")
+    return path,path.relative_to(UPLOADS).as_posix()
+
+def safe_file(relative: str) -> Path:
+    path,_=safe_upload_relative(relative,".dbc")
     return path
 
-def safe_dbf(relative: str) -> Path:
-    if not isinstance(relative,str) or "\x00" in relative: raise ValueError("Arquivo DBF inválido.")
-    path=(UPLOADS/relative.replace("\\","/")).resolve()
-    if not path.is_relative_to(UPLOADS) or path.suffix.lower()!=".dbf" or not path.is_file() or "CONVERTIDOS" not in path.parts:
-        raise ValueError("O DBF convertido não existe na biblioteca.")
+def safe_converted_path(source_relative: str, create_parent: bool = False) -> Path:
+    relative=converted_relative(source_relative)
+    target=UPLOADS/relative
+    parent=target.parent.resolve()
+    if not parent.is_relative_to(UPLOADS):
+        raise ValueError("O destino convertido está fora da biblioteca.")
+    if create_parent:
+        parent.mkdir(parents=True,exist_ok=True)
+        parent=target.parent.resolve()
+        if not parent.is_relative_to(UPLOADS): raise ValueError("O destino convertido está fora da biblioteca.")
+    return parent/target.name
+
+def safe_dbf(relative: str, source_relative: str) -> Path:
+    path,canonical=safe_upload_relative(relative,".dbf")
+    expected=safe_converted_path(source_relative)
+    if "CONVERTIDOS" not in path.relative_to(UPLOADS).parts or os.path.normcase(str(path))!=os.path.normcase(str(expected)):
+        raise ValueError("O DBF convertido não corresponde ao DBC selecionado.")
+    if canonical != path.relative_to(UPLOADS).as_posix():
+        raise ValueError("O caminho do DBF convertido é inválido.")
     return path
 
 def dbf_layout(path: Path):
@@ -265,7 +294,12 @@ def municipality_code(payload, fieldnames, field):
     return code
 
 def catalog():
-    files=[]; manifest={}; active_jobs={}
+    files=[]; manifest={}; active_jobs={}; definition_identities={}
+    for system in ("SIA","SIH"):
+        archive=UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip"
+        try:
+            if archive.is_file(): definition_identities[system]=cache_file_identity(archive)
+        except OSError: pass
     try:
         items=json.loads((UPLOADS/"manifest.json").read_text(encoding="utf-8"))
         if isinstance(items,list): manifest={x.get("path"):x for x in items if isinstance(x,dict)}
@@ -276,24 +310,28 @@ def catalog():
             try:
                 state=read_job_state(statefile)
                 source=state.get("source_path")
-                if source and source not in active_jobs and state.get("status") in {"queued","running"} and time.time()-statefile.stat().st_mtime < 20:
+                if source and source not in active_jobs and state.get("status") in {"queued","running"} and job_worker_alive(state,statefile):
                     active_jobs[source]={"id":state.get("id"),"status":state.get("status"),"progress":state.get("progress",1),"stage":state.get("stage","Leitura em andamento"),"bytes_written":state.get("bytes_written",0),"temporary_path":state.get("temporary_path"),"converter":state.get("converter")}
             except Exception: pass
     for p in UPLOADS.glob("**/*.dbc"):
         try:
             sysname,kind,m=meta(p); rel=p.relative_to(UPLOADS).as_posix(); info=manifest.get(rel,{})
             converted=converted_relative(rel)
-            dbf=UPLOADS/converted
+            dbf=safe_converted_path(rel)
             dbf_exists=dbf.is_file(); dbf_stat=dbf.stat() if dbf_exists else None
             source_stat=p.stat()
             files.append({"path":rel,"name":p.name,"system":sysname,"kind":kind,"uf":m.group("uf").upper(),"year":2000+int(m.group("yy")),"month":int(m.group("mm")),"size":source_stat.st_size,"mtime_ns":source_stat.st_mtime_ns,"downloaded_at":info.get("downloaded_at"),"converted":dbf_exists,"dbf_path":converted if dbf_exists else None,"dbf_size":dbf_stat.st_size if dbf_stat else None,"dbf_mtime_ns":dbf_stat.st_mtime_ns if dbf_stat else None,"conversion":active_jobs.get(rel)})
         except Exception: continue
     files.sort(key=lambda x:(x["system"],-x["year"],-x["month"],x["name"]))
-    return {"ok":True,"files":files,"library_root":str(UPLOADS)}
+    return {"ok":True,"files":files,"library_root":str(UPLOADS),"definitionIdentities":definition_identities}
 
 def delete_library_file(payload: dict[str,Any]):
     source=safe_file(payload.get("path",""))
     relative=source.relative_to(UPLOADS).as_posix()
+    with source_use_locks([relative],blocking=False):
+        return _delete_library_file_locked(payload,source,relative)
+
+def _delete_library_file_locked(payload: dict[str,Any], source: Path, relative: str):
     system,_,_=meta(source)
     if system not in {"SIA","SIH"}:
         raise ValueError("Somente arquivos ambulatoriais e hospitalares importados podem ser removidos daqui.")
@@ -306,7 +344,7 @@ def delete_library_file(payload: dict[str,Any]):
             except Exception:
                 pass
             else:
-                if state.get("source_path")==relative and state.get("status") in {"queued","running"} and time.time()-statefile.stat().st_mtime<20:
+                if state.get("source_path")==relative and state.get("status") in {"queued","running"} and job_worker_alive(state,statefile):
                     raise ValueError("Este arquivo está sendo preparado para leitura. Aguarde a conclusão antes de removê-lo.")
         tabulation_jobs=jobs/"tabulations"
         if tabulation_jobs.is_dir():
@@ -316,17 +354,16 @@ def delete_library_file(payload: dict[str,Any]):
                 except Exception:
                     pass
                 else:
-                    if state.get("status") not in {"queued","running"} or time.time()-statefile.stat().st_mtime>=300:
+                    if state.get("status") not in {"queued","running"}:
                         continue
+                    selected={str(value).replace("\\","/") for value in state.get("active_sources",[])}
                     data=state.get("payload") or {}
-                    selected={str(data.get("path") or "").replace("\\","/")}
+                    selected.add(str(data.get("path") or "").replace("\\","/"))
                     selected.update(str(item.get("path") or "").replace("\\","/") for item in data.get("sources",[]) if isinstance(item,dict))
-                    if relative in selected:
+                    if relative in selected and job_worker_alive(state,statefile):
                         raise ValueError("Este arquivo está sendo usado por uma tabulação em andamento. Aguarde a conclusão antes de removê-lo.")
 
-    converted=UPLOADS/converted_relative(relative)
-    if not converted.resolve().is_relative_to(UPLOADS):
-        raise ValueError("O caminho do arquivo convertido é inválido.")
+    converted=safe_converted_path(relative)
     source.unlink()
     converted.unlink(missing_ok=True)
     for partial in converted.parent.glob(converted.name+".*.part"):
@@ -335,29 +372,34 @@ def delete_library_file(payload: dict[str,Any]):
         except OSError:
             pass
 
-    manifest=UPLOADS/"manifest.json"
-    try:
-        items=json.loads(manifest.read_text(encoding="utf-8"))
-        if isinstance(items,list):
-            retained=[item for item in items if not isinstance(item,dict) or str(item.get("path") or "").replace("\\","/")!=relative]
-            if len(retained)!=len(items):
-                fd,temporary=tempfile.mkstemp(prefix="manifest-",suffix=".json.part",dir=str(UPLOADS))
-                try:
-                    with os.fdopen(fd,"w",encoding="utf-8") as stream:
-                        stream.write(json.dumps(retained,ensure_ascii=False,indent=2)+"\n")
-                    os.replace(temporary,manifest)
-                finally:
-                    Path(temporary).unlink(missing_ok=True)
-    except (OSError,json.JSONDecodeError):
-        pass
+    remove_manifest_entry(relative)
 
     # The client already has the current library list and removes this item locally.
     # Rebuilding the catalog here recursively walks every DBC and stats every DBF,
     # making a simple file deletion wait on unrelated bases.
     return {"ok":True,"deleted":{"path":relative,"name":source.name}}
 
+def remove_manifest_entry(relative: str):
+    manifest=UPLOADS/"manifest.json"
+    try:
+        with interprocess_lock(UPLOADS/".jobs"/"storage.lock"):
+            items=json.loads(manifest.read_text(encoding="utf-8"))
+            if not isinstance(items,list): return
+            retained=[item for item in items if not isinstance(item,dict) or str(item.get("path") or "").replace("\\","/")!=relative]
+            if len(retained)==len(items): return
+            fd,temporary=tempfile.mkstemp(prefix=f"manifest-{os.getpid()}-",suffix=".json.part",dir=str(UPLOADS))
+            try:
+                with os.fdopen(fd,"w",encoding="utf-8") as stream:
+                    stream.write(json.dumps(retained,ensure_ascii=False,indent=2)+"\n")
+                os.replace(temporary,manifest)
+            finally:
+                Path(temporary).unlink(missing_ok=True)
+    except (OSError,json.JSONDecodeError):
+        pass
+
 def converted_relative(source_relative: str) -> str:
-    rel=Path(source_relative)
+    source=safe_file(source_relative)
+    rel=source.relative_to(UPLOADS)
     return (Path("CONVERTIDOS")/rel.parent/(rel.stem+".dbf")).as_posix()
 
 def jobfile(job_id: str) -> Path:
@@ -400,6 +442,80 @@ def _job_directory_lock(folder: Path):
             finally:
                 fcntl.flock(lock.fileno(),fcntl.LOCK_UN)
 
+@contextmanager
+def source_use_locks(relative_paths, blocking=True):
+    """Cross-process locks shared by readers/converters and library deletion."""
+    lock_folder=UPLOADS/".jobs"/"file-locks"
+    lock_folder.mkdir(parents=True,exist_ok=True)
+    handles=[]; acquired=[]
+    try:
+        identities=sorted({str(path).replace("\\","/").casefold() for path in relative_paths})
+        for identity in identities:
+            lock_path=lock_folder/(hashlib.sha256(identity.encode("utf-8")).hexdigest()+".lock")
+            handle=lock_path.open("a+b"); handles.append(handle)
+            if os.name=="nt":
+                import msvcrt
+                handle.seek(0,os.SEEK_END)
+                if handle.tell()==0:
+                    handle.write(b"\0"); handle.flush()
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(),msvcrt.LK_LOCK if blocking else msvcrt.LK_NBLCK,1)
+            else:
+                import fcntl
+                flags=fcntl.LOCK_EX|(0 if blocking else fcntl.LOCK_NB)
+                fcntl.flock(handle.fileno(),flags)
+            acquired.append(handle)
+        yield
+    except (OSError,BlockingIOError) as exc:
+        if not blocking:
+            raise ValueError("Este arquivo está em uso por uma conversão, tabulação ou exportação. Aguarde e tente novamente.") from exc
+        raise
+    finally:
+        for handle in reversed(acquired):
+            try:
+                if os.name=="nt":
+                    import msvcrt
+                    handle.seek(0); msvcrt.locking(handle.fileno(),msvcrt.LK_UNLCK,1)
+                else:
+                    import fcntl
+                    fcntl.flock(handle.fileno(),fcntl.LOCK_UN)
+            except OSError: pass
+        for handle in handles:
+            try: handle.close()
+            except OSError: pass
+
+def job_worker_alive(state: dict[str,Any], statefile: Path) -> bool:
+    pid=state.get("worker_pid")
+    if isinstance(pid,int) and pid>0:
+        try:
+            os.kill(pid,0)
+            return True
+        except PermissionError:
+            return True
+        except OSError:
+            return False
+    try: return time.time()-statefile.stat().st_mtime<300
+    except OSError: return False
+
+@contextmanager
+def reserve_heavy_job_slot():
+    with interprocess_lock(UPLOADS/".jobs"/"heavy-jobs.lock"):
+        active=0
+        root=UPLOADS/".jobs"
+        for folder in (root,root/"tabulations"):
+            if not folder.is_dir(): continue
+            for statefile in folder.glob("*.json"):
+                if statefile.name.endswith(".result.json"): continue
+                try:
+                    state=read_job_state(statefile)
+                    if state.get("status") in {"queued","running"} and job_worker_alive(state,statefile):
+                        active+=1
+                except (OSError,ValueError,TypeError):
+                    continue
+        if active>=MAX_HEAVY_JOBS:
+            raise ValueError(f"Há {active} processos pesados em andamento. Aguarde uma vaga antes de iniciar outra conversão ou tabulação.")
+        yield
+
 def atomic_job_write(target: Path, data: dict[str,Any]):
     target.parent.mkdir(parents=True,exist_ok=True)
     with ATOMIC_JOB_WRITE_LOCK, _job_directory_lock(target.parent):
@@ -438,9 +554,14 @@ def write_job(job_id: str, data: dict[str,Any]):
         atomic_job_write(target,data)
 
 def start_conversion(source_relative: str):
-    source=safe_file(source_relative); system,kind,_=meta(source); fields,records=dbc_header(source)
+    source=safe_file(source_relative); canonical=source.relative_to(UPLOADS).as_posix()
+    with source_use_locks([canonical]):
+        return _start_conversion_locked(canonical)
+
+def _start_conversion_locked(source_relative: str):
+    source=safe_file(source_relative); source_relative=source.relative_to(UPLOADS).as_posix(); system,kind,_=meta(source); fields,records=dbc_header(source)
     expected=32+32*len(fields)+1+records*(1+sum(f["length"] for f in fields))+1
-    target=UPLOADS/converted_relative(source_relative); target.parent.mkdir(parents=True,exist_ok=True)
+    target=safe_converted_path(source_relative,create_parent=True)
     if target.is_file() and target.stat().st_size==expected:
         return {"ok":True,"done":True,"progress":100,"dbf_path":target.relative_to(UPLOADS).as_posix(),"dbfIdentity":cache_file_identity(target),"message":"A leitura desta base já está preparada."}
     jobs=UPLOADS/".jobs"
@@ -449,35 +570,46 @@ def start_conversion(source_relative: str):
             try:
                 active=read_job_state(statefile)
                 if active.get("source_path")==source_relative and active.get("status") in {"queued","running"}:
-                    if time.time()-statefile.stat().st_mtime < 20:
+                    if job_worker_alive(active,statefile):
                         return {"ok":True,"done":False,"job_id":active["id"],"progress":active.get("progress",1),"stage":active.get("stage","Conversão em andamento")}
                     active.update(status="error",stage="Leitura interrompida",message="A leitura anterior parou de atualizar. Inicie novamente para continuar.")
                     write_job(active["id"],active)
             except Exception: pass
-    job_id=secrets.token_hex(16)
-    dbf_relative=converted_relative(source_relative)
-    temporary_relative=dbf_relative+f".{job_id}.part"
-    write_job(job_id,{"id":job_id,"status":"queued","progress":1,"stage":"Preparando a leitura","message":"A base entrou na fila de leitura.","source_path":source_relative,"expected_size":expected,"dbf_path":dbf_relative,"temporary_path":temporary_relative})
-    command=[sys.executable,str(Path(__file__).resolve()),"--worker",job_id]
-    flags=getattr(subprocess,"DETACHED_PROCESS",0x00000008)|getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0x00000200) if os.name=="nt" else 0
-    subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=flags,start_new_session=os.name!="nt",cwd=str(ROOT))
+    with reserve_heavy_job_slot():
+        job_id=secrets.token_hex(16)
+        dbf_relative=converted_relative(source_relative)
+        temporary_relative=dbf_relative+f".{job_id}.part"
+        write_job(job_id,{"id":job_id,"status":"queued","progress":1,"stage":"Preparando a leitura","message":"A base entrou na fila de leitura.","source_path":source_relative,"expected_size":expected,"dbf_path":dbf_relative,"temporary_path":temporary_relative})
+        command=[sys.executable,str(Path(__file__).resolve()),"--worker",job_id]
+        flags=getattr(subprocess,"DETACHED_PROCESS",0x00000008)|getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0x00000200) if os.name=="nt" else 0
+        try:
+            subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=flags,start_new_session=os.name!="nt",cwd=str(ROOT))
+        except Exception as exc:
+            failed=read_job_state(jobfile(job_id)); failed.update(status="error",stage="Não foi possível iniciar",message="A preparação não iniciou. Tente novamente.")
+            write_job(job_id,failed)
+            raise RuntimeError("Não foi possível iniciar a preparação do arquivo.") from exc
     return {"ok":True,"done":False,"job_id":job_id,"progress":1,"stage":"Preparando a leitura"}
 
 def conversion_status(job_id: str):
     path=jobfile(job_id)
     if not path.is_file(): raise ValueError("Conversão não encontrada.")
     state=read_job_state(path)
-    if state.get("status") in {"queued","running"} and time.time()-path.stat().st_mtime >= 20:
+    if state.get("status") in {"queued","running"} and not job_worker_alive(state,path):
         state.update(status="error",stage="Leitura interrompida",message="A preparação da leitura parou de atualizar. Tente iniciar novamente.")
         write_job(job_id,state)
     return {"ok":True,**state}
 
 def run_conversion_worker(job_id: str):
+    state=read_job_state(jobfile(job_id)); source=safe_file(state["source_path"]); relative=source.relative_to(UPLOADS).as_posix()
+    with source_use_locks([relative]):
+        return _run_conversion_worker_locked(job_id)
+
+def _run_conversion_worker_locked(job_id: str):
     state=read_job_state(jobfile(job_id)); source_rel=state["source_path"]
-    source=safe_file(source_rel); target=UPLOADS/converted_relative(source_rel); target.parent.mkdir(parents=True,exist_ok=True)
+    source=safe_file(source_rel); source_rel=source.relative_to(UPLOADS).as_posix(); target=safe_converted_path(source_rel,create_parent=True)
     temporary_output=target.with_name(target.name+f".{job_id}.part")
     try:
-        state.update(status="running",stage="Preparando a leitura do DBC",progress=2,message="A leitura da base está em andamento."); write_job(job_id,state)
+        state.update(status="running",stage="Preparando a leitura do DBC",progress=2,message="A leitura da base está em andamento.",worker_pid=os.getpid()); write_job(job_id,state)
         def progress(pct,size):
             state.update(progress=pct,bytes_written=size,stage="Lendo dados da base",status="running"); write_job(job_id,state)
         def method_changed(method,message):
@@ -503,35 +635,63 @@ def write_tabulation_job(job_id: str, state: dict[str,Any]):
         atomic_job_write(target,state)
 
 def start_tabulation(payload: dict[str,Any]):
+    payload=json.loads(json.dumps(payload))
+    raw_sources=payload.get("sources")
+    has_multiple=isinstance(raw_sources,list) and len(raw_sources)>0
+    entries=raw_sources if has_multiple else [{"path":payload.get("path",""),"dbfPath":payload.get("dbfPath")}]
+    if not isinstance(entries,list) or not 1<=len(entries)<=50:
+        raise ValueError("A lista de arquivos da tabulação é inválida.")
+    canonical_sources=[]; normalized_entries=[]
+    for entry in entries:
+        if not isinstance(entry,dict): raise ValueError("A lista de arquivos da tabulação é inválida.")
+        source=safe_file(entry.get("path",""))
+        canonical=source.relative_to(UPLOADS).as_posix()
+        dbf_path=entry.get("dbfPath")
+        if dbf_path:
+            safe_dbf(str(dbf_path),canonical)
+            dbf_path=converted_relative(canonical)
+        normalized_entries.append({**entry,"path":canonical,**({"dbfPath":dbf_path} if dbf_path else {})})
+        canonical_sources.append(canonical)
+    if has_multiple:
+        payload["sources"]=normalized_entries
+    else:
+        payload["path"]=canonical_sources[0]
+        if normalized_entries[0].get("dbfPath"): payload["dbfPath"]=normalized_entries[0]["dbfPath"]
+    with source_use_locks(canonical_sources):
+        return _start_tabulation_locked(payload,canonical_sources)
+
+def _start_tabulation_locked(payload: dict[str,Any], active_sources: list[str]):
     if len(json.dumps(payload,ensure_ascii=True))>100000: raise ValueError("A configuração da tabulação é grande demais.")
     request_hash=hashlib.sha256(json.dumps(payload,sort_keys=True,ensure_ascii=True,separators=(",",":")).encode("utf-8")).hexdigest()
     folder=UPLOADS/".jobs"/"tabulations"
     folder.mkdir(parents=True,exist_ok=True)
     for existing in folder.glob("*.json"):
+        if existing.name.endswith(".result.json"): continue
         try:
             state=read_job_state(existing)
             if state.get("request_hash")!=request_hash or state.get("status") not in {"queued","running"}:
                 continue
-            if time.time()-existing.stat().st_mtime<300:
+            if job_worker_alive(state,existing):
                 return {"ok":True,"job_id":state["id"],"status":state["status"],"progress":state.get("progress",1),"stage":state.get("stage","Tabulação em andamento"),"reused":True}
         except (OSError,ValueError,TypeError,KeyError):
             continue
-    job_id=secrets.token_hex(16)
-    write_tabulation_job(job_id,{"id":job_id,"request_hash":request_hash,"status":"queued","progress":1,"stage":"Preparando tabulação","payload":payload})
-    command=[sys.executable,str(Path(__file__).resolve()),"--tabulate-worker",job_id]
-    flags=getattr(subprocess,"DETACHED_PROCESS",0x00000008)|getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0x00000200) if os.name=="nt" else 0
-    try:
-        subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=flags,start_new_session=os.name!="nt",cwd=str(ROOT))
-    except Exception:
-        tabulation_jobfile(job_id).unlink(missing_ok=True)
-        raise
+    with reserve_heavy_job_slot():
+        job_id=secrets.token_hex(16)
+        write_tabulation_job(job_id,{"id":job_id,"request_hash":request_hash,"status":"queued","progress":1,"stage":"Preparando tabulação","payload":payload,"active_sources":active_sources})
+        command=[sys.executable,str(Path(__file__).resolve()),"--tabulate-worker",job_id]
+        flags=getattr(subprocess,"DETACHED_PROCESS",0x00000008)|getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0x00000200) if os.name=="nt" else 0
+        try:
+            subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=flags,start_new_session=os.name!="nt",cwd=str(ROOT))
+        except Exception:
+            tabulation_jobfile(job_id).unlink(missing_ok=True)
+            raise
     return {"ok":True,"job_id":job_id,"status":"queued","progress":1,"stage":"Preparando tabulação"}
 
 def tabulation_status(job_id: str):
     path=tabulation_jobfile(job_id)
     if not path.is_file(): raise ValueError("Tabulação não encontrada.")
     state=read_job_state(path)
-    if state.get("status") in {"queued","running"} and time.time()-path.stat().st_mtime>300:
+    if state.get("status") in {"queued","running"} and not job_worker_alive(state,path):
         state.update(status="error",stage="Tabulação interrompida",message="A leitura parou de atualizar. Inicie a tabulação novamente.")
         state.pop("payload",None)
         write_tabulation_job(job_id,state)
@@ -543,9 +703,23 @@ def tabulation_status(job_id: str):
     return {"ok":True,**output}
 
 def run_tabulation_worker(job_id: str):
+    queued=read_job_state(tabulation_jobfile(job_id))
+    sources=queued.get("active_sources") or []
+    if not sources:
+        data=queued.get("payload") or {}
+        sources=[str(data.get("path") or "")]
+        sources.extend(str(item.get("path") or "") for item in data.get("sources",[]) if isinstance(item,dict))
+    sources=[safe_file(item).relative_to(UPLOADS).as_posix() for item in sources if item]
+    with source_use_locks(sources):
+        return _run_tabulation_worker_locked(job_id)
+
+def _run_tabulation_worker_locked(job_id: str):
     path=tabulation_jobfile(job_id)
     state=read_job_state(path)
     payload=state.pop("payload")
+    state["worker_pid"]=os.getpid()
+    state["status"]="running"
+    write_tabulation_job(job_id,state)
     try:
         def progress(pct,stage):
             state.update(status="running",progress=pct,stage=stage)
@@ -574,6 +748,8 @@ def ensure_archive(system: str) -> Path:
             try:
                 portal_download_file(remote, f"TAB_{system}.zip", tmp)
             except Exception as https_error:
+                if not ALLOW_FTP_FALLBACK:
+                    raise RuntimeError(f"Não foi possível baixar as definições oficiais por HTTPS. O fallback FTP está desativado. Detalhe: {https_error}") from https_error
                 try:
                     ftp=FTP("ftp.datasus.gov.br",timeout=12); ftp.login(); ftp.set_pasv(True)
                     try:
@@ -671,29 +847,61 @@ def cnv_label(mapping: dict[str,Any], code: str):
             if len(start)==len(end)==len(code) and start<=code<=end: return label
     return code
 
+def safe_archive_name(name: str):
+    if not isinstance(name,str) or not name or len(name)>600 or "\x00" in name:
+        return None
+    normalized=name.replace("\\","/")
+    posix=PurePosixPath(normalized); windows=PureWindowsPath(name)
+    parts=normalized.split("/")
+    if posix.is_absolute() or windows.is_absolute() or windows.drive or any(part in {"", ".", ".."} or ":" in part for part in parts):
+        return None
+    return normalized,parts
+
 def relation_mapping(system: str, option):
     relation=(option or {}).get("relation","")
-    if not relation: return {}
-    rel=PurePosixPath(relation.replace("\\","/"))
-    if rel.is_absolute() or ".." in rel.parts: return {}
+    safe_relation=safe_archive_name(relation)
+    if safe_relation is None: return {}
+    normalized_relation,relation_parts=safe_relation
+    rel=PurePosixPath(normalized_relation)
+    extension=rel.suffix.lower()
+    if extension not in {".cnv",".dbf"}: return {}
     archive=UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip"
+    if not archive.is_file() or archive.stat().st_size>512*1024*1024: return {}
     target=cache_target("relation-mappings",{"archive":cache_file_identity(archive),"relation":relation.lower(),"descField":(option or {}).get("descField","")})
     cached=cache_read(target)
     if isinstance(cached,dict) and isinstance(cached.get("mapping"),dict): return cached["mapping"]
     with zipfile.ZipFile(archive) as z:
-        member=next((n for n in z.namelist() if PurePosixPath(n).as_posix().lower()==rel.as_posix().lower()),None)
-        if member is None: member=next((n for n in z.namelist() if PurePosixPath(n).name.lower()==rel.name.lower()),None)
-        if member is None: return {}
-        if PurePosixPath(member).is_absolute() or ".." in PurePosixPath(member).parts: return {}
-        raw=z.read(member)
-    out=UPLOADS/"DEFINICOES"/system/"referencias"/Path(*PurePosixPath(member).parts)
+        infos=z.infolist()
+        if len(infos)>50000: return {}
+        normalized_infos=[]
+        for info in infos:
+            safe_name=safe_archive_name(info.filename)
+            if safe_name is None or info.is_dir() or stat.S_ISLNK(info.external_attr >> 16): continue
+            normalized_infos.append((info,*safe_name))
+        matches=[entry for entry in normalized_infos if entry[1].lower()==normalized_relation.lower()]
+        if not matches:
+            matches=[entry for entry in normalized_infos if PurePosixPath(entry[1]).name.lower()==rel.name.lower()]
+        if len(matches)!=1: return {}
+        info,member,member_parts=matches[0]
+        if PurePosixPath(member).suffix.lower()!=extension: return {}
+        maximum_size=64*1024*1024 if extension==".cnv" else 256*1024*1024
+        if info.file_size>maximum_size or (info.compress_size>0 and info.file_size>max(info.compress_size*2000, 64*1024*1024)): return {}
+        raw=z.read(info)
+    reference_root=(UPLOADS/"DEFINICOES"/system/"referencias").resolve()
+    out=reference_root.joinpath(*member_parts).resolve()
+    if not out.is_relative_to(reference_root): return {}
     out.parent.mkdir(parents=True,exist_ok=True)
-    if not out.is_file() or out.stat().st_size!=len(raw): out.write_bytes(raw)
-    if rel.suffix.lower()==".cnv":
+    if not out.is_file() or out.stat().st_size!=len(raw):
+        fd,temporary=tempfile.mkstemp(prefix="relation-",suffix=".part",dir=str(out.parent))
+        try:
+            with os.fdopen(fd,"wb") as stream: stream.write(raw)
+            os.replace(temporary,out)
+        finally: Path(temporary).unlink(missing_ok=True)
+    if extension==".cnv":
         mapping=cnv_values(raw)
         cache_write(target,{"mapping":mapping},max_bytes=20_000_000)
         return mapping
-    if rel.suffix.lower()==".dbf":
+    if extension==".dbf":
         try:
             DBF=dbf_reader(); lookup=DBF(str(out),load=False,encoding="latin1",char_decode_errors="replace",ignore_missing_memofile=True)
             if not lookup.fields: return {}
@@ -707,17 +915,30 @@ def relation_mapping(system: str, option):
     return {}
 
 def schema(relative: str):
-    path=safe_file(relative); system,kind,filename_match=meta(path); fields,records=dbc_header(path)
-    converted=UPLOADS/converted_relative(relative)
+    path=safe_file(relative); relative=path.relative_to(UPLOADS).as_posix(); system,kind,filename_match=meta(path)
+    converted=safe_converted_path(relative)
     dbf_identity=cache_file_identity(converted) if converted.is_file() else None
-    defname,definition=archive_def(system,kind)
-    if definition is None: raise RuntimeError(f"A definição {defname or 'do arquivo'} não foi encontrada no pacote oficial {system}.")
-    rows,cols,selections,increments,group=parse_def(definition,fields)
-    add_sp_identifier_options(kind,[f["name"] for f in fields],rows)
-    relationFiles={item.get("relation", "").lower() for collection in (rows,cols,selections,increments) for item in collection if item.get("relation", "").lower().endswith(".cnv")}
-    fieldnames={f["name"].upper() for f in fields}
-    municipality=municipality_field(system,fieldnames)
-    return {"ok":True,"file":{"path":relative,"name":path.name,"system":system,"kind":kind,"uf":filename_match.group("uf").upper()},"dbfPath":dbf_identity["path"] if dbf_identity else None,"dbfIdentity":dbf_identity,"sourceIdentity":cache_file_identity(path),"definition":{"name":defname,"archive":f"uploads/DEFINICOES/originais/TAB_{system}.zip","size":len(definition),"relationFiles":len(relationFiles)},"fields":fields,"lineOptions":rows,"columnOptions":cols,"selectionOptions":selections,"increments":increments,"groupField":group,"municipalityField":municipality,"recordCount":records}
+    source_identity=cache_file_identity(path)
+    archive=ensure_archive(system)
+    definition_identity=cache_file_identity(archive)
+    identity={"cacheVersion":1,"parser":"official-def-schema-v1","source":source_identity,"dbf":dbf_identity,"definition":definition_identity,"kind":kind,"system":system}
+    target=cache_target("schemas",identity)
+    with interprocess_lock(target.with_suffix(".lock")):
+        cached=cache_read(target)
+        cached_definition=cached.get("definition") if isinstance(cached,dict) else None
+        if isinstance(cached,dict) and isinstance(cached_definition,dict) and cached.get("ok") is True and cached.get("sourceIdentity")==source_identity and cached_definition.get("identity")==definition_identity:
+            return cached
+        fields,records=dbc_header(path)
+        defname,definition=archive_def(system,kind)
+        if definition is None: raise RuntimeError(f"A definição {defname or 'do arquivo'} não foi encontrada no pacote oficial {system}.")
+        rows,cols,selections,increments,group=parse_def(definition,fields)
+        add_sp_identifier_options(kind,[f["name"] for f in fields],rows)
+        relationFiles={item.get("relation", "").lower() for collection in (rows,cols,selections,increments) for item in collection if item.get("relation", "").lower().endswith(".cnv")}
+        fieldnames={f["name"].upper() for f in fields}
+        municipality=municipality_field(system,fieldnames)
+        result={"ok":True,"file":{"path":relative,"name":path.name,"system":system,"kind":kind,"uf":filename_match.group("uf").upper()},"dbfPath":dbf_identity["path"] if dbf_identity else None,"dbfIdentity":dbf_identity,"sourceIdentity":source_identity,"definition":{"name":defname,"archive":f"uploads/DEFINICOES/originais/TAB_{system}.zip","size":len(definition),"identity":definition_identity,"relationFiles":len(relationFiles)},"fields":fields,"lineOptions":rows,"columnOptions":cols,"selectionOptions":selections,"increments":increments,"groupField":group,"municipalityField":municipality,"recordCount":records}
+        cache_write(target,result,max_bytes=12_000_000,keep=100)
+        return result
 
 def preset_context(relative: str):
     path=safe_file(relative); system,kind,match=meta(path); fields,_=dbc_header(path)
@@ -753,9 +974,6 @@ def read_preset_store():
             if name!=item.get("name"):
                 item["name"]=name
                 changed=True
-        if changed:
-            try: write_preset_store(data)
-            except OSError: pass
         return data
     except (OSError,ValueError,TypeError): return {"version":1,"items":[]}
 
@@ -815,11 +1033,12 @@ def save_preset(payload):
     relative=str(payload.get("path") or ""); name=" ".join(repair_mojibake_text(str(payload.get("name") or "")).split())
     if not name or len(name)>80: raise ValueError("Dê um nome com até 80 caracteres para a combinação.")
     context,options,summary=validated_preset_options(relative,payload.get("options"))
-    store=read_preset_store(); items=[item for item in store["items"] if isinstance(item,dict)]
-    if len(items)>=250: raise ValueError("O limite de 250 combinações salvas foi atingido.")
-    now=time.time()
-    item={"id":secrets.token_hex(12),"name":name,"createdAt":now,"updatedAt":now,"signature":context["signature"],"system":context["system"],"kind":context["kind"],"uf":context["uf"],"definition":context["definition"],"options":options,**summary}
-    items.append(item); write_preset_store({"version":1,"items":items})
+    with interprocess_lock(UPLOADS/".jobs"/"storage.lock"):
+        store=read_preset_store(); items=[item for item in store["items"] if isinstance(item,dict)]
+        if len(items)>=250: raise ValueError("O limite de 250 combinações salvas foi atingido.")
+        now=time.time()
+        item={"id":secrets.token_hex(12),"name":name,"createdAt":now,"updatedAt":now,"signature":context["signature"],"system":context["system"],"kind":context["kind"],"uf":context["uf"],"definition":context["definition"],"options":options,**summary}
+        items.append(item); write_preset_store({"version":1,"items":items})
     return {"ok":True,"preset":item}
 
 def get_preset(payload):
@@ -831,10 +1050,11 @@ def get_preset(payload):
 
 def delete_preset(payload):
     context=preset_context(str(payload.get("path") or "")); preset_id=str(payload.get("preset_id") or "")
-    store=read_preset_store(); items=[item for item in store["items"] if isinstance(item,dict)]
-    kept=[item for item in items if not (item.get("id")==preset_id and item.get("signature")==context["signature"])]
-    if len(kept)==len(items): raise ValueError("A combinação não foi encontrada para este tipo de arquivo.")
-    write_preset_store({"version":1,"items":kept})
+    with interprocess_lock(UPLOADS/".jobs"/"storage.lock"):
+        store=read_preset_store(); items=[item for item in store["items"] if isinstance(item,dict)]
+        kept=[item for item in items if not (item.get("id")==preset_id and item.get("signature")==context["signature"])]
+        if len(kept)==len(items): raise ValueError("A combinação não foi encontrada para este tipo de arquivo.")
+        write_preset_store({"version":1,"items":kept})
     return {"ok":True,"deleted":1}
 
 def category_values(payload):
@@ -846,7 +1066,8 @@ def category_values(payload):
         if not isinstance(entry,dict): raise ValueError("Uma das bases selecionadas é inválida.")
         relative=str(entry.get("path") or ""); source=safe_file(relative); current_system,current_kind,filename_match=meta(source); current_uf=filename_match.group("uf").upper()
         if sources and (current_system,current_kind,current_uf)!=(sources[0]["system"],sources[0]["kind"],sources[0]["uf"]): raise ValueError("Os filtros precisam pertencer à mesma família de arquivos.")
-        path=safe_dbf(entry.get("dbfPath") or converted_relative(relative))
+        canonical_relative=source.relative_to(UPLOADS).as_posix()
+        path=safe_dbf(entry.get("dbfPath") or converted_relative(canonical_relative),canonical_relative)
         _,_,_,current_fields=dbf_layout(path)
         if sources and (set(current_fields)!=set(sources[0]["fields"]) or any((current_fields[name]["type"],current_fields[name]["length"],current_fields[name]["decimals"])!=(info["type"],info["length"],info["decimals"]) for name,info in sources[0]["fields"].items())): raise ValueError(f"O arquivo {source.name} possui campos diferentes dos demais selecionados.")
         sources.append({"source":source,"path":path,"system":current_system,"kind":current_kind,"uf":current_uf,"fields":current_fields})
@@ -868,22 +1089,23 @@ def category_values(payload):
     archive=UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip"
     identity={"cacheVersion":8,"dbfs":[cache_file_identity(item["path"]) for item in sources],"option":option["id"],"type":option_type,"municipalityCode":municipality,"definition":cache_file_identity(archive) if archive.is_file() else defname}
     target=cache_target("category-values",identity)
-    cached=cache_read(target)
-    if cached is not None: return cached
-    names=[field]
-    values=set(); truncated=False
-    for item in sources:
-        for record in iter_dbf_fields(item["path"],names,pre_filter=(munfield,municipality) if usemun else None):
-            value=record[0]
-            if not value: continue
-            if value not in values:
-                if len(values)>=5000: truncated=True
-                else: values.add(value)
-    mapping=relation_mapping(system,option)
-    ordered=sorted(values,key=lambda value:(cnv_label(mapping,value).casefold(),value))
-    result={"ok":True,"option":option["id"],"optionType":option_type,"field":field,"values":[{"value":value,"label":cnv_label(mapping,value)} for value in ordered],"truncated":truncated}
-    cache_write(target,result)
-    return result
+    with interprocess_lock(target.with_suffix(".lock")):
+        cached=cache_read(target)
+        if cached is not None: return cached
+        names=[field]
+        values=set(); truncated=False
+        for item in sources:
+            for record in iter_dbf_fields(item["path"],names,pre_filter=(munfield,municipality) if usemun else None):
+                value=record[0]
+                if not value: continue
+                if value not in values:
+                    if len(values)>=5000: truncated=True
+                    else: values.add(value)
+        mapping=relation_mapping(system,option)
+        ordered=sorted(values,key=lambda value:(cnv_label(mapping,value).casefold(),value))
+        result={"ok":True,"option":option["id"],"optionType":option_type,"field":field,"values":[{"value":value,"label":cnv_label(mapping,value)} for value in ordered],"truncated":truncated}
+        cache_write(target,result)
+        return result
 
 def column_values(payload):
     payload={**payload,"optionType":"column"}
@@ -949,7 +1171,7 @@ def tabulate(payload, progress=None):
     sources=[]
     for item in raw_sources:
         if not isinstance(item,dict): raise ValueError("A lista de arquivos é inválida.")
-        source=safe_file(item.get("path","")); system,kind,filename_match=meta(source); uf=filename_match.group("uf").upper(); dbf=safe_dbf(item.get("dbfPath") or converted_relative(item.get("path","")))
+        source=safe_file(item.get("path","")); canonical_relative=source.relative_to(UPLOADS).as_posix(); system,kind,filename_match=meta(source); uf=filename_match.group("uf").upper(); dbf=safe_dbf(item.get("dbfPath") or converted_relative(canonical_relative),canonical_relative)
         if sources and (system,kind,uf)!=(sources[0]["system"],sources[0]["kind"],sources[0]["uf"]): raise ValueError("Todos os arquivos precisam pertencer à mesma família, tipo de base e unidade da Federação.")
         sources.append({"source":source,"dbf":dbf,"system":system,"kind":kind,"uf":uf})
     system,kind=sources[0]["system"],sources[0]["kind"]

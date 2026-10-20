@@ -1,4 +1,11 @@
 Options -Indexes
-<FilesMatch "^(manifest\.json|.*\.part)$">
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^(?:\.git|\.build|engine|packaging|vendor|tests)(?:/|$) - [F,L,NC]
+  RewriteRule ^uploads(?:/|$) - [F,L,NC]
+  RewriteRule (^|/)\.(?!well-known(?:/|$)) - [F,L]
+  RewriteRule \.(?:py|pyc|c|h|ini|log|sqlite|db|zip|part|tmp)$ - [F,L,NC]
+</IfModule>
+<FilesMatch "^(?:security\.php|.*\.ini|.*\.log)$">
   Require all denied
 </FilesMatch>

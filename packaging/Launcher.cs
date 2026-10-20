@@ -5,6 +5,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -15,6 +16,9 @@ internal static class LauncherProgram
     private static int port;
     private static string dataDirectory;
     private static string logPath;
+    private static string selfTestLogDirectory;
+    private static CookieContainer selfTestCookies = new CookieContainer();
+    private static string selfTestCsrfToken = String.Empty;
     private static readonly object logLock = new object();
 
     [STAThread]
@@ -88,7 +92,16 @@ internal static class LauncherProgram
         else
             dataDirectory = ResolveDataDirectory();
         Directory.CreateDirectory(dataDirectory);
-        string logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SPPtab", "logs");
+        string logDirectory;
+        if (selfTest)
+        {
+            selfTestLogDirectory = Path.Combine(Path.GetTempPath(), "SPPtab-selftest-logs-" + Guid.NewGuid().ToString("N"));
+            logDirectory = selfTestLogDirectory;
+        }
+        else
+        {
+            logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SPPtab", "logs");
+        }
         Directory.CreateDirectory(logDirectory);
         logPath = Path.Combine(logDirectory, "php-server.log");
         port = GetAvailablePort();
@@ -103,6 +116,7 @@ internal static class LauncherProgram
         start.RedirectStandardError = true;
         start.EnvironmentVariables["TABWIN2_PYTHON"] = PythonPath;
         start.EnvironmentVariables["TABWIN2_DATA_DIR"] = dataDirectory;
+        start.EnvironmentVariables["TABWIN2_ALLOWED_HOSTS"] = "127.0.0.1:" + port;
         start.EnvironmentVariables["PHPRC"] = IniPath;
         start.EnvironmentVariables["PYTHONNOUSERSITE"] = "1";
         start.EnvironmentVariables["PATH"] = Path.Combine(BaseDirectory, "runtime", "php") + ";" +
@@ -148,8 +162,11 @@ internal static class LauncherProgram
         request.Timeout = timeout;
         request.ReadWriteTimeout = timeout;
         request.Proxy = null;
+        request.CookieContainer = selfTestCookies;
         if (body != null)
         {
+            request.Headers["Origin"] = "http://127.0.0.1:" + port;
+            if (!String.IsNullOrEmpty(selfTestCsrfToken)) request.Headers["X-SPPtab-CSRF"] = selfTestCsrfToken;
             byte[] bytes = Encoding.UTF8.GetBytes(body);
             request.ContentType = "application/json; charset=utf-8";
             request.ContentLength = bytes.Length;
@@ -157,7 +174,16 @@ internal static class LauncherProgram
         }
         using (WebResponse response = request.GetResponse())
         using (Stream stream = response.GetResponseStream())
-        using (StreamReader reader = new StreamReader(stream, Encoding.UTF8)) return reader.ReadToEnd();
+        using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+        {
+            string content = reader.ReadToEnd();
+            if (method == "GET" && relative == "")
+            {
+                Match match = Regex.Match(content, "name=\\\"csrf-token\\\" content=\\\"([a-f0-9]{64})\\\"", RegexOptions.IgnoreCase);
+                if (match.Success) selfTestCsrfToken = match.Groups[1].Value;
+            }
+            return content;
+        }
     }
 
     private static bool WaitForServer(int seconds)
@@ -204,14 +230,31 @@ internal static class LauncherProgram
         string resultFile = Path.Combine(Path.GetTempPath(), "TabWin2-selftest.log");
         try
         {
+            selfTestCookies = new CookieContainer();
+            selfTestCsrfToken = String.Empty;
             StartServer(true);
             if (!WaitForServer(12)) throw new InvalidOperationException("O serviço PHP não respondeu em 12 segundos.");
             string html = Request("", "GET", null, 5000);
-            if (!html.ToLowerInvariant().Contains("spptab")) throw new InvalidOperationException("A página inicial não carregou corretamente.");
+            if (!html.ToLowerInvariant().Contains("spptab") || String.IsNullOrEmpty(selfTestCsrfToken)) throw new InvalidOperationException("A página inicial ou a proteção de sessão não carregou corretamente.");
             string css = Request("assets/app.css", "GET", null, 5000);
             string js = Request("assets/app.js", "GET", null, 5000);
             if (css.Length < 1000 || !css.Contains("{") || js.Length < 1000)
                 throw new InvalidOperationException("Os arquivos visuais (CSS/JavaScript) não foram carregados corretamente.");
+            string validCsrfToken = selfTestCsrfToken;
+            selfTestCsrfToken = String.Empty;
+            try
+            {
+                Request("api.php", "POST", "{\"action\":\"catalog\"}", 5000);
+                throw new InvalidOperationException("A API aceitou uma chamada sem token CSRF.");
+            }
+            catch (WebException ex)
+            {
+                HttpWebResponse response = ex.Response as HttpWebResponse;
+                if (response == null || response.StatusCode != HttpStatusCode.Forbidden)
+                    throw new InvalidOperationException("A API não bloqueou a chamada sem token CSRF.");
+                response.Close();
+            }
+            finally { selfTestCsrfToken = validCsrfToken; }
             string catalog = Request("api.php", "POST", "{\"action\":\"catalog\"}", 15000);
             if (!catalog.Contains("\"ok\":true") || !(catalog.Contains("\"files\": []") || catalog.Contains("\"files\":[]")))
                 throw new InvalidOperationException("A API não conseguiu chamar o mecanismo Python: " + catalog);
@@ -243,6 +286,12 @@ internal static class LauncherProgram
         {
             StopServer();
             try { if (dataDirectory != null && dataDirectory.Contains("TabWin2-selftest-")) Directory.Delete(dataDirectory, true); } catch { }
+            try
+            {
+                if (!string.IsNullOrEmpty(selfTestLogDirectory) && selfTestLogDirectory.StartsWith(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase) && Directory.Exists(selfTestLogDirectory))
+                    Directory.Delete(selfTestLogDirectory, true);
+            }
+            catch { }
         }
     }
 

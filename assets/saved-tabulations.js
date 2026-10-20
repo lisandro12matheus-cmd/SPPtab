@@ -12,7 +12,7 @@
   async function request(payload) {
     const response = await fetch('api.php', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-SPPtab-CSRF': document.querySelector('meta[name="csrf-token"]')?.content || '' },
       credentials: 'same-origin',
       body: JSON.stringify(payload),
     });

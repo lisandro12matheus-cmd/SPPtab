@@ -34,8 +34,16 @@ As tabulações leem apenas os campos selecionados no DBF e descartam os registr
 
 ## Requisitos
 
-- Apache/PHP 8 com `proc_open` habilitado (XAMPP).
-- Python 3.10 ou superior. Se o Apache não localizar o Python, defina `TABWIN2_PYTHON` antes de iniciar o Apache.
+- Apache com uma versão do PHP ainda suportada pelo projeto PHP e `proc_open` habilitado (XAMPP).
+- Python 3.10 ou superior para o mecanismo de dados. No XAMPP local, configure `TABWIN2_PYTHON` com o caminho completo de uma versão suportada. Para desenvolvimento sem alterar o ambiente global do Apache, use `uploads/.config/python-path.txt`; esse arquivo é local e não entra no Git. O pacote portátil usa o Python 3.14.8 que acompanha o SPPtab.
 - Acesso de saída ao serviço HTTPS do DATASUS ou ao FTP público.
 
 O mecanismo inclui o leitor DBF e o descompactador BLAST necessários para trabalhar sem instalar pacotes Python no ambiente do Apache. Os créditos e licenças dos componentes estão em `engine/vendor/`.
+
+O empacotamento verifica o SHA-256 dos ZIPs oficiais do PHP e do Python antes de extrair, inclusive quando o arquivo já existe no cache de montagem. O Python embutido está fixado na versão 3.14.8 ([fonte oficial e checksum](https://www.python.org/downloads/release/python-3148/)): `a93abe456ab01bd96d7a085b3cdb6566b3063f4241360d114142fbdb07f0a310`. O PHP embutido é 8.5.11; seu checksum está no manifesto oficial de [releases Windows do PHP](https://www.php.net/~windows/releases/releases.json): `0ea96e0d2b9b737a6036f05cf4e95c49313faa6d0f27bd97edb2742503f0c043`. As URLs e os hashes esperados também ficam registrados em `packaging/build.ps1`. Os hashes dos executáveis BLAST incluídos no código estão em `engine/vendor/SOURCES.md`.
+
+## Acesso local e rede
+
+O SPPtab aceita por padrão apenas o acesso local por `localhost`, `127.0.0.1` ou `::1` nas portas locais padrão. Em uma instalação Apache com outro nome ou porta, configure `TABWIN2_ALLOWED_HOSTS` com as autoridades exatas permitidas; não use curingas. O inicializador portátil define automaticamente o host e a porta de loopback escolhidos.
+
+As chamadas da interface usam sessão local e token CSRF. O fallback FTP permanece disponível para redes que bloqueiam HTTPS; para desativá-lo conscientemente, configure `TABWIN2_ALLOW_FTP_FALLBACK=0`. A interface informa quando um arquivo novo veio por HTTPS ou FTP, e o modo usado também fica registrado no manifesto local.

@@ -63,7 +63,7 @@
 
   async function request(payload) {
     const response = await fetch(apiUrl, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
+      method: 'POST', headers: {'Content-Type': 'application/json', 'X-SPPtab-CSRF': document.querySelector('meta[name="csrf-token"]')?.content || ''},
       body: JSON.stringify(payload), credentials: 'same-origin'
     });
     let data;
@@ -659,7 +659,9 @@
       const count = data.files.length;
       const already = data.files.filter((file) => file.already_present).length;
       const suffix = already ? ` ${already} ${already === 1 ? 'já estava na biblioteca.' : 'já estavam na biblioteca.'}` : '';
-      showNotice(`${count} ${count === 1 ? 'arquivo salvo' : 'arquivos salvos'} em uploads/${system.value.toUpperCase()}/${year.value}/${String(month.value).padStart(2,'0')}.${suffix}`, 'success');
+      const sources = [...new Set(data.files.map((file) => file.source_mode).filter((mode) => mode && mode !== 'biblioteca local'))];
+      const sourceNote = sources.length ? ` Fonte: ${sources.join(' + ')}.` : '';
+      showNotice(`${count} ${count === 1 ? 'arquivo salvo' : 'arquivos salvos'} em uploads/${system.value.toUpperCase()}/${year.value}/${String(month.value).padStart(2,'0')}.${suffix}${sourceNote}`, 'success');
       const saved = new Map(data.files.map((file) => [file.name.toUpperCase(), file]));
       const markImported = (file) => {
         const imported = saved.get(file.name.toUpperCase());

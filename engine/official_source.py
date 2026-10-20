@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
-import shutil
 import urllib.parse
 import urllib.request
 import zipfile
+import tempfile
+import os
+import shutil
 from pathlib import Path
 
 
@@ -20,6 +22,38 @@ VALID_UFS = {
     "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG",
     "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
 }
+MAX_PORTAL_JSON_BYTES = 5 * 1024 * 1024
+def _size_limit(name: str, default: int) -> int:
+    try:
+        configured = int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        configured = default
+    return max(64 * 1024 * 1024, min(configured, 16 * 1024 * 1024 * 1024))
+
+
+MAX_ARCHIVE_BYTES = _size_limit("TABWIN2_MAX_ARCHIVE_BYTES", 2 * 1024 * 1024 * 1024)
+MAX_DBC_BYTES = _size_limit("TABWIN2_MAX_DBC_BYTES", 4 * 1024 * 1024 * 1024)
+
+
+class _VerifiedHTTPSRedirect(urllib.request.HTTPRedirectHandler):
+    def __init__(self, allowed_host: str):
+        super().__init__()
+        self.allowed_host = allowed_host.lower()
+
+    def redirect_request(self, request, response, code, message, headers, new_url):
+        target = urllib.parse.urljoin(request.full_url, new_url)
+        parsed = urllib.parse.urlparse(target)
+        if parsed.scheme != "https" or parsed.hostname != self.allowed_host or parsed.port not in (None, 443) or parsed.username or parsed.password:
+            raise ValueError("O serviço oficial tentou redirecionar a conexão para um destino não permitido.")
+        return super().redirect_request(request, response, code, message, headers, target)
+
+
+def open_verified_https(request, allowed_host: str, timeout: int):
+    source = urllib.parse.urlparse(request.full_url)
+    if source.scheme != "https" or source.hostname != allowed_host.lower() or source.port not in (None, 443) or source.username or source.password:
+        raise ValueError("O endereço HTTPS solicitado não corresponde à fonte oficial esperada.")
+    opener = urllib.request.build_opener(_VerifiedHTTPSRedirect(allowed_host))
+    return opener.open(request, timeout=timeout)
 
 
 def _post_json(endpoint: str, fields: list[tuple[str, str]], timeout: int) -> object:
@@ -30,10 +64,11 @@ def _post_json(endpoint: str, fields: list[tuple[str, str]], timeout: int) -> ob
         headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": "SPPtab/1.0"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        if urllib.parse.urlparse(response.geturl()).hostname != "datasus.saude.gov.br":
-            raise ValueError("O serviço oficial redirecionou a consulta para outro domínio.")
-        return json.load(response)
+    with open_verified_https(request, "datasus.saude.gov.br", timeout) as response:
+        body = response.read(MAX_PORTAL_JSON_BYTES + 1)
+        if len(body) > MAX_PORTAL_JSON_BYTES:
+            raise ValueError("O serviço oficial retornou uma resposta grande demais.")
+        return json.loads(body.decode("utf-8"))
 
 
 def list_files(system: str, year: int, month: int | None, uf: str = "PA") -> list[str]:
@@ -67,27 +102,62 @@ def download_file(remote: str, expected_name: str, destination: Path, progress=N
     if not parsed or parsed.scheme != "https" or parsed.hostname != "datasus.saude.gov.br" or not parsed.path.startswith("/wp-content/zipupload/") or not parsed.path.endswith("/arquivo.zip"):
         raise ValueError("O DATASUS retornou um endereço de download inesperado.")
 
-    archive_path = destination.with_name(destination.name + ".zip.part")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    fd, archive_name = tempfile.mkstemp(prefix="spptab-portal-", suffix=".zip.part", dir=str(destination.parent))
+    os.close(fd)
+    archive_path = Path(archive_name)
+    output_path = None
     try:
         request = urllib.request.Request(url, headers={"User-Agent": "SPPtab/1.0"})
-        with urllib.request.urlopen(request, timeout=120) as response, archive_path.open("wb") as output:
-            if urllib.parse.urlparse(response.geturl()).hostname != "datasus.saude.gov.br":
-                raise ValueError("O download foi redirecionado para outro domínio.")
+        with open_verified_https(request, "datasus.saude.gov.br", 120) as response, archive_path.open("wb") as output:
             total_size = int(response.headers.get("Content-Length") or 0)
+            if total_size > MAX_ARCHIVE_BYTES:
+                raise ValueError("O pacote oficial ultrapassa o limite configurado para download.")
+            if shutil.disk_usage(destination.parent).free < total_size + 32 * 1024 * 1024:
+                raise ValueError("Não há espaço livre suficiente para receber o arquivo DATASUS.")
             downloaded = 0
             while True:
                 chunk = response.read(1024 * 1024)
                 if not chunk:
                     break
+                if downloaded + len(chunk) > MAX_ARCHIVE_BYTES:
+                    raise ValueError("O pacote oficial ultrapassou o limite configurado durante o download.")
                 output.write(chunk)
                 downloaded += len(chunk)
                 if progress:
                     progress(downloaded, total_size or None)
         with zipfile.ZipFile(archive_path) as archive:
-            candidates = [entry for entry in archive.infolist() if not entry.is_dir() and Path(entry.filename).name.lower() == expected_name.lower()]
-            if len(candidates) != 1 or candidates[0].file_size < 32:
+            infos = archive.infolist()
+            if len(infos) > 50000:
+                raise ValueError("O pacote oficial contém itens demais.")
+            candidates = [entry for entry in infos if not entry.is_dir() and _zip_basename(entry.filename).lower() == expected_name.lower()]
+            if len(candidates) != 1 or candidates[0].file_size < 32 or candidates[0].file_size > MAX_DBC_BYTES:
                 raise ValueError("O pacote oficial não contém o arquivo solicitado ou está incompleto.")
-            with archive.open(candidates[0]) as source_file, destination.open("wb") as output:
-                shutil.copyfileobj(source_file, output, length=1024 * 1024)
+            if shutil.disk_usage(destination.parent).free < candidates[0].file_size + 16 * 1024 * 1024:
+                raise ValueError("Não há espaço livre suficiente para extrair o arquivo DATASUS.")
+            fd, output_name = tempfile.mkstemp(prefix="spptab-dbc-", suffix=".part", dir=str(destination.parent))
+            output_path = Path(output_name)
+            written = 0
+            try:
+                with os.fdopen(fd, "wb") as output, archive.open(candidates[0]) as source_file:
+                    while True:
+                        chunk = source_file.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        written += len(chunk)
+                        if written > MAX_DBC_BYTES or written > candidates[0].file_size:
+                            raise ValueError("O arquivo extraído ultrapassou o limite declarado no pacote.")
+                        output.write(chunk)
+                if written != candidates[0].file_size:
+                    raise ValueError("O arquivo extraído está incompleto.")
+                os.replace(output_path, destination)
+                output_path = None
+            finally:
+                if output_path is not None:
+                    output_path.unlink(missing_ok=True)
     finally:
         archive_path.unlink(missing_ok=True)
+
+
+def _zip_basename(name: str) -> str:
+    return name.replace("\\", "/").rsplit("/", 1)[-1]

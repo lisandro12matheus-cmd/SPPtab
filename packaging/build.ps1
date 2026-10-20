@@ -12,9 +12,10 @@ $AppPayload = Join-Path $PayloadRoot 'App'
 $PhpPayload = Join-Path $AppPayload 'runtime\php'
 $PythonPayload = Join-Path $AppPayload 'runtime\python'
 $AppFiles = Join-Path $AppPayload 'app'
-$PythonZip = Join-Path $RuntimeCache 'python-3.14.6-embed-amd64.zip'
+$PythonZip = Join-Path $RuntimeCache 'python-3.14.8-embed-amd64.zip'
 $PayloadZip = Join-Path $BuildRoot 'SPPtab-Payload.zip'
-$PythonUrl = 'https://www.python.org/ftp/python/3.14.6/python-3.14.6-embed-amd64.zip'
+$PythonUrl = 'https://www.python.org/ftp/python/3.14.8/python-3.14.8-embed-amd64.zip'
+$PythonSha256 = 'a93abe456ab01bd96d7a085b3cdb6566b3063f4241360d114142fbdb07f0a310'
 $PhpZip = Join-Path $RuntimeCache 'php-8.5.11-nts-x64.zip'
 $PhpUrl = 'https://downloads.php.net/~windows/releases/archives/php-8.5.11-nts-Win32-vs17-x64.zip'
 $PhpSha256 = '0ea96e0d2b9b737a6036f05cf4e95c49313faa6d0f27bd97edb2742503f0c043'
@@ -41,6 +42,8 @@ if (-not (Test-Path -LiteralPath $PythonZip)) {
     & curl.exe --fail --location --silent --show-error --output $PythonZip $PythonUrl
     if ($LASTEXITCODE -ne 0) { throw 'Não foi possível baixar o Python portátil oficial.' }
 }
+$downloadedPythonHash = (Get-FileHash -LiteralPath $PythonZip -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($downloadedPythonHash -ne $PythonSha256) { throw 'A verificação SHA-256 do runtime Python não confere.' }
 $PythonExtract = Join-Path $BuildRoot 'python-extracted'
 Expand-Archive -LiteralPath $PythonZip -DestinationPath $PythonExtract -Force
 Copy-Item -Path (Join-Path $PythonExtract '*') -Destination $PythonPayload -Recurse -Force
@@ -132,7 +135,7 @@ if (-not $SkipSelfTests) {
     $vendorPath = Join-Path $AppFiles 'engine\vendor'
     $enginePath = Join-Path $AppFiles 'engine'
     $dataPathSmoke = Join-Path $BuildRoot 'data-path-selftest'
-    $pythonSmoke = "import os, sys, ftplib, json, zipfile; os.environ['TABWIN2_DATA_DIR']=r'$dataPathSmoke'; sys.path.insert(0, r'$vendorPath'); sys.path.insert(0, r'$enginePath'); import dbfread, dbctodbf, datasus, official_source; assert datasus.library_folder('sia', 2026, 7) == 'uploads/SIA/2026/07'; print('python-ok')"
+    $pythonSmoke = "import os, sys, ftplib, json, zipfile; os.environ['TABWIN2_DATA_DIR']=r'$dataPathSmoke'; sys.path.insert(0, r'$vendorPath'); sys.path.insert(0, r'$enginePath'); import dbfread, dbctodbf, datasus, official_source, storage_lock, tabulation; assert datasus.library_folder('sia', 2026, 7) == 'uploads/SIA/2026/07'; print('python-ok')"
     $pythonTest = & $embeddedPython -c $pythonSmoke
     if ($LASTEXITCODE -ne 0 -or $pythonTest -notmatch 'python-ok') { throw 'O Python portátil ou as bibliotecas DBF não passaram pela verificação.' }
 }
@@ -167,7 +170,7 @@ try {
 finally {
     $archive.Dispose()
 }
-$requiredEntries = @('SPPtab.exe', 'runtime/php/php.exe', 'runtime/php/php.ini', 'runtime/python/python.exe', 'app/api.php', 'app/bases.php', 'app/tabular.php', 'app/pacotes.php', 'app/minhas-tabulacoes.php', 'app/assets/presets.css', 'app/assets/saved-tabulations.js', 'app/assets/tabulations-nav.js', 'app/packaging/router.php')
+$requiredEntries = @('SPPtab.exe', 'runtime/php/php.exe', 'runtime/php/php.ini', 'runtime/python/python.exe', 'app/api.php', 'app/security.php', 'app/engine/storage_lock.py', 'app/bases.php', 'app/tabular.php', 'app/pacotes.php', 'app/minhas-tabulacoes.php', 'app/assets/presets.css', 'app/assets/saved-tabulations.js', 'app/assets/tabulations-nav.js', 'app/packaging/router.php')
 $archiveCheck = [IO.Compression.ZipFile]::OpenRead($PayloadZip)
 try {
     $actualEntries = @($archiveCheck.Entries | ForEach-Object { $_.FullName })
@@ -195,7 +198,7 @@ finally {
 $portableCheck = [IO.Compression.ZipFile]::OpenRead($PortableOutput)
 try {
     $portableEntries = @($portableCheck.Entries | ForEach-Object { $_.FullName })
-    foreach ($entry in @('SPPtab/SPPtab.exe', 'SPPtab/runtime/php/php.exe', 'SPPtab/runtime/python/python.exe', 'SPPtab/app/index.php', 'SPPtab/app/bases.php', 'SPPtab/app/tabular.php', 'SPPtab/app/pacotes.php', 'SPPtab/app/minhas-tabulacoes.php', 'SPPtab/app/assets/app.css', 'SPPtab/app/assets/presets.css', 'SPPtab/app/assets/saved-tabulations.js', 'SPPtab/app/assets/tabulations-nav.js', 'SPPtab/LEIA-ME.txt')) {
+    foreach ($entry in @('SPPtab/SPPtab.exe', 'SPPtab/runtime/php/php.exe', 'SPPtab/runtime/python/python.exe', 'SPPtab/app/index.php', 'SPPtab/app/security.php', 'SPPtab/app/engine/storage_lock.py', 'SPPtab/app/bases.php', 'SPPtab/app/tabular.php', 'SPPtab/app/pacotes.php', 'SPPtab/app/minhas-tabulacoes.php', 'SPPtab/app/assets/app.css', 'SPPtab/app/assets/presets.css', 'SPPtab/app/assets/saved-tabulations.js', 'SPPtab/app/assets/tabulations-nav.js', 'SPPtab/LEIA-ME.txt')) {
         if ($portableEntries -notcontains $entry) { throw "A pasta portátil não contém o componente obrigatório: $entry" }
     }
 }

@@ -1,7 +1,7 @@
-<?php declare(strict_types=1); ?><!doctype html>
+<?php declare(strict_types=1); require_once __DIR__ . '/security.php'; tabwin2_page_security(); ?><!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>Minhas bases · SPPtab</title>
   <link rel="stylesheet" href="assets/app.css?v=14"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/tabular-refine.css?v=18"><link rel="stylesheet" href="assets/bases.css?v=2">
 </head>
@@ -51,6 +51,6 @@
     <div class="remove-dialog-error" id="removeError" role="alert" hidden></div>
     <div class="remove-dialog-actions"><button class="button-secondary" id="cancelRemove" type="button">Manter arquivo</button><button class="button remove-confirm" id="confirmRemove" type="button">Remover arquivo</button></div>
   </dialog>
-      <script src="assets/bases.js?v=6" defer></script><script src="assets/tabulations-nav.js?v=1" defer></script>
+      <script src="assets/bases.js?v=7" defer></script><script src="assets/tabulations-nav.js?v=1" defer></script>
 </body>
 </html>

@@ -596,7 +596,6 @@
 
   function draw(data, updating = false) {
     const previous = result;
-    if (updating && previous?.savedRecords && !data.savedRecords) data.savedRecords = previous.savedRecords;
     if (updating && previous) {
       const preserved = new Map();
       for (const key of ['row', 'rowtotal']) {
@@ -654,8 +653,10 @@
     $('#printTable').disabled = false;
   }
 
-  function escapeCsv(value) {
-    return `"${String(value ?? '').replace(/"/g, '""')}"`;
+  function escapeCsv(value, textual = false) {
+    let text = String(value ?? '');
+    if (textual && /^[\u0000-\u0020]*[=+\-@]/.test(text)) text = `'${text}`;
+    return `"${text.replace(/"/g, '""')}"`;
   }
 
   $('#exportCsv').addEventListener('click', () => {
@@ -678,7 +679,7 @@
       ? rows.reduce((sum, row) => sum + numeric(row.values?.[index]), 0)
       : numeric(result.columnTotals?.[index]));
 
-    const blob = new Blob(['\ufeff' + lines.map((row) => row.map(escapeCsv).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const blob = new Blob(['\ufeff' + lines.map((row, rowIndex) => row.map((value, columnIndex) => escapeCsv(value, rowIndex === 0 || columnIndex === 0)).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;

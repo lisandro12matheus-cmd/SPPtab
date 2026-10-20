@@ -1,11 +1,14 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/security.php';
+tabwin2_page_security();
 ?><!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f4f7f8">
+  <meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>SPPtab · DATASUS</title>
   <link rel="stylesheet" href="assets/app.css?v=14">
   <link rel="stylesheet" href="assets/file-selection.css?v=1">
@@ -108,7 +111,7 @@ declare(strict_types=1);
       <footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> <span id="pageStepLabel">etapa 1 de 3</span></span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer>
     </main>
   </div>
-  <script src="assets/app.js?v=19" defer></script>
+  <script src="assets/app.js?v=20" defer></script>
   <script src="assets/tabulations-nav.js?v=1" defer></script>
   <script src="assets/launch-splash.js?v=2" defer></script>
 </body>
