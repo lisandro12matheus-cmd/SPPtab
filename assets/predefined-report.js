@@ -54,6 +54,7 @@
     complexity: { label:'Complexidade do procedimento', field:'complexityCode', nameField:'complexityName', allLabel:'Todas as complexidades', responseKey:'complexities', queryKey:'complexidade', sourceLabel:'Arquivo DATASUS · SIA/PA' }
   };
   const sihFilterDefinitions = {
+    manager: { label:'Gestor da produção', field:'UF_ZI', nameField:'UF_ZIName', responseKey:'managers', queryKey:'gestor', sourceLabel:'Arquivo DATASUS · SIH (município gestor)' },
     financing: { label:'Financiamento (MAC/FAEC)', field:'FINANC', nameField:'FINANCName', responseKey:'financings', queryKey:'financiamento', sourceLabel:'Arquivo DATASUS · SIH' },
     faecType: { label:'Subtipo do FAEC', field:'FAEC_TP', nameField:'FAEC_TPName', responseKey:'faecTypes', queryKey:'faec', sourceLabel:'Arquivo DATASUS · SIH' },
     complexity: { label:'Complexidade', field:'COMPLEX', nameField:'COMPLEXName', responseKey:'complexities', queryKey:'complexidade', sourceLabel:'Arquivo DATASUS · SIH' },
@@ -84,7 +85,7 @@
       filterNote:'O município e os demais filtros valem para toda a consulta. Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.',
       methodTitle:'Como ler glosas e rejeições:', methodText:' glosas são a diferença positiva entre o apresentado e o aprovado. A base ambulatorial não traz um total independente de rejeições; esse indicador conta linhas apresentadas com quantidade aprovada igual a zero.',
       detailPrefix:'Procedimentos SIGTAP', countMetric:'qtd_aprovada', countLabel:'QUANTIDADE APROVADA', valueMetric:'valor_aprovado', valueLabel:'VALOR APROVADO',
-      summaryTitle:'Produção por estabelecimento', detailTitlePrefix:'Procedimentos SIGTAP', detailCountLabel:'PROCEDIMENTOS SIGTAP',
+      summaryTitle:'Produção por estabelecimento', detailTitlePrefix:'Procedimentos SIGTAP', detailCountLabel:'COMPOSIÇÕES SIGTAP',
       filters:siaFilterDefinitions, tableSearchSummary:'Buscar estabelecimento ou CNES', tableSearchDetail:'Buscar código SIGTAP ou procedimento'
     },
     'sih-rd-producao': {
@@ -92,9 +93,9 @@
       workspaceTitle:'Produção Hospitalar · SIH/SUS', introLabel:'PRODUÇÃO HOSPITALAR · SIH/SUS', introTitle:'Produção hospitalar por estabelecimento.',
       introDescription:'AIHs e valores por hospital, com detalhamento do procedimento principal, complexidade e financiamento.',
       setupTitle:'Produção hospitalar por estabelecimento', setupDescription:'Escolha a UF e a competência das AIHs. Município e filtros adicionais são opcionais.',
-      emptyMessage:'Escolha a UF e a competência. Município da internação, financiamento (MAC/FAEC), subtipo FAEC, complexidade, natureza jurídica, natureza do prestador, gestão e caráter de atendimento são opcionais.',
+      emptyMessage:'Escolha a UF e a competência. Município da internação, gestor da produção, financiamento (MAC/FAEC), subtipo FAEC, complexidade, natureza jurídica, natureza do prestador, gestão e caráter de atendimento são opcionais.',
       municipalityLabel:'MUNICÍPIO DA INTERNAÇÃO',
-      filterNote:'O município selecionado representa o local da internação e é aplicado a todo o relatório. Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.',
+      filterNote:'O município selecionado representa o local da internação. Gestor da produção usa o Município Gestor oficial (UF_ZI) das AIHs. Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.',
       methodTitle:'Como ler os dados hospitalares:', methodText:' o relatório usa AIHs processadas no SIH/RD. Renovações de longa permanência podem aparecer em competências sucessivas; rejeições RJ/ER não entram nesta soma.',
       detailPrefix:'Procedimento principal', countMetric:'qtd_aih', countLabel:'AIHs PROCESSADAS', valueMetric:'valor_total', valueLabel:'VALOR TOTAL DAS AIHs',
       summaryTitle:'Produção hospitalar por estabelecimento', detailTitlePrefix:'Composição da AIH', detailCountLabel:'COMBINAÇÕES DE PROCEDIMENTO',
@@ -105,9 +106,9 @@
       workspaceTitle:'AIHs rejeitadas · SIH/SUS', introLabel:'REJEIÇÕES HOSPITALARES · SIH/SUS', introTitle:'AIHs rejeitadas por estabelecimento.',
       introDescription:'Quantidade e valores associados às AIHs rejeitadas, com os motivos registrados no processamento.',
       setupTitle:'AIHs rejeitadas por estabelecimento', setupDescription:'A consulta usa as AIHs rejeitadas na competência selecionada. Os filtros são opcionais.',
-      emptyMessage:'Escolha a UF e a competência. Município da internação, financiamento (MAC/FAEC), subtipo FAEC, complexidade, natureza jurídica, natureza do prestador, gestão e caráter de atendimento são opcionais.',
+      emptyMessage:'Escolha a UF e a competência. Município da internação, gestor da produção, financiamento (MAC/FAEC), subtipo FAEC, complexidade, natureza jurídica, natureza do prestador, gestão e caráter de atendimento são opcionais.',
       municipalityLabel:'MUNICÍPIO DA INTERNAÇÃO',
-      filterNote:'O município selecionado representa o local da internação e é aplicado às AIHs rejeitadas. Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.',
+      filterNote:'O município selecionado representa o local da internação. Gestor da produção usa o Município Gestor oficial (UF_ZI) das AIHs rejeitadas. Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.',
       methodTitle:'Como interpretar os valores:', methodText:' o relatório usa os valores registrados na própria base SIH/RJ. Os motivos vêm do SIH/ER e uma AIH pode ter mais de uma crítica, sem duplicar seus valores.',
       detailPrefix:'Composição da AIH', countMetric:'qtd_aih_rejeitada', countLabel:'AIHs REJEITADAS', valueMetric:'valor_rejeitado', valueLabel:'VALOR REJEITADO',
       summaryTitle:'AIHs rejeitadas por estabelecimento', detailTitlePrefix:'AIHs rejeitadas · composição e críticas', detailCountLabel:'COMBINAÇÕES DE PROCEDIMENTO',
@@ -119,9 +120,9 @@
       workspaceTitle:'Ocupação de leitos · SIH/SUS', introLabel:'OCUPAÇÃO DE LEITOS · SIH/SUS', introTitle:'Ocupação de leitos hospitalares.',
       introDescription:'Internações, diárias, rejeições e capacidade SUS por estabelecimento, com ligação às AIHs e aos serviços profissionais.',
       setupTitle:'Ocupação de leitos por estabelecimento', setupDescription:'Escolha a UF e a competência. Município e filtros adicionais são opcionais.',
-      emptyMessage:'Escolha a UF e a competência. Município, especialidade, financiamento, complexidade, natureza jurídica e demais filtros são opcionais.',
+      emptyMessage:'Escolha a UF e a competência. Município, gestor da produção, especialidade, financiamento, complexidade, natureza jurídica e demais filtros são opcionais.',
       municipalityLabel:'MUNICÍPIO DA INTERNAÇÃO',
-      filterNote:'Os filtros selecionados são aplicados às AIHs processadas e rejeitadas. Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.',
+      filterNote:'Os filtros selecionados são aplicados às AIHs processadas e rejeitadas. Gestor da produção usa o Município Gestor oficial (UF_ZI). Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.',
       methodTitle:'Como interpretar a ocupação:', methodText:' as diárias registradas vêm das AIHs processadas no SIH/RD. As rejeições entram apenas no saldo potencial, sem serem tratadas como internações confirmadas. A quantidade de leitos vem da consulta atual ao CNES e pode não corresponder exatamente à competência histórica.',
       countMetric:'aihCount', countLabel:'AIHs PROCESSADAS', valueMetric:'dailyCount', valueLabel:'DIÁRIAS SIH',
       summaryTitle:'Ocupação por estabelecimento', detailTitlePrefix:'AIHs e permanência', detailCountLabel:'AIHs DA UNIDADE',

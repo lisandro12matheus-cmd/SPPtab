@@ -39,6 +39,7 @@ PREDEFINED_FILTER_SPECS = (
     {"key":"complexity","code":"complexityCode","name":"complexityName","label":"Complexidade do procedimento","field":"PA_NIVCPL","relation":"CNV/COMPLEX.CNV","width":1,"allLabel":"Todas as complexidades","response":"complexities","url":"complexidade"},
 )
 PREDEFINED_SIH_FILTER_SPECS = (
+    {"key":"manager","label":"Gestor da produção","field":"UF_ZI","relation":"CNV/br_municgestor.cnv","width":6,"response":"managers","url":"gestor","stateScoped":True},
     {"key":"financing","label":"Financiamento (MAC/FAEC)","field":"FINANC","relation":"CNV/FINANC.CNV","width":2,"response":"financings","url":"financiamento"},
     {"key":"faecType","label":"Subtipo do FAEC","field":"FAEC_TP","relation":"CNV/TP_FINAN.CNV","width":6,"response":"faecTypes","url":"faec"},
     {"key":"complexity","label":"Complexidade","field":"COMPLEX","relation":"CNV/COMPLEX2.CNV","width":2,"response":"complexities","url":"complexidade"},
@@ -1337,7 +1338,7 @@ def predefined_sih_filter_options(payload: dict[str,Any]):
     if uf not in PREDEFINED_UF_CODES:
         raise ValueError("Selecione uma unidade da Federação válida.")
     archive_path=ensure_archive("SIH")
-    cache=cache_target("predefined-sih-filter-options",{"version":1,"archive":cache_file_identity(archive_path),"uf":uf})
+    cache=cache_target("predefined-sih-filter-options",{"version":2,"archive":cache_file_identity(archive_path),"uf":uf})
     cached=cache_read(cache)
     if isinstance(cached,dict) and cached.get("ok") is True:
         return cached
@@ -1346,10 +1347,14 @@ def predefined_sih_filter_options(payload: dict[str,Any]):
         raise RuntimeError("A definição oficial de AIH reduzida não está disponível.")
     options=_report_definition_options(definition)
     result={"ok":True,"uf":uf}
+    prefix=PREDEFINED_UF_CODES[uf]
     for spec in PREDEFINED_SIH_FILTER_SPECS:
         option=next((item for item in options if item.get("field")==spec["field"] and item.get("relation","").lower()==spec["relation"].lower()),None)
         mapping=relation_mapping("SIH",option) if option else {}
-        result[spec["response"]]=_report_filter_categories(mapping,spec["width"])
+        categories=_report_filter_categories(mapping,spec["width"])
+        if spec.get("stateScoped"):
+            categories=[item for item in categories if item["value"].startswith(prefix)]
+        result[spec["response"]]=categories
     cache_write(cache,result,max_bytes=5_000_000,keep=32)
     return result
 
@@ -1359,7 +1364,7 @@ def predefined_sih_occupancy_filter_options(payload: dict[str,Any]):
     if uf not in PREDEFINED_UF_CODES:
         raise ValueError("Selecione uma unidade da Federação válida.")
     archive_path=ensure_archive("SIH")
-    cache=cache_target("predefined-sih-occupancy-filter-options",{"version":1,"archive":cache_file_identity(archive_path),"uf":uf})
+    cache=cache_target("predefined-sih-occupancy-filter-options",{"version":2,"archive":cache_file_identity(archive_path),"uf":uf})
     cached=cache_read(cache)
     if isinstance(cached,dict) and cached.get("ok") is True:
         return cached
@@ -1368,10 +1373,14 @@ def predefined_sih_occupancy_filter_options(payload: dict[str,Any]):
         raise RuntimeError("A definição oficial de AIH reduzida não está disponível.")
     options=_report_definition_options(definition)
     result={"ok":True,"uf":uf}
+    prefix=PREDEFINED_UF_CODES[uf]
     for spec in PREDEFINED_SIH_OCCUPANCY_FILTER_SPECS:
         option=next((item for item in options if item.get("field")==spec["field"] and item.get("relation","").lower()==spec["relation"].lower()),None)
         mapping=relation_mapping("SIH",option) if option else {}
-        result[spec["response"]]=_report_filter_categories(mapping,spec["width"])
+        categories=_report_filter_categories(mapping,spec["width"])
+        if spec.get("stateScoped"):
+            categories=[item for item in categories if item["value"].startswith(prefix)]
+        result[spec["response"]]=categories
     cache_write(cache,result,max_bytes=5_000_000,keep=32)
     return result
 
@@ -1490,6 +1499,10 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
     establishment_option=next((item for item in all_options if item.get("field")=="PA_CODUNI" and PurePosixPath(str(item.get("relation") or "").replace("\\","/")).name.lower()==establishment_relation),None)
     procedure_option=next((item for item in all_options if item.get("field")=="PA_PROC_ID" and item.get("relation")),None)
     complexity_option=next((item for item in all_options if item.get("field")=="PA_NIVCPL" and item.get("relation")),None)
+    # PA_TPFIN is marked as an auxiliary field (X) in the official DEF, so it
+    # is not returned by parse_def's line/column options. Its official CNV is
+    # still the correct label source for showing MAC/FAEC in the detail table.
+    financing_option={"field":"PA_TPFIN","relation":"CNV/FINANC.CNV"} if "PA_TPFIN" in fieldinfo else None
     selected_filter_names={}
     for spec in PREDEFINED_FILTER_SPECS:
         option=next((item for item in all_options if item.get("field")==spec["field"] and item.get("relation","").lower()==spec["relation"].lower()),None)
@@ -1507,7 +1520,7 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
     complexity_labels=relation_mapping("SIA",complexity_option) if view=="detail" and complexity_option else {}
 
     archive=UPLOADS/"DEFINICOES"/"originais"/"TAB_SIA.zip"
-    identity={"report":"sia-pa-production-v3","source":cache_file_identity(source),"dbf":cache_file_identity(dbf),"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_filter_codes}
+    identity={"report":"sia-pa-production-v4","source":cache_file_identity(source),"dbf":cache_file_identity(dbf),"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_filter_codes}
     target=cache_target("predefined-reports",identity)
     cached=cache_read(target)
     if isinstance(cached,dict) and cached.get("ok") is True:
@@ -1535,7 +1548,9 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
     group_field="PA_CODUNI" if view=="summary" else "PA_PROC_ID"
     names=list(dict.fromkeys([group_field,"PA_CODUNI","PA_QTDAPR","PA_QTDPRO","PA_VALAPR","PA_VALPRO"]))
     has_complexity=view=="detail" and "PA_NIVCPL" in fieldinfo
+    has_financing=view=="detail" and financing_option is not None
     if has_complexity: names.append("PA_NIVCPL")
+    if has_financing: names.append("PA_TPFIN")
     positions={name:index for index,name in enumerate(names)}
     decimals={name:int(fieldinfo[name]["decimals"]) for name in ("PA_QTDAPR","PA_QTDPRO","PA_VALAPR","PA_VALPRO")}
     sums=defaultdict(lambda:[0,0,0,0,0,0,0,0])
@@ -1558,7 +1573,8 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
         v_presented=scaled_integer(record[positions["PA_VALPRO"]],decimals["PA_VALPRO"])
         v_approved=scaled_integer(record[positions["PA_VALAPR"]],decimals["PA_VALAPR"])
         complexity_code=record[positions["PA_NIVCPL"]].strip() if has_complexity else ""
-        group_key=(code,complexity_code) if view=="detail" and has_complexity else code
+        financing_code=_report_code(record[positions["PA_TPFIN"]],2) if has_financing else ""
+        group_key=(code,complexity_code,financing_code) if view=="detail" else code
         row=sums[group_key]
         row[0]+=q_approved
         row[1]+=q_presented
@@ -1582,17 +1598,20 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
     totals=[sum(values[index] for values in sums.values()) for index in metric_indexes]
     rows=[]
     sortable_rows=[]
+    financing_labels=relation_mapping("SIA",financing_option) if has_financing else {}
     for group_key,values in sums.items():
-        if view=="detail" and has_complexity:
-            code,complexity_code=group_key
+        if view=="detail":
+            code,complexity_code,financing_code=group_key
             complexity_label=_report_label(str(cnv_label(complexity_labels,complexity_code) or "").strip()) if complexity_code else "Não informado"
+            financing_label=(_report_label(str(cnv_label(financing_labels,financing_code) or "").strip()) if financing_code else "Não informado") if has_financing else "Não disponível na base"
         else:
             code=group_key
             complexity_label="Complexidade não disponível" if view=="detail" else ""
+            financing_label="Financiamento não disponível" if view=="detail" else ""
         label=establishment_label(code) if view=="summary" else _report_label(procedure_labels.get(code) or "Descrição indisponível na referência oficial")
         row={"code":code,"label":label,"values":[scaled_text(values[index],metric["decimals"]) for index,metric in zip(metric_indexes,metrics)],"records":values[7]}
-        if view=="detail": row["complexity"]=complexity_label
-        sortable_rows.append((-int(values[2]),label.casefold(),code,complexity_label.casefold(),row))
+        if view=="detail": row.update({"complexity":complexity_label,"financing":financing_label})
+        sortable_rows.append((-int(values[2]),label.casefold(),code,(complexity_label.casefold(),financing_label.casefold()),row))
     sortable_rows.sort(key=lambda item:item[:4])
     rows=[item[4] for item in sortable_rows]
     total_values=[scaled_text(value,metric["decimals"]) for value,metric in zip(totals,metrics)]
@@ -1604,8 +1623,9 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
         "filters":filter_summary,
         "establishmentName":establishment_label(establishment) if establishment else None,
         "dimensionLabel":"Estabelecimento" if view=="summary" else "Código SIGTAP · Procedimento",
+        "detailDimensions":[{"id":"complexity","label":"Complexidade"},{"id":"financing","label":"Financiamento (MAC/FAEC)"}] if view=="detail" else [],
         "metrics":metrics,"totals":total_values,"records":sum(values[7] for values in sums.values()),"rows":rows,
-        "notes":["Glosas são calculadas pela diferença positiva entre o apresentado e o aprovado.","¹ A base PA não tem um campo separado de rejeição. O indicador conta as linhas com quantidade apresentada maior que zero e quantidade aprovada igual a zero; não representa um total oficial de registros rejeitados."],
+        "notes":["No detalhamento, um mesmo procedimento pode aparecer em mais de uma linha quando houver diferenças de complexidade ou financiamento (MAC/FAEC).","Glosas são calculadas pela diferença positiva entre o apresentado e o aprovado.","¹ A base PA não tem um campo separado de rejeição. O indicador conta as linhas com quantidade apresentada maior que zero e quantidade aprovada igual a zero; não representa um total oficial de registros rejeitados."],
     }
     if progress: progress(97,"Finalizando totais e descrições")
     cache_write(target,result,max_bytes=25_000_000,keep=30)
