@@ -27,11 +27,13 @@ $PhpSource = $PhpExtract
 $Compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $LauncherSource = Join-Path $PackagingRoot 'Launcher.cs'
 $InstallerSource = Join-Path $PackagingRoot 'Installer.cs'
+$AppIcon = Join-Path $AppRoot 'assets\spptab-icon.ico'
 $RouterSource = Join-Path $PackagingRoot 'router.php'
 $SetupOutput = Join-Path $OutputRoot 'SPPtab-Setup.exe'
 $PortableOutput = Join-Path $OutputRoot 'SPPtab-Portable.zip'
 
 if (-not (Test-Path -LiteralPath $Compiler -PathType Leaf)) { throw 'O compilador C# do Windows não está disponível neste computador.' }
+if (-not (Test-Path -LiteralPath $AppIcon -PathType Leaf)) { throw 'O ícone do SPPtab não foi encontrado em assets\spptab-icon.ico.' }
 
 $resolvedBuild = [IO.Path]::GetFullPath($BuildRoot)
 $resolvedApp = [IO.Path]::GetFullPath($AppRoot) + [IO.Path]::DirectorySeparatorChar
@@ -145,7 +147,7 @@ if (-not $SkipSelfTests) {
 }
 
 $launcherExe = Join-Path $AppPayload 'SPPtab.exe'
-$launcherArgs = @('/nologo', '/target:winexe', '/platform:x64', '/optimize+', ('/out:' + $launcherExe), '/reference:System.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll', '/reference:System.IO.Compression.dll', '/reference:System.IO.Compression.FileSystem.dll', $LauncherSource)
+$launcherArgs = @('/nologo', '/target:winexe', '/platform:x64', '/optimize+', ('/out:' + $launcherExe), ('/win32icon:' + $AppIcon), '/reference:System.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll', '/reference:System.IO.Compression.dll', '/reference:System.IO.Compression.FileSystem.dll', $LauncherSource)
 & $Compiler @launcherArgs
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $launcherExe)) { throw 'Não foi possível compilar o iniciador do SPPtab.' }
 
@@ -213,6 +215,7 @@ finally {
 $installerArgs = @(
     '/nologo', '/target:winexe', '/platform:x64', '/optimize+',
     ('/out:' + $SetupOutput),
+    ('/win32icon:' + $AppIcon),
     '/reference:System.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll',
     '/reference:System.IO.Compression.dll', '/reference:System.IO.Compression.FileSystem.dll',
     ('/resource:' + $PayloadZip + ',SPPtab.Payload.zip'),

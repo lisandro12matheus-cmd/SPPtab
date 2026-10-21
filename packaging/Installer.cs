@@ -31,6 +31,7 @@ internal sealed class InstallerForm : Form
     private InstallerForm()
     {
         Text = "Iniciando SPPtab";
+        Icon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = true;
@@ -188,7 +189,7 @@ internal sealed class InstallerForm : Form
         shortcutType.InvokeMember("TargetPath", BindingFlags.SetProperty, null, shortcut, new object[] { Path.Combine(InstallDirectory, "SPPtab.exe") });
         shortcutType.InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, shortcut, new object[] { InstallDirectory });
         shortcutType.InvokeMember("Description", BindingFlags.SetProperty, null, shortcut, new object[] { "SPPtab — aplicativo de tabulação local" });
-        shortcutType.InvokeMember("IconLocation", BindingFlags.SetProperty, null, shortcut, new object[] { Path.Combine(Environment.SystemDirectory, "imageres.dll") + ",68" });
+        shortcutType.InvokeMember("IconLocation", BindingFlags.SetProperty, null, shortcut, new object[] { Path.Combine(InstallDirectory, "SPPtab.exe") + ",0" });
         shortcutType.InvokeMember("Save", BindingFlags.InvokeMethod, null, shortcut, null);
     }
 }

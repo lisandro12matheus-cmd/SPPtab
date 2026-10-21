@@ -35,6 +35,7 @@ internal static class LauncherProgram
             if (args.Length > 0 && string.Equals(args[0], "--apply-update", StringComparison.OrdinalIgnoreCase))
                 return ApplyUpdate(args);
             if (selfTest) return RunSelfTest();
+            RefreshShortcutIcons();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new LauncherForm());
@@ -53,6 +54,38 @@ internal static class LauncherProgram
     private static string IniPath { get { return Path.Combine(BaseDirectory, "runtime", "php", "php.ini"); } }
     private static string PythonPath { get { return Path.Combine(BaseDirectory, "runtime", "python", "python.exe"); } }
     private static string AppPath { get { return Path.Combine(BaseDirectory, "app"); } }
+
+    private static void RefreshShortcutIcons()
+    {
+        try
+        {
+            string executable = Path.GetFullPath(Path.Combine(BaseDirectory, "SPPtab.exe"));
+            string[] shortcuts = new string[]
+            {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "SPPtab.lnk"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "SPPtab", "SPPtab.lnk")
+            };
+            Type shellType = Type.GetTypeFromProgID("WScript.Shell");
+            if (shellType == null) return;
+            object shell = Activator.CreateInstance(shellType);
+            foreach (string path in shortcuts)
+            {
+                if (!File.Exists(path)) continue;
+                object shortcut = shellType.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { path });
+                Type shortcutType = shortcut.GetType();
+                string target = shortcutType.InvokeMember("TargetPath", System.Reflection.BindingFlags.GetProperty, null, shortcut, null) as string;
+                if (String.IsNullOrEmpty(target) || !String.Equals(Path.GetFullPath(target), executable, StringComparison.OrdinalIgnoreCase)) continue;
+                string iconLocation = shortcutType.InvokeMember("IconLocation", System.Reflection.BindingFlags.GetProperty, null, shortcut, null) as string;
+                string expectedIcon = executable + ",0";
+                if (!String.Equals(iconLocation, expectedIcon, StringComparison.OrdinalIgnoreCase))
+                {
+                    shortcutType.InvokeMember("IconLocation", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { expectedIcon });
+                    shortcutType.InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, shortcut, null);
+                }
+            }
+        }
+        catch { }
+    }
 
     private static string CurrentVersion
     {
@@ -508,6 +541,7 @@ internal static class LauncherProgram
         private readonly Button close;
         private readonly Button update;
         private readonly NotifyIcon trayIcon;
+        private readonly Icon appIcon;
         private bool startupStarted;
         private bool allowExit;
         private bool startupFailed;
@@ -519,6 +553,8 @@ internal static class LauncherProgram
         public LauncherForm()
         {
             Text = "SPPtab";
+            appIcon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
+            Icon = appIcon;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = true;
@@ -543,7 +579,7 @@ internal static class LauncherProgram
             trayMenu.Items.Add("Encerrar SPPtab", null, delegate { allowExit = true; Close(); });
             trayIcon = new NotifyIcon
             {
-                Icon = SystemIcons.Application,
+                Icon = appIcon,
                 Text = "SPPtab em execução",
                 ContextMenuStrip = trayMenu,
                 Visible = true
