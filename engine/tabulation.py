@@ -49,7 +49,7 @@ PREDEFINED_SIH_FILTER_SPECS = (
     {"key":"admissionType","label":"Caráter de atendimento","field":"CAR_INT","relation":"CNV/CARATEND.CNV","width":2,"response":"admissionTypes","url":"carater"},
 )
 PREDEFINED_SIH_OCCUPANCY_FILTER_SPECS = PREDEFINED_SIH_FILTER_SPECS + (
-    {"key":"specialty","label":"Especialidade do leito","field":"ESPEC","relation":"CNV/LEITOS.CNV","width":2,"response":"specialties","url":"especialidade"},
+    {"key":"specialty","label":"Tipo de leito","field":"ESPEC","relation":"CNV/LEITOS.CNV","width":2,"response":"specialties","url":"especialidade"},
 )
 PREDEFINED_SIH_SP_FILTER_SPECS = (
     {"key":"manager","label":"Gestor da produção","field":"SP_GESTOR","relation":"CNV/br_municgestor.cnv","width":6,"response":"managers","url":"gestor","stateScoped":True},
@@ -1364,7 +1364,7 @@ def predefined_sih_occupancy_filter_options(payload: dict[str,Any]):
     if uf not in PREDEFINED_UF_CODES:
         raise ValueError("Selecione uma unidade da Federação válida.")
     archive_path=ensure_archive("SIH")
-    cache=cache_target("predefined-sih-occupancy-filter-options",{"version":3,"archive":cache_file_identity(archive_path),"uf":uf})
+    cache=cache_target("predefined-sih-occupancy-filter-options",{"version":4,"archive":cache_file_identity(archive_path),"uf":uf})
     cached=cache_read(cache)
     if isinstance(cached,dict) and cached.get("ok") is True:
         return cached
@@ -2868,7 +2868,7 @@ def predefined_sih_bed_occupancy(payload: dict[str,Any], progress=None):
 
     source_items=[rd,rj,*([er] if er else [])]
     archive=UPLOADS/"DEFINICOES"/"originais"/"TAB_SIH.zip"
-    identity={"report":"sih-bed-occupancy-v2","sources":[cache_file_identity(item["source"])|{"dbf":cache_file_identity(item["dbf"])} for item in source_items],"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_codes}
+    identity={"report":"sih-bed-occupancy-v3","sources":[cache_file_identity(item["source"])|{"dbf":cache_file_identity(item["dbf"])} for item in source_items],"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_codes}
     target=cache_target("predefined-reports",identity)
     cached=cache_read(target)
     if isinstance(cached,dict) and cached.get("ok") is True and time.time()-float(cached.get("cachedAt",0) or 0)<7*86400:
@@ -3044,7 +3044,7 @@ def predefined_sih_bed_occupancy(payload: dict[str,Any], progress=None):
             {"id":"daily","label":"Diárias SIH","field":"dailyCount","type":"number","decimals":0,"totalField":"dailyCount"},
             {"id":"average","label":"Média diária","field":"averageDaily","type":"number","decimals":1,"totalField":"averageDaily"},
             {"id":"occupancy","label":"Ocupação registrada","field":"occupancyRate","type":"percent","decimals":1,"totalField":"occupancyRate"},
-            {"id":"specialty","label":"Especialidade com mais diárias","field":"mainSpecialty","type":"text","sortField":"mainSpecialty"},
+            {"id":"specialty","label":"Tipo de leito com mais diárias","field":"mainSpecialty","type":"text","sortField":"mainSpecialty"},
             {"id":"balance","label":"Saldo potencial","field":"potentialBalance","type":"number","decimals":1,"totalField":"potentialBalance"},
             {"id":"status","label":"Situação","field":"status","type":"text","sortField":"status"},
             {"id":"rejectionRate","label":"Rejeição (%)","field":"rejectionRate","type":"percent","decimals":1,"totalField":"rejectionRate"},
@@ -3055,7 +3055,7 @@ def predefined_sih_bed_occupancy(payload: dict[str,Any], progress=None):
             f"As diárias do SIH são calculadas pelo intervalo entre entrada e saída, limitadas aos {month_days} dias da competência. Quando as datas não estão válidas, o relatório usa QT_DIARIAS ou DIAS_PERM.",
             "Ocupação registrada = diárias das AIHs processadas ÷ dias da competência ÷ leitos SUS do CNES. A consulta de leitos usa os dados atuais retornados pelo CNES, e não uma fotografia histórica da competência.",
             "Saldo potencial = leitos SUS menos a média diária processada e a média diária de permanência informada nas AIHs rejeitadas. Rejeições são uma possibilidade estimada, não uma internação confirmada.",
-            "A especialidade em destaque é a categoria ESPEC da definição oficial SIH/TabWin com mais diárias processadas. UTI e UCI são campos separados no SIH; as AIHs abertas mostram as respectivas diárias.",
+            "O tipo de leito em destaque é a categoria ESPEC da definição oficial SIH/TabWin com mais diárias processadas. UTI e UCI são campos separados no SIH; as AIHs abertas mostram as respectivas diárias.",
             "A taxa de rejeição é calculada como AIHs no RJ ÷ (AIHs no RD + AIHs no RJ). As faixas de situação são referências visuais do SPPtab, não uma classificação oficial do CNES/SIH.",
             *( [f"A última atualização de leitos informada pelo CNES nesta consulta é {max((str(value.get('updatedAt') or '') for value in beds_by_cnes.values()),default='')}." ] if any(value.get("updatedAt") for value in beds_by_cnes.values()) else [] ),
             *([f"O CNES não respondeu para {lookup_errors} estabelecimento(s); a ocupação e o saldo desses locais ficam sem cálculo até uma próxima consulta."] if lookup_errors else []),
@@ -3075,7 +3075,7 @@ def predefined_sih_bed_occupancy(payload: dict[str,Any], progress=None):
             {"id":"status","label":"Situação","field":"status","type":"text","sortField":"status"},
             {"id":"entry","label":"Entrada","field":"admission","type":"text","sortField":"rawAdmission"},
             {"id":"exit","label":"Saída","field":"discharge","type":"text","sortField":"rawDischarge"},
-            {"id":"specialty","label":"Especialidade","field":"specialty","type":"text","sortField":"specialty"},
+            {"id":"specialty","label":"Tipo de leito","field":"specialty","type":"text","sortField":"specialty"},
             {"id":"procedure","label":"Procedimento SIGTAP","field":"procedureName","primaryField":"procedureName","secondaryField":"procedureCode","sortField":"procedureName","type":"text"},
             {"id":"permanence","label":"Permanência","field":"permanenceDays","type":"number","decimals":0,"totalField":"permanenceDays"},
             {"id":"stayDays","label":"Diárias no mês","field":"stayDays","type":"number","decimals":0,"totalField":"stayDays"},

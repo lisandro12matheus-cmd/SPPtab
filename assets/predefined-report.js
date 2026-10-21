@@ -723,6 +723,8 @@
     if (column.id === 'dimension:rejectionReason' || column.field === 'rejectionReason') cell.classList.add('report-rejection-reason-column');
     if (column.id === 'dimension:complexity') cell.classList.add('report-complexity-column');
     if (column.id === 'dimension:financing') cell.classList.add('report-financing-column');
+    if (column.id === 'specialty') cell.classList.add('report-bed-specialty-column');
+    if (column.id === 'procedure' && activeReport.tableMode === 'occupancy') cell.classList.add('report-bed-procedure-column');
     if (firstColumn || column.sticky) cell.classList.add('primary-cell');
     if (column.metricId) {
       const formatted = formatNumber(rawColumnValue(row, column), column.decimals);
@@ -783,6 +785,8 @@
       if (column.id === 'dimension:rejectionReason' || column.field === 'rejectionReason') th.classList.add('report-rejection-reason-column');
       if (column.id === 'dimension:complexity') th.classList.add('report-complexity-column');
       if (column.id === 'dimension:financing') th.classList.add('report-financing-column');
+      if (column.id === 'specialty') th.classList.add('report-bed-specialty-column');
+      if (column.id === 'procedure' && activeReport.tableMode === 'occupancy') th.classList.add('report-bed-procedure-column');
       if (column.sticky || columns[0] === column) th.classList.add('primary-cell');
       if (column.kind === 'action') { th.classList.add('report-action-cell'); th.textContent = column.label; header.append(th); continue; }
       const wrap = document.createElement('span'); wrap.className = 'report-column-head';

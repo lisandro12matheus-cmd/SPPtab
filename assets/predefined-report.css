@@ -127,6 +127,13 @@
 .is-bed-occupancy-report .report-table th:nth-child(2){min-width:105px}
 .is-bed-occupancy-report .report-table th:nth-child(7){min-width:220px}
 .is-bed-occupancy-report .report-table th:nth-child(9){min-width:180px}
+.is-bed-occupancy-report .report-table th.report-bed-specialty-column,.is-bed-occupancy-report .report-table td.report-bed-specialty-column{width:190px;min-width:175px;max-width:220px}
+.is-bed-occupancy-report .report-table th.report-bed-specialty-column .report-column-head,.is-bed-occupancy-report .report-table th.report-bed-procedure-column .report-column-head{align-items:flex-start;justify-content:space-between;white-space:normal}
+.is-bed-occupancy-report .report-table td.report-bed-specialty-column{overflow-wrap:anywhere;text-align:left;vertical-align:top;white-space:normal}
+.is-bed-occupancy-report .report-table th.report-bed-procedure-column,.is-bed-occupancy-report .report-table td.report-bed-procedure-column{width:390px;min-width:330px;max-width:460px}
+.is-bed-occupancy-report .report-table td.report-bed-procedure-column{overflow-wrap:anywhere;text-align:left;vertical-align:top;white-space:normal}
+.is-bed-occupancy-report .report-table td.report-bed-procedure-column .report-cell-stack{max-width:440px}
+.is-bed-occupancy-report .report-table td.report-bed-procedure-column .report-primary-label{max-width:none;overflow:visible;overflow-wrap:anywhere;line-height:1.45;text-overflow:clip;white-space:normal}
 .is-bed-occupancy-report .report-table th.report-rejection-reason-column,.is-bed-occupancy-report .report-table td.report-rejection-reason-column{width:340px;min-width:300px;max-width:420px}
 .report-rejection-reason-list{display:grid;gap:6px;margin:0;padding:0;list-style:none}
 .report-rejection-reason-list li{position:relative;padding-left:11px;line-height:1.45;overflow-wrap:anywhere}
