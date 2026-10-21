@@ -588,7 +588,10 @@
     if (!activeResult) return [];
     if (activeReport.tableMode === 'flat' || activeReport.tableMode === 'occupancy') return (activeResult.columns || []).map((column) => ({ ...column, filterable:column.kind !== 'action', sortable:column.kind !== 'action' }));
     const summaryView = activeView === 'summary';
-    const dimensions = summaryView ? [] : (activeResult.detailDimensions || [{ id:'complexity', label:'Complexidade' }]);
+    const dimensions = summaryView ? [] : [...(activeResult.detailDimensions || [{ id:'complexity', label:'Complexidade' }])];
+    if (activeReport.id === 'sia-pa-producao' && !summaryView && !dimensions.some((dimension) => dimension.id === 'financing')) {
+      dimensions.push({ id:'financing', label:'Financiamento (MAC/FAEC)' });
+    }
     const columns = [{
       id:'primary', label:summaryView ? (activeResult.dimensionLabel || 'ESTABELECIMENTO') : (activeResult.dimensionLabel || 'PROCEDIMENTO · SIGTAP'),
       kind:'primary', primaryField:'label', secondaryField:'code', secondaryPrefix:summaryView ? 'CNES ' : '',

@@ -1520,7 +1520,7 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
     complexity_labels=relation_mapping("SIA",complexity_option) if view=="detail" and complexity_option else {}
 
     archive=UPLOADS/"DEFINICOES"/"originais"/"TAB_SIA.zip"
-    identity={"report":"sia-pa-production-v4","source":cache_file_identity(source),"dbf":cache_file_identity(dbf),"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_filter_codes}
+    identity={"report":"sia-pa-production-v5","source":cache_file_identity(source),"dbf":cache_file_identity(dbf),"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_filter_codes}
     target=cache_target("predefined-reports",identity)
     cached=cache_read(target)
     if isinstance(cached,dict) and cached.get("ok") is True:
