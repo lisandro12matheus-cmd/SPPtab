@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>Minhas Tabulações · SPPtab</title>
-  <link rel="stylesheet" href="assets/app.css?v=14"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/tabular-refine.css?v=18"><link rel="stylesheet" href="assets/presets.css?v=3">
+  <link rel="stylesheet" href="assets/app.css?v=14"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/tabular-refine.css?v=18"><link rel="stylesheet" href="assets/presets.css?v=3"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
       <a class="brand" href="./" aria-label="SPPtab, início"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span><span><strong>SPPtab</strong><small>saúde em dados</small></span></a>
       <div class="nav-label">ESPAÇO DE TRABALHO</div>
-<nav aria-label="Navegação principal"><a class="nav-item" href="index.php"><span class="nav-icon">⌕</span>Buscar arquivos</a><a class="nav-item" href="bases.php"><span class="nav-icon">▦</span>Minhas bases</a><a class="nav-item" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a><a class="nav-item active" id="savedTabulationsNav" href="minhas-tabulacoes.php" aria-current="page" hidden><span class="nav-icon">▧</span>Minhas Tabulações</a></nav>
+<nav aria-label="Navegação principal"><a class="nav-item" href="index.php"><span class="nav-icon">⌕</span>Buscar arquivos</a><a class="nav-item" href="bases.php"><span class="nav-icon">▦</span>Minhas bases</a><a class="nav-item" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a><a class="nav-item" href="tabulacoes-prontas.php"><span class="nav-icon">▧</span>Tabulações prontas</a><a class="nav-item active" id="savedTabulationsNav" href="minhas-tabulacoes.php" aria-current="page" hidden><span class="nav-icon">▧</span>Minhas Tabulações</a></nav>
       <div class="sidebar-foot"><span class="source-dot"></span><div><strong>Combinações salvas</strong><small>Neste computador</small></div></div>
     </aside>
     <main class="main-content presets-main">

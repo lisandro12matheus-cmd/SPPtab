@@ -48,7 +48,7 @@ register_shutdown_function(static function (): void {
 });
 
 $action = $payload['action'] ?? '';
-$tabulationActions = ['catalog', 'delete_file', 'schema', 'preset_list', 'preset_save', 'preset_get', 'preset_delete', 'column_values', 'category_values', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status'];
+$tabulationActions = ['catalog', 'delete_file', 'schema', 'preset_list', 'preset_save', 'preset_get', 'preset_delete', 'column_values', 'category_values', 'predefined_filter_options', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status'];
 $dataActions = ['competencies', 'files', 'download', 'municipalities'];
 if (!in_array($action, [...$dataActions, ...$tabulationActions], true)) {
     respond(['ok' => false, 'error' => 'Ação não reconhecida.'], 400);

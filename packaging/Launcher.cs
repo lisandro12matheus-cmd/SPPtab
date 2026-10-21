@@ -1,9 +1,13 @@
 using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -12,6 +16,7 @@ using System.Windows.Forms;
 internal static class LauncherProgram
 {
     private static readonly string BaseDirectory = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    private const string Repository = "lisandro12matheus-cmd/SPPtab";
     private static Process server;
     private static int port;
     private static string dataDirectory;
@@ -27,6 +32,8 @@ internal static class LauncherProgram
         bool selfTest = Array.Exists(args, a => string.Equals(a, "--self-test", StringComparison.OrdinalIgnoreCase));
         try
         {
+            if (args.Length > 0 && string.Equals(args[0], "--apply-update", StringComparison.OrdinalIgnoreCase))
+                return ApplyUpdate(args);
             if (selfTest) return RunSelfTest();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
@@ -46,6 +53,204 @@ internal static class LauncherProgram
     private static string IniPath { get { return Path.Combine(BaseDirectory, "runtime", "php", "php.ini"); } }
     private static string PythonPath { get { return Path.Combine(BaseDirectory, "runtime", "python", "python.exe"); } }
     private static string AppPath { get { return Path.Combine(BaseDirectory, "app"); } }
+
+    private static string CurrentVersion
+    {
+        get
+        {
+            try { return File.ReadAllText(Path.Combine(BaseDirectory, "VERSION.txt")).Trim(); }
+            catch { return "0.0.0"; }
+        }
+    }
+
+    private static string DownloadText(string url, int timeoutMilliseconds)
+    {
+        HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
+        request.Method = "GET";
+        request.UserAgent = "SPPtab-Updater";
+        request.Timeout = timeoutMilliseconds;
+        request.ReadWriteTimeout = timeoutMilliseconds;
+        request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
+        if (url.IndexOf("api.github.com", StringComparison.OrdinalIgnoreCase) >= 0)
+            request.Accept = "application/vnd.github+json";
+        using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+        using (Stream stream = response.GetResponseStream())
+        using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+            return reader.ReadToEnd();
+    }
+
+    private static string ReleaseUrl(string tag, string asset)
+    {
+        return "https://github.com/" + Repository + "/releases/download/" + Uri.EscapeDataString(tag) + "/" + asset;
+    }
+
+    private static bool TryGetLatestVersion(out string tag, out string version)
+    {
+        tag = String.Empty;
+        version = String.Empty;
+        ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+        string json = DownloadText("https://api.github.com/repos/" + Repository + "/releases/latest", 10000);
+        Match match = Regex.Match(json, "\"tag_name\"\\s*:\\s*\"([^\"]+)\"", RegexOptions.IgnoreCase);
+        if (!match.Success) return false;
+        tag = match.Groups[1].Value;
+        string numeric = tag.StartsWith("v", StringComparison.OrdinalIgnoreCase) ? tag.Substring(1) : tag;
+        Version parsed;
+        if (!Version.TryParse(numeric, out parsed)) return false;
+        version = parsed.ToString();
+        return true;
+    }
+
+    private static bool IsNewerVersion(string latest, string current)
+    {
+        Version latestVersion, currentVersion;
+        return Version.TryParse(latest, out latestVersion) && Version.TryParse(current, out currentVersion) && latestVersion > currentVersion;
+    }
+
+    private static string Sha256File(string path)
+    {
+        using (SHA256 sha = SHA256.Create())
+        using (FileStream stream = File.OpenRead(path))
+        {
+            byte[] hash = sha.ComputeHash(stream);
+            StringBuilder result = new StringBuilder(hash.Length * 2);
+            foreach (byte value in hash) result.Append(value.ToString("x2"));
+            return result.ToString();
+        }
+    }
+
+    private static int ApplyUpdate(string[] args)
+    {
+        string log = Path.Combine(Path.GetTempPath(), "SPPtab-update.log");
+        string stage = null;
+        string backup = null;
+        List<string> installedDirectories = new List<string>();
+        List<string> installedFiles = new List<string>();
+        List<string> backedUpDirectories = new List<string>();
+        List<string> backedUpFiles = new List<string>();
+        try
+        {
+            if (args.Length != 5) throw new InvalidOperationException("Os dados da atualização estão incompletos.");
+            string archivePath = args[1];
+            string expectedHash = args[2].Trim().ToLowerInvariant();
+            int parentId;
+            if (!Int32.TryParse(args[3], out parentId)) throw new InvalidOperationException("Não foi possível identificar o iniciador atual.");
+            string destinationRoot = Path.GetFullPath(args[4]).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (!File.Exists(archivePath) || !Directory.Exists(destinationRoot)) throw new InvalidOperationException("O pacote ou a pasta do SPPtab não está disponível.");
+            if (!File.Exists(Path.Combine(destinationRoot, "SPPtab.exe"))) throw new InvalidOperationException("A pasta escolhida não parece conter uma instalação do SPPtab.");
+            if (!Regex.IsMatch(expectedHash, "^[a-f0-9]{64}$") || !String.Equals(Sha256File(archivePath), expectedHash, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("A conferência de integridade do pacote falhou. O SPPtab não foi alterado.");
+
+            try
+            {
+                using (Process parent = Process.GetProcessById(parentId))
+                    if (!parent.WaitForExit(120000)) throw new InvalidOperationException("O SPPtab ainda está encerrando. Tente atualizar novamente.");
+            }
+            catch (ArgumentException) { }
+
+            string id = Guid.NewGuid().ToString("N");
+            stage = Path.Combine(destinationRoot, ".spptab-update-stage-" + id);
+            backup = Path.Combine(destinationRoot, ".spptab-update-backup-" + id);
+            string payloadRoot = Path.Combine(stage, "SPPtab");
+            Directory.CreateDirectory(payloadRoot);
+            Directory.CreateDirectory(backup);
+
+            using (ZipArchive archive = ZipFile.OpenRead(archivePath))
+            {
+                foreach (ZipArchiveEntry entry in archive.Entries)
+                {
+                    string name = entry.FullName.Replace('/', '\\');
+                    if (!name.StartsWith("SPPtab\\", StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("O pacote contém um caminho inesperado.");
+                    string relative = name.Substring("SPPtab\\".Length);
+                    if (String.IsNullOrEmpty(relative)) continue;
+                    string normalized = relative.Replace('\\', '/');
+                    bool allowed = normalized.StartsWith("app/", StringComparison.OrdinalIgnoreCase) ||
+                        normalized.StartsWith("runtime/", StringComparison.OrdinalIgnoreCase) ||
+                        normalized.Equals("SPPtab.exe", StringComparison.OrdinalIgnoreCase) ||
+                        normalized.Equals("VERSION.txt", StringComparison.OrdinalIgnoreCase) ||
+                        normalized.Equals("LEIA-ME.txt", StringComparison.OrdinalIgnoreCase) ||
+                        normalized.Equals("PHP-LICENSE.txt", StringComparison.OrdinalIgnoreCase) ||
+                        normalized.Equals("PYTHON-LICENSE.txt", StringComparison.OrdinalIgnoreCase) ||
+                        normalized.Equals("VC-RUNTIME-NOTICE.txt", StringComparison.OrdinalIgnoreCase);
+                    if (!allowed) throw new InvalidOperationException("O pacote contém um arquivo fora da área atualizável.");
+                    string output = Path.GetFullPath(Path.Combine(payloadRoot, relative));
+                    string payloadPrefix = payloadRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                    if (!output.StartsWith(payloadPrefix, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("O pacote contém um caminho inválido.");
+                    if (entry.FullName.EndsWith("/", StringComparison.Ordinal) || entry.FullName.EndsWith("\\", StringComparison.Ordinal))
+                    {
+                        Directory.CreateDirectory(output);
+                        continue;
+                    }
+                    Directory.CreateDirectory(Path.GetDirectoryName(output));
+                    using (Stream input = entry.Open())
+                    using (FileStream file = new FileStream(output, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                        input.CopyTo(file);
+                }
+            }
+
+            foreach (string required in new string[] { "SPPtab.exe", "VERSION.txt", "runtime\\php\\php.exe", "runtime\\python\\python.exe", "app\\index.php" })
+                if (!File.Exists(Path.Combine(payloadRoot, required))) throw new InvalidOperationException("O pacote está incompleto: " + required);
+
+            string[] directoryNames = new string[] { "app", "runtime" };
+            foreach (string name in directoryNames)
+            {
+                string current = Path.Combine(destinationRoot, name);
+                string fresh = Path.Combine(payloadRoot, name);
+                string saved = Path.Combine(backup, name);
+                if (Directory.Exists(current) && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidOperationException("A pasta " + name + " é um atalho de sistema e não pode ser atualizada com segurança.");
+                if (Directory.Exists(current)) { Directory.Move(current, saved); backedUpDirectories.Add(name); }
+                Directory.Move(fresh, current);
+                installedDirectories.Add(name);
+            }
+
+            string[] fileNames = new string[] { "SPPtab.exe", "VERSION.txt", "LEIA-ME.txt", "PHP-LICENSE.txt", "PYTHON-LICENSE.txt", "VC-RUNTIME-NOTICE.txt" };
+            foreach (string name in fileNames)
+            {
+                string current = Path.Combine(destinationRoot, name);
+                string fresh = Path.Combine(payloadRoot, name);
+                if (!File.Exists(fresh)) continue;
+                string saved = Path.Combine(backup, name);
+                if (File.Exists(current)) { File.Move(current, saved); backedUpFiles.Add(name); }
+                File.Move(fresh, current);
+                installedFiles.Add(name);
+            }
+
+            File.WriteAllText(log, "Atualização concluída para v" + File.ReadAllText(Path.Combine(destinationRoot, "VERSION.txt")).Trim(), Encoding.UTF8);
+            Process.Start(new ProcessStartInfo(Path.Combine(destinationRoot, "SPPtab.exe"))
+            {
+                UseShellExecute = true,
+                WorkingDirectory = destinationRoot
+            });
+            try { Directory.Delete(backup, true); } catch { }
+            try { Directory.Delete(stage, true); } catch { }
+            try { File.Delete(archivePath); } catch { }
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            for (int i = installedFiles.Count - 1; i >= 0; i--)
+                try { File.Delete(Path.Combine(args.Length > 4 ? args[4] : BaseDirectory, installedFiles[i])); } catch { }
+            for (int i = installedDirectories.Count - 1; i >= 0; i--)
+                try { Directory.Delete(Path.Combine(args.Length > 4 ? args[4] : BaseDirectory, installedDirectories[i]), true); } catch { }
+            for (int i = backedUpFiles.Count - 1; i >= 0; i--)
+                try { File.Move(Path.Combine(backup, backedUpFiles[i]), Path.Combine(args[4], backedUpFiles[i])); } catch { }
+            for (int i = backedUpDirectories.Count - 1; i >= 0; i--)
+                try { Directory.Move(Path.Combine(backup, backedUpDirectories[i]), Path.Combine(args[4], backedUpDirectories[i])); } catch { }
+            try { File.WriteAllText(log, "Falha ao atualizar: " + ex, Encoding.UTF8); } catch { }
+            MessageBox.Show("Não foi possível concluir a atualização. Seus dados foram preservados.\n\n" + ex.Message + "\n\nO SPPtab anterior será iniciado novamente.", "Atualização do SPPtab", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            try
+            {
+                string root = args.Length > 4 ? Path.GetFullPath(args[4]) : BaseDirectory;
+                string launcher = Path.Combine(root, "SPPtab.exe");
+                if (File.Exists(launcher)) Process.Start(new ProcessStartInfo(launcher) { UseShellExecute = true, WorkingDirectory = root });
+            }
+            catch { }
+            try { if (!String.IsNullOrEmpty(stage) && Directory.Exists(stage)) Directory.Delete(stage, true); } catch { }
+            return 1;
+        }
+    }
 
     private static bool CanWriteToDirectory(string path)
     {
@@ -298,13 +503,18 @@ internal static class LauncherProgram
     private sealed class LauncherForm : Form
     {
         private readonly Label status;
+        private readonly Label updateStatus;
         private readonly Button open;
         private readonly Button close;
+        private readonly Button update;
         private readonly NotifyIcon trayIcon;
         private bool startupStarted;
         private bool allowExit;
         private bool startupFailed;
         private bool trayNoticeShown;
+        private bool updateCheckRunning;
+        private string availableTag;
+        private string availableVersion;
 
         public LauncherForm()
         {
@@ -313,18 +523,22 @@ internal static class LauncherProgram
             MaximizeBox = false;
             MinimizeBox = true;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(410, 174);
+            ClientSize = new Size(430, 220);
             Font = new Font("Segoe UI", 9F);
-            status = new Label { Left = 24, Top = 24, Width = 360, Height = 46, Text = "Iniciando o SPPtab…" };
-            open = new Button { Left = 24, Top = 88, Width = 170, Height = 38, Text = "Abrir no navegador", Enabled = false };
-            close = new Button { Left = 210, Top = 88, Width = 170, Height = 38, Text = "Encerrar SPPtab" };
+            status = new Label { Left = 24, Top = 16, Width = 382, Height = 54, Text = "Iniciando o SPPtab…" };
+            open = new Button { Left = 24, Top = 78, Width = 178, Height = 38, Text = "Abrir no navegador", Enabled = false };
+            close = new Button { Left = 212, Top = 78, Width = 194, Height = 38, Text = "Encerrar SPPtab" };
+            updateStatus = new Label { Left = 24, Top = 132, Width = 276, Height = 48, Text = "SPPtab v" + CurrentVersion + " · verificando atualizações…", ForeColor = Color.DimGray };
+            update = new Button { Left = 308, Top = 132, Width = 98, Height = 34, Text = "Atualizar", Visible = false, Enabled = false };
             open.Click += delegate { try { OpenApp(); } catch (Exception ex) { MessageBox.Show(ex.Message); } };
             close.Click += delegate { allowExit = true; Close(); };
-            Controls.Add(status); Controls.Add(open); Controls.Add(close);
+            update.Click += delegate { BeginUpdateDownload(); };
+            Controls.Add(status); Controls.Add(open); Controls.Add(close); Controls.Add(updateStatus); Controls.Add(update);
 
             ContextMenuStrip trayMenu = new ContextMenuStrip();
             trayMenu.Items.Add("Abrir SPPtab no navegador", null, delegate { try { OpenApp(); } catch (Exception ex) { MessageBox.Show(ex.Message); } });
             trayMenu.Items.Add("Mostrar esta janela", null, delegate { RestoreLauncher(); });
+            trayMenu.Items.Add("Verificar atualizações", null, delegate { CheckForUpdates(); RestoreLauncher(); });
             trayMenu.Items.Add(new ToolStripSeparator());
             trayMenu.Items.Add("Encerrar SPPtab", null, delegate { allowExit = true; Close(); });
             trayIcon = new NotifyIcon
@@ -379,6 +593,7 @@ internal static class LauncherProgram
                         status.Text = "SPPtab está funcionando neste computador.\nO X recolhe para a bandeja; use Encerrar para desligar.";
                         open.Enabled = true;
                         try { OpenApp(); } catch (Exception ex) { status.Text += "\nAbra pelo botão. " + ex.Message; }
+                        CheckForUpdates();
                     });
                 }
                 catch (Exception ex)
@@ -390,6 +605,151 @@ internal static class LauncherProgram
                         status.Text = "Não foi possível iniciar o SPPtab.\n" + ex.Message;
                         close.Text = "Fechar";
                     });
+                }
+            });
+            worker.IsBackground = true;
+            worker.Start();
+        }
+
+        private void CheckForUpdates()
+        {
+            if (updateCheckRunning || startupFailed || IsDisposed) return;
+            updateCheckRunning = true;
+            if (availableTag == null) updateStatus.Text = "SPPtab v" + CurrentVersion + " · verificando atualizações…";
+            Thread worker = new Thread(delegate()
+            {
+                try
+                {
+                    string tag, version;
+                    if (!TryGetLatestVersion(out tag, out version)) throw new InvalidOperationException("Não foi possível ler a versão publicada.");
+                    BeginInvoke((MethodInvoker)delegate
+                    {
+                        updateCheckRunning = false;
+                        if (IsNewerVersion(version, CurrentVersion))
+                        {
+                            availableTag = tag;
+                            availableVersion = version;
+                            updateStatus.Text = "Nova versão v" + version + " disponível. Seus dados locais serão preservados.";
+                            updateStatus.ForeColor = Color.FromArgb(34, 91, 176);
+                            update.Visible = true;
+                            update.Enabled = true;
+                        }
+                        else
+                        {
+                            availableTag = null;
+                            availableVersion = null;
+                            update.Visible = false;
+                            updateStatus.Text = "SPPtab v" + CurrentVersion + " · você está com a versão mais recente.";
+                            updateStatus.ForeColor = Color.DimGray;
+                        }
+                    });
+                }
+                catch
+                {
+                    try
+                    {
+                        BeginInvoke((MethodInvoker)delegate
+                        {
+                            updateCheckRunning = false;
+                            updateStatus.Text = "SPPtab v" + CurrentVersion + " · atualização indisponível agora.";
+                            updateStatus.ForeColor = Color.DimGray;
+                        });
+                    }
+                    catch { updateCheckRunning = false; }
+                }
+            });
+            worker.IsBackground = true;
+            worker.Start();
+        }
+
+        private void SetUpdateStatus(string message, int percent)
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            try
+            {
+                BeginInvoke((MethodInvoker)delegate
+                {
+                    if (!IsDisposed) updateStatus.Text = percent >= 0 ? message + " " + percent + "%" : message;
+                });
+            }
+            catch { }
+        }
+
+        private void BeginUpdateDownload()
+        {
+            if (String.IsNullOrEmpty(availableTag) || update.Enabled == false) return;
+            update.Enabled = false;
+            close.Enabled = false;
+            updateStatus.ForeColor = Color.FromArgb(34, 91, 176);
+            updateStatus.Text = "Baixando o pacote oficial…";
+            Thread worker = new Thread(delegate()
+            {
+                string archivePath = Path.Combine(Path.GetTempPath(), "SPPtab-update-" + Guid.NewGuid().ToString("N") + ".zip");
+                try
+                {
+                    ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+                    Uri packageUri = new Uri(ReleaseUrl(availableTag, "SPPtab-Portable.zip"));
+                    using (WebClient client = new WebClient())
+                    using (ManualResetEvent completed = new ManualResetEvent(false))
+                    {
+                        Exception downloadError = null;
+                        bool cancelled = false;
+                        client.Headers[HttpRequestHeader.UserAgent] = "SPPtab-Updater";
+                        client.DownloadProgressChanged += delegate(object sender, DownloadProgressChangedEventArgs e)
+                        {
+                            SetUpdateStatus("Baixando v" + availableVersion + "…", e.ProgressPercentage);
+                        };
+                        client.DownloadFileCompleted += delegate(object sender, AsyncCompletedEventArgs e)
+                        {
+                            downloadError = e.Error;
+                            cancelled = e.Cancelled;
+                            completed.Set();
+                        };
+                        client.DownloadFileAsync(packageUri, archivePath);
+                        if (!completed.WaitOne(TimeSpan.FromMinutes(20)))
+                        {
+                            client.CancelAsync();
+                            throw new TimeoutException("O download excedeu o tempo limite. Tente novamente quando a conexão estiver estável.");
+                        }
+                        if (downloadError != null) throw downloadError;
+                        if (cancelled) throw new OperationCanceledException("O download da atualização foi cancelado.");
+                    }
+
+                    SetUpdateStatus("Conferindo a integridade do pacote…", -1);
+                    string checksumText = DownloadText(ReleaseUrl(availableTag, "SPPtab-Portable-SHA256SUM.txt"), 30000);
+                    Match hashMatch = Regex.Match(checksumText, "\\b([a-f0-9]{64})\\b", RegexOptions.IgnoreCase);
+                    if (!hashMatch.Success || !String.Equals(Sha256File(archivePath), hashMatch.Groups[1].Value, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("O pacote baixado não passou pela verificação de integridade. Nenhum arquivo foi alterado.");
+
+                    string helperPath = Path.Combine(Path.GetTempPath(), "SPPtab-Updater-" + Guid.NewGuid().ToString("N") + ".exe");
+                    File.Copy(Path.Combine(BaseDirectory, "SPPtab.exe"), helperPath);
+                    ProcessStartInfo helper = new ProcessStartInfo(helperPath,
+                        "--apply-update " + Quote(archivePath) + " " + Quote(hashMatch.Groups[1].Value) + " " + Process.GetCurrentProcess().Id + " " + Quote(BaseDirectory));
+                    helper.UseShellExecute = true;
+                    helper.WindowStyle = ProcessWindowStyle.Hidden;
+                    helper.WorkingDirectory = Path.GetTempPath();
+                    Process.Start(helper);
+                    BeginInvoke((MethodInvoker)delegate
+                    {
+                        status.Text = "Atualização conferida. Reiniciando o SPPtab…";
+                        allowExit = true;
+                        Close();
+                    });
+                }
+                catch (Exception ex)
+                {
+                    try { if (File.Exists(archivePath)) File.Delete(archivePath); } catch { }
+                    try
+                    {
+                        BeginInvoke((MethodInvoker)delegate
+                        {
+                            close.Enabled = true;
+                            update.Enabled = true;
+                            updateStatus.Text = "Não foi possível atualizar: " + ex.Message;
+                            updateStatus.ForeColor = Color.Firebrick;
+                        });
+                    }
+                    catch { }
                 }
             });
             worker.IsBackground = true;

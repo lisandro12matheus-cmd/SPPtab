@@ -15,6 +15,7 @@ tabwin2_page_security();
   <link rel="stylesheet" href="assets/brand.css?v=1">
   <link rel="stylesheet" href="assets/launch.css?v=2">
   <link rel="stylesheet" href="assets/search-loading.css?v=3">
+  <link rel="stylesheet" href="assets/compact-headings.css?v=1">
 </head>
 <body>
   <div class="launch-splash" id="launchSplash" role="status" aria-live="polite">
@@ -36,6 +37,7 @@ tabwin2_page_security();
         <a class="nav-item active" href="#busca"><span class="nav-icon">⌕</span>Buscar arquivos</a>
         <a class="nav-item" href="bases.php"><span class="nav-icon">▦</span>Minhas bases</a>
         <a class="nav-item" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a>
+        <a class="nav-item" href="tabulacoes-prontas.php"><span class="nav-icon">▧</span>Tabulações prontas</a>
         <a class="nav-item" id="savedTabulationsNav" href="minhas-tabulacoes.php" hidden><span class="nav-icon">▧</span>Minhas Tabulações</a>
       </nav>
       <div class="sidebar-foot">

@@ -4,6 +4,9 @@ $ErrorActionPreference = 'Stop'
 $PackagingRoot = $PSScriptRoot
 $AppRoot = Split-Path -Parent $PackagingRoot
 $WorkspaceRoot = Split-Path -Parent $AppRoot
+$VersionFile = Join-Path $PackagingRoot 'version.txt'
+$AppVersion = (Get-Content -LiteralPath $VersionFile -Raw).Trim()
+if ($AppVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'A versão do SPPtab deve seguir o formato X.Y.Z em packaging/version.txt.' }
 $BuildRoot = Join-Path $AppRoot '.build\portable'
 $RuntimeCache = Join-Path (Split-Path -Parent $BuildRoot) 'runtime-cache'
 $OutputRoot = Join-Path $AppRoot 'dist'
@@ -36,6 +39,7 @@ if (-not $resolvedBuild.StartsWith($resolvedApp, [StringComparison]::OrdinalIgno
 if (Test-Path -LiteralPath $BuildRoot) { Remove-Item -LiteralPath $BuildRoot -Recurse -Force }
 New-Item -ItemType Directory -Path $AppPayload, $PhpPayload, $PythonPayload, $AppFiles, $OutputRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $RuntimeCache -Force | Out-Null
+Set-Content -LiteralPath (Join-Path $AppPayload 'VERSION.txt') -Value $AppVersion -Encoding ASCII
 
 Write-Host 'Baixando o runtime Python portátil…'
 if (-not (Test-Path -LiteralPath $PythonZip)) {
@@ -141,7 +145,7 @@ if (-not $SkipSelfTests) {
 }
 
 $launcherExe = Join-Path $AppPayload 'SPPtab.exe'
-$launcherArgs = @('/nologo', '/target:winexe', '/platform:x64', '/optimize+', ('/out:' + $launcherExe), '/reference:System.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll', $LauncherSource)
+$launcherArgs = @('/nologo', '/target:winexe', '/platform:x64', '/optimize+', ('/out:' + $launcherExe), '/reference:System.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll', '/reference:System.IO.Compression.dll', '/reference:System.IO.Compression.FileSystem.dll', $LauncherSource)
 & $Compiler @launcherArgs
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $launcherExe)) { throw 'Não foi possível compilar o iniciador do SPPtab.' }
 
@@ -170,7 +174,7 @@ try {
 finally {
     $archive.Dispose()
 }
-$requiredEntries = @('SPPtab.exe', 'runtime/php/php.exe', 'runtime/php/php.ini', 'runtime/python/python.exe', 'app/api.php', 'app/security.php', 'app/engine/storage_lock.py', 'app/bases.php', 'app/tabular.php', 'app/pacotes.php', 'app/minhas-tabulacoes.php', 'app/assets/presets.css', 'app/assets/saved-tabulations.js', 'app/assets/tabulations-nav.js', 'app/packaging/router.php')
+$requiredEntries = @('SPPtab.exe', 'VERSION.txt', 'runtime/php/php.exe', 'runtime/php/php.ini', 'runtime/python/python.exe', 'app/api.php', 'app/security.php', 'app/engine/storage_lock.py', 'app/bases.php', 'app/tabular.php', 'app/pacotes.php', 'app/minhas-tabulacoes.php', 'app/tabulacoes-prontas.php', 'app/assets/presets.css', 'app/assets/saved-tabulations.js', 'app/assets/tabulations-nav.js', 'app/assets/predefined-report.css', 'app/assets/predefined-report.js', 'app/assets/compact-headings.css', 'app/packaging/router.php')
 $archiveCheck = [IO.Compression.ZipFile]::OpenRead($PayloadZip)
 try {
     $actualEntries = @($archiveCheck.Entries | ForEach-Object { $_.FullName })
@@ -198,7 +202,7 @@ finally {
 $portableCheck = [IO.Compression.ZipFile]::OpenRead($PortableOutput)
 try {
     $portableEntries = @($portableCheck.Entries | ForEach-Object { $_.FullName })
-    foreach ($entry in @('SPPtab/SPPtab.exe', 'SPPtab/runtime/php/php.exe', 'SPPtab/runtime/python/python.exe', 'SPPtab/app/index.php', 'SPPtab/app/security.php', 'SPPtab/app/engine/storage_lock.py', 'SPPtab/app/bases.php', 'SPPtab/app/tabular.php', 'SPPtab/app/pacotes.php', 'SPPtab/app/minhas-tabulacoes.php', 'SPPtab/app/assets/app.css', 'SPPtab/app/assets/presets.css', 'SPPtab/app/assets/saved-tabulations.js', 'SPPtab/app/assets/tabulations-nav.js', 'SPPtab/LEIA-ME.txt')) {
+    foreach ($entry in @('SPPtab/SPPtab.exe', 'SPPtab/VERSION.txt', 'SPPtab/runtime/php/php.exe', 'SPPtab/runtime/python/python.exe', 'SPPtab/app/index.php', 'SPPtab/app/security.php', 'SPPtab/app/engine/storage_lock.py', 'SPPtab/app/bases.php', 'SPPtab/app/tabular.php', 'SPPtab/app/pacotes.php', 'SPPtab/app/minhas-tabulacoes.php', 'SPPtab/app/tabulacoes-prontas.php', 'SPPtab/app/assets/app.css', 'SPPtab/app/assets/presets.css', 'SPPtab/app/assets/saved-tabulations.js', 'SPPtab/app/assets/tabulations-nav.js', 'SPPtab/app/assets/predefined-report.css', 'SPPtab/app/assets/predefined-report.js', 'SPPtab/app/assets/compact-headings.css', 'SPPtab/LEIA-ME.txt')) {
         if ($portableEntries -notcontains $entry) { throw "A pasta portátil não contém o componente obrigatório: $entry" }
     }
 }
