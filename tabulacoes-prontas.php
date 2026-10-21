@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>Tabulações prontas · SPPtab</title>
-      <link rel="stylesheet" href="assets/app.css?v=14"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=15"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
+      <link rel="stylesheet" href="assets/app.css?v=15"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=16"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
 </head>
 <body>
   <div class="app-shell">
@@ -11,7 +11,7 @@
       <a class="brand" href="./" aria-label="SPPtab, início"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span><span><strong>SPPtab</strong><small>saúde em dados</small></span></a>
       <div class="nav-label">ESPAÇO DE TRABALHO</div>
       <nav aria-label="Navegação principal"><a class="nav-item" href="index.php"><span class="nav-icon">⌕</span>Buscar arquivos</a><a class="nav-item" href="bases.php"><span class="nav-icon">▦</span>Minhas bases</a><a class="nav-item" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a><a class="nav-item active" href="tabulacoes-prontas.php" aria-current="page"><span class="nav-icon">▧</span>Tabulações prontas</a><a class="nav-item" id="savedTabulationsNav" href="minhas-tabulacoes.php" hidden><span class="nav-icon">▧</span>Minhas Tabulações</a></nav>
-      <div class="sidebar-foot"><span class="source-dot"></span><div><strong>SIA/SUS · SIH/SUS</strong><small>Relatórios prontos</small></div></div>
+      <div class="sidebar-foot"><span class="source-dot"></span><div><strong>SIA/SUS · SIH/SUS</strong><small>Relatórios prontos</small></div><span class="sidebar-version">v<?= htmlspecialchars(tabwin2_app_version(), ENT_QUOTES, 'UTF-8') ?></span></div>
     </aside>
     <main class="main-content predefined-report-main" id="predefinedMain">
       <header class="topbar"><div class="breadcrumb">Dados públicos <span>/</span> <strong>Tabulações prontas</strong></div><div class="top-tag"><span></span><b>SIA/SUS · SIH/SUS</b></div></header>
@@ -90,6 +90,6 @@
       <div class="setup-dialog-footer"><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=24" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=25" defer></script>
 </body>
 </html>

@@ -1,6 +1,18 @@
 <?php
 declare(strict_types=1);
 
+function tabwin2_app_version(): string
+{
+    static $version = null;
+    if ($version !== null) return $version;
+    foreach ([__DIR__ . '/VERSION.txt', __DIR__ . '/packaging/version.txt'] as $versionPath) {
+        if (!is_file($versionPath)) continue;
+        $candidate = trim((string) @file_get_contents($versionPath));
+        if (preg_match('/^\d+\.\d+\.\d+$/', $candidate)) return $version = $candidate;
+    }
+    return $version = 'indisponível';
+}
+
 /** Shared browser/API boundary for the local SPPtab application. */
 function tabwin2_security_headers(): void
 {

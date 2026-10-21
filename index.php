@@ -10,7 +10,7 @@ tabwin2_page_security();
   <meta name="theme-color" content="#f4f7f8">
   <meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>SPPtab · DATASUS</title>
-  <link rel="stylesheet" href="assets/app.css?v=14">
+  <link rel="stylesheet" href="assets/app.css?v=15">
   <link rel="stylesheet" href="assets/file-selection.css?v=1">
   <link rel="stylesheet" href="assets/brand.css?v=1">
   <link rel="stylesheet" href="assets/launch.css?v=2">
@@ -43,6 +43,7 @@ tabwin2_page_security();
       <div class="sidebar-foot">
         <span class="source-dot"></span>
         <div><strong>Fonte oficial</strong><small>DATASUS · HTTPS / FTP</small></div>
+        <span class="sidebar-version">v<?= htmlspecialchars(tabwin2_app_version(), ENT_QUOTES, 'UTF-8') ?></span>
       </div>
     </aside>
 

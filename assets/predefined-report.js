@@ -588,9 +588,14 @@
     if (!activeResult) return [];
     if (activeReport.tableMode === 'flat' || activeReport.tableMode === 'occupancy') return (activeResult.columns || []).map((column) => ({ ...column, filterable:column.kind !== 'action', sortable:column.kind !== 'action' }));
     const summaryView = activeView === 'summary';
-    const dimensions = summaryView ? [] : [...(activeResult.detailDimensions || [{ id:'complexity', label:'Complexidade' }])];
-    if (activeReport.id === 'sia-pa-producao' && !summaryView && !dimensions.some((dimension) => dimension.id === 'financing')) {
-      dimensions.push({ id:'financing', label:'Financiamento (MAC/FAEC)' });
+    let dimensions = summaryView ? [] : [...(activeResult.detailDimensions || [{ id:'complexity', label:'Complexidade' }])];
+    if (activeReport.id === 'sia-pa-producao' && !summaryView) {
+      const extraDimensions = dimensions.filter((dimension) => !['complexity','financing'].includes(dimension.id));
+      dimensions = [
+        { id:'complexity', label:'Complexidade' },
+        { id:'financing', label:'Financiamento (MAC/FAEC)' },
+        ...extraDimensions
+      ];
     }
     const columns = [{
       id:'primary', label:summaryView ? (activeResult.dimensionLabel || 'ESTABELECIMENTO') : (activeResult.dimensionLabel || 'PROCEDIMENTO · SIGTAP'),
@@ -716,6 +721,8 @@
     }
     const cell = document.createElement('td');
     if (column.id === 'dimension:rejectionReason' || column.field === 'rejectionReason') cell.classList.add('report-rejection-reason-column');
+    if (column.id === 'dimension:complexity') cell.classList.add('report-complexity-column');
+    if (column.id === 'dimension:financing') cell.classList.add('report-financing-column');
     if (firstColumn || column.sticky) cell.classList.add('primary-cell');
     if (column.metricId) {
       const formatted = formatNumber(rawColumnValue(row, column), column.decimals);
@@ -774,6 +781,8 @@
     for (const column of columns) {
       const th = document.createElement('th');
       if (column.id === 'dimension:rejectionReason' || column.field === 'rejectionReason') th.classList.add('report-rejection-reason-column');
+      if (column.id === 'dimension:complexity') th.classList.add('report-complexity-column');
+      if (column.id === 'dimension:financing') th.classList.add('report-financing-column');
       if (column.sticky || columns[0] === column) th.classList.add('primary-cell');
       if (column.kind === 'action') { th.classList.add('report-action-cell'); th.textContent = column.label; header.append(th); continue; }
       const wrap = document.createElement('span'); wrap.className = 'report-column-head';
@@ -790,6 +799,7 @@
     if (!activeResult) return;
     resultPanel.classList.toggle('is-flat-report', activeReport.tableMode === 'flat');
     resultPanel.classList.toggle('is-bed-occupancy-report', activeReport.tableMode === 'occupancy');
+    resultPanel.classList.toggle('is-sia-detail-report', activeReport.id === 'sia-pa-producao' && activeView === 'detail');
     const rows = visibleRows();
     const pageCount = Math.max(1, Math.ceil(rows.length / tablePageSize));
     tablePage = Math.min(Math.max(1, tablePage), pageCount);

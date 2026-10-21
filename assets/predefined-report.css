@@ -105,6 +105,13 @@
 .report-table th{position:sticky;top:0;z-index:2;background:#f8fafb;color:#75848a;text-align:right;font-size:8px;font-weight:700;letter-spacing:.55px;text-transform:uppercase;white-space:nowrap}
 .report-table th:first-child,.report-table td:first-child{text-align:left}
 .report-table td{color:#41575e;text-align:right;white-space:nowrap}
+.is-sia-detail-report .report-table{min-width:1540px}
+.is-sia-detail-report .report-table .primary-cell{min-width:350px;max-width:380px}
+.is-sia-detail-report .report-table th.report-complexity-column,.is-sia-detail-report .report-table td.report-complexity-column{width:155px;min-width:155px;max-width:175px}
+.is-sia-detail-report .report-table th.report-financing-column,.is-sia-detail-report .report-table td.report-financing-column{width:190px;min-width:190px;max-width:210px}
+.is-sia-detail-report .report-table th.report-complexity-column,.is-sia-detail-report .report-table th.report-financing-column{white-space:normal;text-align:left}
+.is-sia-detail-report .report-table td.report-complexity-column,.is-sia-detail-report .report-table td.report-financing-column{white-space:normal;text-align:left;overflow-wrap:anywhere}
+.is-sia-detail-report .report-table th.report-complexity-column .report-column-head,.is-sia-detail-report .report-table th.report-financing-column .report-column-head{justify-content:space-between;white-space:normal}
 .report-table tbody tr:hover td{background:#f8fbff}
 .report-table tbody tr:last-child td{border-bottom:1px solid #e6ecef}
 .report-table .primary-cell{position:sticky;left:0;z-index:1;min-width:240px;max-width:440px;background:#fff;text-align:left}

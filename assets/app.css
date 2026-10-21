@@ -99,3 +99,5 @@
 .nav-item[hidden]{display:none!important}
 /* Ação direta para arquivos que já estão salvos na biblioteca local. */
 .file-action-heading,.file-action-cell{text-align:right;white-space:nowrap}.file-action-link{display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:0 10px;border:1px solid #dbe7f8;border-radius:7px;background:#f5f9ff;color:#356fbd;font:600 9px 'DM Sans',sans-serif;text-decoration:none;cursor:pointer;transition:background .15s ease,border-color .15s ease}.file-action-link:hover:not(:disabled){background:#eaf2ff;border-color:#c4d9f5}.file-action-link:disabled{opacity:.65;cursor:wait}.file-table{min-width:760px}
+.sidebar-version{margin-left:auto;align-self:flex-end;padding-bottom:2px;color:#9aa6aa;font-size:9px;letter-spacing:.2px;white-space:nowrap}
+@media(max-width:760px){.sidebar-version{display:none}}
