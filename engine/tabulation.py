@@ -49,7 +49,7 @@ PREDEFINED_SIH_FILTER_SPECS = (
     {"key":"admissionType","label":"Caráter de atendimento","field":"CAR_INT","relation":"CNV/CARATEND.CNV","width":2,"response":"admissionTypes","url":"carater"},
 )
 PREDEFINED_SIH_OCCUPANCY_FILTER_SPECS = PREDEFINED_SIH_FILTER_SPECS + (
-    {"key":"specialty","label":"Especialidade do leito","field":"ESPEC","relation":"CNV/LEITOS.CNV","width":1,"response":"specialties","url":"especialidade"},
+    {"key":"specialty","label":"Especialidade do leito","field":"ESPEC","relation":"CNV/LEITOS.CNV","width":2,"response":"specialties","url":"especialidade"},
 )
 PREDEFINED_SIH_SP_FILTER_SPECS = (
     {"key":"manager","label":"Gestor da produção","field":"SP_GESTOR","relation":"CNV/br_municgestor.cnv","width":6,"response":"managers","url":"gestor","stateScoped":True},
@@ -1364,7 +1364,7 @@ def predefined_sih_occupancy_filter_options(payload: dict[str,Any]):
     if uf not in PREDEFINED_UF_CODES:
         raise ValueError("Selecione uma unidade da Federação válida.")
     archive_path=ensure_archive("SIH")
-    cache=cache_target("predefined-sih-occupancy-filter-options",{"version":2,"archive":cache_file_identity(archive_path),"uf":uf})
+    cache=cache_target("predefined-sih-occupancy-filter-options",{"version":3,"archive":cache_file_identity(archive_path),"uf":uf})
     cached=cache_read(cache)
     if isinstance(cached,dict) and cached.get("ok") is True:
         return cached
@@ -2868,7 +2868,7 @@ def predefined_sih_bed_occupancy(payload: dict[str,Any], progress=None):
 
     source_items=[rd,rj,*([er] if er else [])]
     archive=UPLOADS/"DEFINICOES"/"originais"/"TAB_SIH.zip"
-    identity={"report":"sih-bed-occupancy-v1","sources":[cache_file_identity(item["source"])|{"dbf":cache_file_identity(item["dbf"])} for item in source_items],"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_codes}
+    identity={"report":"sih-bed-occupancy-v2","sources":[cache_file_identity(item["source"])|{"dbf":cache_file_identity(item["dbf"])} for item in source_items],"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_codes}
     target=cache_target("predefined-reports",identity)
     cached=cache_read(target)
     if isinstance(cached,dict) and cached.get("ok") is True and time.time()-float(cached.get("cachedAt",0) or 0)<7*86400:
@@ -2913,7 +2913,10 @@ def predefined_sih_bed_occupancy(payload: dict[str,Any], progress=None):
             stay_days=_sih_days_in_month(admission_raw,discharge_raw,year,month,fallback)
             permanence_days=_sih_record_number(record,positions,"DIAS_PERM",fields) or stay_days
             procedure=_report_code(record[positions["PROC_REA"]],10)
-            specialty=_report_code(record[positions["ESPEC"]],1)
+            # ESPEC is stored as a one-digit numeric field in some SIH DBFs,
+            # but the official LEITOS.CNV relation uses two-digit codes (02,
+            # 03, ...). Pad before looking up the official description.
+            specialty=_report_code(record[positions["ESPEC"]],2)
             uti_days=_sih_record_number(record,positions,"UTI_MES_TO",fields)
             uci_days=_sih_record_number(record,positions,"UTI_INT_TO",fields)
             exit_code=str(record[positions["COBRANCA"]] or "").strip() if "COBRANCA" in positions else ""
