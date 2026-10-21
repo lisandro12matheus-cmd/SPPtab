@@ -940,7 +940,15 @@
     }
     if (!matching.length) list.append(buildCell('p', 'Nenhum valor encontrado.', 'report-column-filter-empty'));
     const remainder = matching.length - limit;
-    count.textContent = `${formatNumber(Math.max(0, values.size - pending.size))} selecionados de ${formatNumber(values.size)}${remainder > 0 ? ` · pesquise para ver mais ${formatNumber(remainder)}` : ''}`;
+    const selectedCount = Math.max(0, values.size - [...pending].filter((token) => values.has(token)).length);
+    const matchingSelectedCount = matching.filter(([token]) => !pending.has(token)).length;
+    count.textContent = `${formatNumber(selectedCount)} de ${formatNumber(values.size)} selecionados${remainder > 0 ? ` · ${formatNumber(remainder)} correspondências não exibidas` : ''}`;
+    const selectAll = node.querySelector('[data-filter-bulk="select"]');
+    const deselectAll = node.querySelector('[data-filter-bulk="deselect"]');
+    const clear = node.querySelector('[data-filter-clear]');
+    selectAll.disabled = matchingSelectedCount === matching.length;
+    deselectAll.disabled = matchingSelectedCount === 0 || matching.length === 0;
+    clear.disabled = !columnFilters.has(column.id);
     positionColumnFilterMenu();
   }
 
@@ -956,13 +964,28 @@
     const title = buildCell('strong', column.label, 'report-column-filter-title');
     const search = document.createElement('input'); search.type = 'search'; search.className = 'report-column-filter-search'; search.placeholder = 'Pesquisar valores…'; search.setAttribute('aria-label', `Pesquisar valores em ${column.label}`);
     const count = buildCell('span', '', 'report-column-filter-count');
+    count.setAttribute('aria-live', 'polite');
     const list = document.createElement('div'); list.className = 'report-column-filter-options';
     const controls = document.createElement('div'); controls.className = 'report-column-filter-controls';
-    const selectAll = buildCell('button', 'Selecionar todos', 'report-column-filter-link'); selectAll.type = 'button';
-    selectAll.addEventListener('click', () => { columnFilterMenu.pending.clear(); drawColumnFilterOptions(); });
-    const clear = buildCell('button', 'Limpar filtro', 'report-column-filter-link'); clear.type = 'button';
+    const selectAll = buildCell('button', 'Selecionar todos', 'report-column-filter-link'); selectAll.type = 'button'; selectAll.dataset.filterBulk = 'select';
+    selectAll.title = 'Marca todos os valores encontrados na pesquisa; com a busca vazia, marca todos.';
+    selectAll.addEventListener('click', () => {
+      const query = search.value.trim().toLocaleLowerCase('pt-BR');
+      if (!query) columnFilterMenu.pending.clear();
+      else for (const [token, label] of values) if (label.toLocaleLowerCase('pt-BR').includes(query)) columnFilterMenu.pending.delete(token);
+      drawColumnFilterOptions();
+    });
+    const deselectAll = buildCell('button', 'Desmarcar todos', 'report-column-filter-link'); deselectAll.type = 'button'; deselectAll.dataset.filterBulk = 'deselect';
+    deselectAll.title = 'Desmarca todos os valores encontrados na pesquisa; com a busca vazia, desmarca todos.';
+    deselectAll.addEventListener('click', () => {
+      const query = search.value.trim().toLocaleLowerCase('pt-BR');
+      for (const [token, label] of values) if (!query || label.toLocaleLowerCase('pt-BR').includes(query)) columnFilterMenu.pending.add(token);
+      drawColumnFilterOptions();
+    });
+    const clear = buildCell('button', 'Limpar filtro', 'report-column-filter-link'); clear.type = 'button'; clear.dataset.filterClear = 'true';
     clear.addEventListener('click', () => { columnFilters.delete(column.id); tablePage = 1; closeColumnFilterMenu(); renderTable(); });
-    controls.append(selectAll, clear);
+    controls.append(selectAll, deselectAll, clear);
+    const scopeHint = buildCell('span', 'Com pesquisa, as ações valem para os resultados encontrados.', 'report-column-filter-bulk-note');
     const sort = document.createElement('div'); sort.className = 'report-column-filter-sort';
     const ascending = buildCell('button', column.type === 'number' || column.type === 'currency' ? 'Menor para maior' : 'A → Z', 'report-column-filter-sort-button'); ascending.type = 'button';
     const descending = buildCell('button', column.type === 'number' || column.type === 'currency' ? 'Maior para menor' : 'Z → A', 'report-column-filter-sort-button'); descending.type = 'button';
@@ -977,7 +1000,7 @@
       tablePage = 1; closeColumnFilterMenu(); renderTable();
     });
     footer.append(cancel, apply);
-    node.append(title, search, controls, count, list, sort, footer);
+    node.append(title, search, controls, scopeHint, count, list, sort, footer);
     node.addEventListener('click', (event) => event.stopPropagation());
     search.addEventListener('input', drawColumnFilterOptions);
     columnFilterMenu = { node, column, anchor, pending:new Set(columnFilters.get(column.id) || []), search, values };

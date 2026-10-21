@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>Tabulações prontas · SPPtab</title>
-      <link rel="stylesheet" href="assets/app.css?v=15"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=16"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
+      <link rel="stylesheet" href="assets/app.css?v=15"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=17"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
 </head>
 <body>
   <div class="app-shell">
@@ -90,6 +90,6 @@
       <div class="setup-dialog-footer"><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=25" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=26" defer></script>
 </body>
 </html>
