@@ -54,6 +54,7 @@ PREDEFINED_SIH_OCCUPANCY_FILTER_SPECS = PREDEFINED_SIH_FILTER_SPECS + (
 )
 PREDEFINED_SIH_SP_FILTER_SPECS = (
     {"key":"manager","label":"Gestor da produção","field":"SP_GESTOR","relation":"CNV/br_municgestor.cnv","width":6,"response":"managers","url":"gestor","stateScoped":True},
+    {"key":"professionalCbo","label":"CBO do profissional","field":"SP_PF_CBO","relation":"DBF/CBO.DBF","width":6,"response":"professionalCbos","url":"cbo"},
 )
 PREDEFINED_SIH_SP_CNES_FILTERS = (
     {"key":"cnesManagement","payload":"cnesManagementCode","name":"cnesManagementName","label":"Tipo de gestão · CNES","response":"cnesManagementTypes","source":"competence"},
@@ -1395,7 +1396,7 @@ def predefined_sih_sp_filter_options(payload: dict[str,Any]):
     if uf not in PREDEFINED_UF_CODES:
         raise ValueError("Selecione uma unidade da Federação válida.")
     archive_path=ensure_archive("SIH")
-    cache=cache_target("predefined-sih-sp-filter-options",{"version":3,"archive":cache_file_identity(archive_path),"uf":uf})
+    cache=cache_target("predefined-sih-sp-filter-options",{"version":6,"archive":cache_file_identity(archive_path),"uf":uf})
     cached=cache_read(cache)
     if isinstance(cached,dict) and cached.get("ok") is True:
         return cached
@@ -1409,6 +1410,8 @@ def predefined_sih_sp_filter_options(payload: dict[str,Any]):
         option=next((item for item in options if item.get("field")==spec["field"] and item.get("relation","").lower()==spec["relation"].lower()),None)
         mapping=relation_mapping("SIH",option) if option else {}
         categories=_report_filter_categories(mapping,spec["width"])
+        if spec["key"]=="professionalCbo":
+            categories=[{"value":item["value"],"label":f'{item["value"]} · {item["label"]}'} for item in categories if not item["value"].startswith("__RANGE__:")]
         if spec.get("stateScoped"):
             categories=[item for item in categories if item["value"].startswith(prefix)]
         result[spec["response"]]=categories
@@ -2406,6 +2409,17 @@ def predefined_sih_sp_professionals(payload: dict[str,Any], progress=None):
         selected_filter_codes[manager_spec["field"]]=manager_codes[manager_spec["field"]]
         selected_filter_names[manager_spec["key"]]=manager_names[manager_spec["field"]]
 
+    cbo_spec=PREDEFINED_SIH_SP_FILTER_SPECS[1]
+    cbo_option=option_for(cbo_spec["field"],basename="CBO.DBF")
+    cbo_mapping=relation_mapping("SIH",cbo_option) if cbo_option else {}
+    raw_cbo=payload.get("professionalCboCode") or []
+    if raw_cbo:
+        if not cbo_option: raise ValueError("O filtro de CBO não consta na definição oficial desta base.")
+        if cbo_spec["field"] not in fieldinfo: raise ValueError("Esta competência não contém o campo CBO necessário a esse filtro.")
+        cbo_codes=_report_expand_filter_values(raw_cbo,cbo_spec,cbo_mapping)
+        selected_filter_codes[cbo_spec["field"]]=cbo_codes
+        selected_filter_names[cbo_spec["key"]]=sorted({_report_label(cnv_label(cbo_mapping,code)) for code in cbo_codes})
+
     _,rd_definition=archive_def("SIH","RD")
     rd_options=_report_definition_options(rd_definition) if rd_definition else []
     legal_nature_option=next((item for item in rd_options if item.get("field")=="NAT_JUR" and item.get("relation","").lower()=="cnv/natjur.cnv"),None)
@@ -2459,6 +2473,10 @@ def predefined_sih_sp_professionals(payload: dict[str,Any], progress=None):
         names_for_filter=selected_filter_names[manager_spec["key"]]
         value=", ".join(names_for_filter[:3])+(f" e mais {len(names_for_filter)-3}" if len(names_for_filter)>3 else "")
         filter_summary.append({"label":manager_spec["label"],"value":value,"source":"SIH/SP"})
+    names_for_filter=selected_filter_names.get(cbo_spec["key"],[])
+    if names_for_filter:
+        value=", ".join(names_for_filter[:3])+(f" e mais {len(names_for_filter)-3}" if len(names_for_filter)>3 else "")
+        filter_summary.append({"label":cbo_spec["label"],"value":value,"source":"SIH/SP"})
     for filter_spec in PREDEFINED_SIH_SP_CNES_FILTERS:
         names_for_filter=selected_filter_names.get(filter_spec["key"],[])
         if not names_for_filter: continue
@@ -2478,7 +2496,7 @@ def predefined_sih_sp_professionals(payload: dict[str,Any], progress=None):
 
     source_identity=cache_file_identity(source); dbf_identity=cache_file_identity(dbf)
     archive=UPLOADS/"DEFINICOES"/"originais"/"TAB_SIH.zip"
-    identity={"report":"sih-sp-profissionais-v3","source":source_identity,"dbf":dbf_identity,"definition":cache_file_identity(archive),"uf":uf,"municipality":municipality,"filters":selected_filter_codes}
+    identity={"report":"sih-sp-profissionais-v6","source":source_identity,"dbf":dbf_identity,"definition":cache_file_identity(archive),"uf":uf,"municipality":municipality,"filters":selected_filter_codes}
     target=cache_target("predefined-reports",identity)
     cached=cache_read(target)
     if isinstance(cached,dict) and cached.get("ok") is True and time.time()-float(cached.get("cachedAt",0) or 0)<30*86400:
@@ -2492,6 +2510,7 @@ def predefined_sih_sp_professionals(payload: dict[str,Any], progress=None):
     filters=[]
     if municipality: filters.append((municipality_field,municipality))
     if manager_spec["field"] in selected_filter_codes: filters.append((manager_spec["field"],selected_filter_codes[manager_spec["field"]]))
+    if cbo_spec["field"] in selected_filter_codes: filters.append((cbo_spec["field"],selected_filter_codes[cbo_spec["field"]]))
     filters.append(("IN_TP_VAL",sorted(professional_value_codes)))
     grouped={}
     cns_frequency=defaultdict(int)

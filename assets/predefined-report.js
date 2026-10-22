@@ -66,6 +66,7 @@
   };
   const sihSpFilterDefinitions = {
     manager: { label:'Gestor da produção', field:'SP_GESTOR', nameField:'SP_GESTORName', responseKey:'managers', queryKey:'gestor', sourceLabel:'Arquivo DATASUS · SIH/SP' },
+    professionalCbo: { label:'CBO do profissional', field:'professionalCboCode', nameField:'professionalCboName', responseKey:'professionalCbos', queryKey:'cbo', sourceLabel:'Arquivo DATASUS · SIH/SP' },
     cnesManagement: { label:'Tipo de gestão · CNES', field:'cnesManagementCode', nameField:'cnesManagementName', responseKey:'cnesManagementTypes', queryKey:'cnes_gestao', sourceLabel:'CNES na competência · cadastro atual se ausente' },
     cnesNatureGroup: { label:'Natureza jurídica · grupo CNES', field:'cnesNatureGroupCode', nameField:'cnesNatureGroupName', responseKey:'cnesNatureGroups', queryKey:'cnes_grupo_natureza', sourceLabel:'CNES na competência · cadastro atual se ausente' },
     cnesLegalNature: { label:'Natureza jurídica detalhada · CNES', field:'cnesLegalNatureCode', nameField:'cnesLegalNatureName', responseKey:'cnesLegalNatures', queryKey:'cnes_natureza', sourceLabel:'CNES na competência · cadastro atual se ausente' },
@@ -135,9 +136,9 @@
       workspaceTitle:'Serviços Profissionais · SIH/SUS', introLabel:'SERVIÇOS PROFISSIONAIS · SIH/SUS', introTitle:'Produção profissional por AIH.',
       introDescription:'Atos e valores profissionais por autorização, procedimento, estabelecimento e profissional executor.',
       setupTitle:'Serviços profissionais por AIH', setupDescription:'Escolha a UF e a competência. O recorte inicial mostra Belém, Pará; os filtros de gestão e natureza completam dados ausentes no SIH/SP usando o CNES.',
-      emptyMessage:'Escolha a UF e a competência. Município, gestor da produção, tipo de gestão, natureza jurídica e atendimento hospitalar SUS são opcionais.',
+      emptyMessage:'Escolha a UF e a competência. Município, gestor da produção, CBO, tipo de gestão, natureza jurídica e atendimento hospitalar SUS são opcionais.',
       municipalityLabel:'MUNICÍPIO DE ATENDIMENTO',
-      filterNote:'O município representa o local de atendimento. O gestor vem do arquivo SIH/SP. Como o SP não traz tipo de gestão nem natureza jurídica, esses filtros usam o CNES da mesma competência e recorrem ao cadastro atual quando não há registro histórico. O atendimento hospitalar SUS usa o cadastro atual.',
+      filterNote:'O município representa o local de atendimento. Gestor e CBO vêm do SIH/SP. Como o SP não traz tipo de gestão nem natureza jurídica, esses filtros usam o CNES da mesma competência e recorrem ao cadastro atual quando não há registro histórico. O atendimento hospitalar SUS usa o cadastro atual.',
       methodTitle:'Como ler os valores profissionais:', methodText:' são somados os valores SP e seus complementos federais e locais. A quantidade de atos é contada uma vez por AIH, procedimento e CNS, mesmo quando há mais de um tipo de valor na base.',
       countMetric:'acts', countLabel:'ATOS REGISTRADOS', valueMetric:'value', valueLabel:'VALOR DOS SERVIÇOS',
       summaryTitle:'Serviços profissionais por AIH', detailTitlePrefix:'Serviços profissionais', detailCountLabel:'LANÇAMENTOS PROFISSIONAIS',
@@ -502,11 +503,37 @@
       select.size = Math.min(6, Math.max(2, categories.length));
       select.setAttribute('aria-label', `${definition.label}. Segure Ctrl no Windows ou Command no Mac para selecionar várias categorias.`);
       select.setAttribute('aria-describedby', 'reportFilterNote');
-      for (const item of categories) select.add(new Option(item.label, item.value));
       const preferredValues = normalizeSelectedValues(preferred[definition.field]);
-      for (const option of select.options) option.selected = preferredValues.includes(option.value);
-      select.addEventListener('change', updateScopeDescription);
-      label.append(caption, select);
+      if (type === 'professionalCbo') {
+        const search = document.createElement('input');
+        search.className = 'setup-filter-search';
+        search.type = 'search';
+        search.placeholder = 'Buscar pelo código ou nome do CBO…';
+        search.autocomplete = 'off';
+        search.setAttribute('aria-label', 'Buscar CBO pelo código ou nome');
+        const selectedValues = new Set(preferredValues);
+        const renderCboOptions = () => {
+          const query = search.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+          const matches = categories.filter((item) => `${item.value} ${item.label}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').includes(query));
+          const matchValues = new Set(matches.map((item) => item.value));
+          const visible = [...matches, ...categories.filter((item) => selectedValues.has(item.value) && !matchValues.has(item.value))];
+          select.replaceChildren(...visible.map((item) => new Option(item.label, item.value, false, selectedValues.has(item.value))));
+          select.size = Math.min(6, Math.max(2, visible.length));
+        };
+        renderCboOptions();
+        search.addEventListener('input', renderCboOptions);
+        select.addEventListener('change', () => {
+          selectedValues.clear();
+          for (const option of select.selectedOptions) selectedValues.add(option.value);
+          updateScopeDescription();
+        });
+        label.append(caption, search, select);
+      } else {
+        for (const item of categories) select.add(new Option(item.label, item.value));
+        for (const option of select.options) option.selected = preferredValues.includes(option.value);
+        select.addEventListener('change', updateScopeDescription);
+        label.append(caption, select);
+      }
       const remove = document.createElement('button');
       remove.className = 'setup-filter-remove';
       remove.type = 'button';
@@ -1189,15 +1216,18 @@
       const filterDescription = [filters.municipalityName, ...Object.values(filterDefinitions).filter((definition) => filters[definition.nameField].length).map((definition) => summarizeSelectedNames(filters[definition.nameField]))].filter(Boolean).join(' · ');
       const detailLabel = view === 'services' ? `os serviços profissionais da AIH ${aih}` : `${activeReport.detailPrefix || 'as AIHs'} do CNES ${cnes}`;
       setLoader(true, view === 'summary' ? 'Somando a produção selecionada' : view === 'services' ? 'Detalhando os serviços da AIH' : 'Detalhando a produção do estabelecimento', view === 'summary' ? `${filterDescription || stateNames[filters.uf]} · agrupando os valores por estabelecimento.` : `Consultando ${detailLabel}.`, 1);
-      const sourcePaths = activeReport.id === 'sih-rd-rejeicoes' ? {
-        rejectedPath:filesByKind.RJ.path, rejectedDbfPath:dbfPaths.RJ,
-        ...(filesByKind.ER ? { errorPath:filesByKind.ER.path, errorDbfPath:dbfPaths.ER } : {})
-      } : activeReport.id === 'sih-rd-ocupacao' ? (view === 'services' ? {
-        professionalPath:filesByKind.SP.path, professionalDbfPath:dbfPaths.SP
-      } : {
-        rejectedPath:filesByKind.RJ.path, rejectedDbfPath:dbfPaths.RJ,
-        ...(filesByKind.ER ? { errorPath:filesByKind.ER.path, errorDbfPath:dbfPaths.ER } : {})
-      }) : {};
+      const sourcePaths = {};
+      if (activeReport.id === 'sih-rd-rejeicoes' || (activeReport.id === 'sih-rd-ocupacao' && view !== 'services')) {
+        sourcePaths.rejectedPath = filesByKind.RJ.path;
+        sourcePaths.rejectedDbfPath = dbfPaths.RJ;
+        if (filesByKind.ER) {
+          sourcePaths.errorPath = filesByKind.ER.path;
+          sourcePaths.errorDbfPath = dbfPaths.ER;
+        }
+      } else if (activeReport.id === 'sih-rd-ocupacao' && view === 'services') {
+        sourcePaths.professionalPath = filesByKind.SP.path;
+        sourcePaths.professionalDbfPath = dbfPaths.SP;
+      }
       let job = await api({ action: 'tabulate_start', path: file.path, dbfPath, ...sourcePaths, predefinedReport: activeReport.id, predefinedView: view, ...filters, ...((view === 'detail' || view === 'services') ? { establishmentCode: cnes } : {}), ...(view === 'services' ? { aih } : {}) });
       if (job.done && job.result) {
         activeResult = rememberResult(view, cnes, job.result); allRows = activeResult.rows || [];
