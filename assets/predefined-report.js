@@ -173,6 +173,16 @@
 
   function categoriesForFilter(type) {
     const categories = filterCategories[type] || [];
+    if (type === 'professionalCbo') {
+      const unique = new Map();
+      for (const item of categories) {
+        const code = String(item.value || '').replace(/\D/g, '');
+        if (!/^\d{6}$/.test(code) || unique.has(code)) continue;
+        const description = String(item.label || '').trim().replace(new RegExp(`^${code}\\s*(?:[-–—·:]\\s*)?`, 'i'), '').trim();
+        unique.set(code, { value:code, label:`${code} - ${description || 'Descrição não informada'}` });
+      }
+      return [...unique.values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR', { numeric:true, sensitivity:'base' }));
+    }
     const municipality = municipalitySelect.value;
     if (activeReport.system !== 'sia' || type !== 'manager' || !municipality) return categories;
     const prefix = stateCodes[selectedUf()];

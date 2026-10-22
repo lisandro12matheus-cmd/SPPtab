@@ -1396,7 +1396,7 @@ def predefined_sih_sp_filter_options(payload: dict[str,Any]):
     if uf not in PREDEFINED_UF_CODES:
         raise ValueError("Selecione uma unidade da Federação válida.")
     archive_path=ensure_archive("SIH")
-    cache=cache_target("predefined-sih-sp-filter-options",{"version":6,"archive":cache_file_identity(archive_path),"uf":uf})
+    cache=cache_target("predefined-sih-sp-filter-options",{"version":7,"archive":cache_file_identity(archive_path),"uf":uf})
     cached=cache_read(cache)
     if isinstance(cached,dict) and cached.get("ok") is True:
         return cached
@@ -1411,7 +1411,12 @@ def predefined_sih_sp_filter_options(payload: dict[str,Any]):
         mapping=relation_mapping("SIH",option) if option else {}
         categories=_report_filter_categories(mapping,spec["width"])
         if spec["key"]=="professionalCbo":
-            categories=[{"value":item["value"],"label":f'{item["value"]} · {item["label"]}'} for item in categories if not item["value"].startswith("__RANGE__:")]
+            unique={}
+            for item in categories:
+                code=re.sub(r"\D","",item["value"])
+                if not re.fullmatch(r"\d{6}",code) or code in unique: continue
+                unique[code]={"value":code,"label":item["label"]}
+            categories=sorted(unique.values(),key=lambda item:(item["label"].casefold(),item["value"]))
         if spec.get("stateScoped"):
             categories=[item for item in categories if item["value"].startswith(prefix)]
         result[spec["response"]]=categories
