@@ -169,6 +169,7 @@ internal static class LauncherProgram
             if (!Int32.TryParse(args[3], out parentId)) throw new InvalidOperationException("Não foi possível identificar o iniciador atual.");
             string destinationRoot = Path.GetFullPath(args[4]).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             if (!File.Exists(archivePath) || !Directory.Exists(destinationRoot)) throw new InvalidOperationException("O pacote ou a pasta do SPPtab não está disponível.");
+            if (new FileInfo(archivePath).Length > 1024L * 1024 * 1024) throw new InvalidOperationException("O pacote de atualização excede o tamanho permitido.");
             if (!File.Exists(Path.Combine(destinationRoot, "SPPtab.exe"))) throw new InvalidOperationException("A pasta escolhida não parece conter uma instalação do SPPtab.");
             if (!Regex.IsMatch(expectedHash, "^[a-f0-9]{64}$") || !String.Equals(Sha256File(archivePath), expectedHash, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("A conferência de integridade do pacote falhou. O SPPtab não foi alterado.");
@@ -189,9 +190,16 @@ internal static class LauncherProgram
 
             using (ZipArchive archive = ZipFile.OpenRead(archivePath))
             {
+                if (archive.Entries.Count > 20000) throw new InvalidOperationException("O pacote de atualização contém itens demais.");
+                long extractedBytes = 0;
                 foreach (ZipArchiveEntry entry in archive.Entries)
                 {
+                    if (entry.Length > 1024L * 1024 * 1024 || extractedBytes > 3L * 1024 * 1024 * 1024 - entry.Length)
+                        throw new InvalidOperationException("O pacote de atualização excede o limite de extração.");
+                    extractedBytes += entry.Length;
                     string name = entry.FullName.Replace('/', '\\');
+                    if (name.IndexOf(':') >= 0 || name.IndexOf('\0') >= 0)
+                        throw new InvalidOperationException("O pacote contém um nome de arquivo inválido.");
                     if (!name.StartsWith("SPPtab\\", StringComparison.OrdinalIgnoreCase))
                         throw new InvalidOperationException("O pacote contém um caminho inesperado.");
                     string relative = name.Substring("SPPtab\\".Length);

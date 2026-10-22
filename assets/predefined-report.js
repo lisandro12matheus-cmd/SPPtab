@@ -5,6 +5,12 @@
   const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
   const yearSelect = $('reportYear');
   const monthSelect = $('reportMonth');
+  const monthPicker = $('reportMonthPicker');
+  const monthPickerTrigger = $('reportMonthTrigger');
+  const monthPickerTriggerText = $('reportMonthTriggerText');
+  const monthPickerMenu = $('reportMonthMenu');
+  const monthPickerCount = $('reportMonthCount');
+  const monthPickerOptions = $('reportMonthOptions');
   const ufSelect = $('reportUf');
   const municipalitySelect = $('reportMunicipality');
   const addFilterSelect = $('addReportFilter');
@@ -32,6 +38,8 @@
   let activeAih = '';
   let activeYear = 0;
   let activeMonth = 0;
+  let activeMonths = [];
+  let reportMonths = [];
   let reportControlsReady = false;
   let filterRequest = 0;
   let competencyRequest = 0;
@@ -80,9 +88,9 @@
     'sia-pa-producao': {
       id:'sia-pa-producao', system:'sia', systemCode:'SIA', kind:'PA', systemLabel:'SIA/SUS', sourceLabel:'produção ambulatorial',
       workspaceTitle:'Produção Ambulatorial · SIA/SUS', introLabel:'PRODUÇÃO AMBULATORIAL · SIA/SUS', introTitle:'Produção ambulatorial por estabelecimento.',
-      introDescription:'Relatório mensal da produção ambulatorial, com detalhamento por procedimento SIGTAP.',
-      setupTitle:'Produção ambulatorial por estabelecimento', setupDescription:'Escolha a origem e a competência. Os filtros adicionais são opcionais.',
-      emptyMessage:'Escolha a UF e a competência. Município, gestão, tipo de prestador, natureza jurídica, complexidade e financiamento são opcionais.',
+      introDescription:'Produção ambulatorial por competência, com detalhamento por procedimento SIGTAP.',
+      setupTitle:'Produção ambulatorial por estabelecimento', setupDescription:'Escolha a origem e uma ou mais competências. Os filtros adicionais são opcionais.',
+      emptyMessage:'Escolha a UF e uma ou mais competências. Município, gestão, tipo de prestador, natureza jurídica, complexidade e financiamento são opcionais.',
       municipalityLabel:'MUNICÍPIO',
       filterNote:'O município e os demais filtros valem para toda a consulta. Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.',
       methodTitle:'Como ler glosas e rejeições:', methodText:' glosas são a diferença positiva entre o apresentado e o aprovado. A base ambulatorial não traz um total independente de rejeições; esse indicador conta linhas apresentadas com quantidade aprovada igual a zero.',
@@ -94,8 +102,8 @@
       id:'sih-rd-producao', system:'sih', systemCode:'SIH', kind:'RD', systemLabel:'SIH/SUS', sourceLabel:'produção hospitalar',
       workspaceTitle:'Produção Hospitalar · SIH/SUS', introLabel:'PRODUÇÃO HOSPITALAR · SIH/SUS', introTitle:'Produção hospitalar por estabelecimento.',
       introDescription:'AIHs e valores por hospital, com detalhamento do procedimento principal, complexidade e financiamento.',
-      setupTitle:'Produção hospitalar por estabelecimento', setupDescription:'Escolha a UF e a competência das AIHs. Município e filtros adicionais são opcionais.',
-      emptyMessage:'Escolha a UF e a competência. Município da internação, gestor da produção, financiamento (MAC/FAEC), subtipo FAEC, complexidade, natureza jurídica, natureza do prestador, gestão e caráter de atendimento são opcionais.',
+      setupTitle:'Produção hospitalar por estabelecimento', setupDescription:'Escolha a UF e uma ou mais competências das AIHs. Município e filtros adicionais são opcionais.',
+      emptyMessage:'Escolha a UF e uma ou mais competências. Município da internação, gestor da produção, financiamento (MAC/FAEC), subtipo FAEC, complexidade, natureza jurídica, natureza do prestador, gestão e caráter de atendimento são opcionais.',
       municipalityLabel:'MUNICÍPIO DA INTERNAÇÃO',
       filterNote:'O município selecionado representa o local da internação. Gestor da produção usa o Município Gestor oficial (UF_ZI) das AIHs. Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.',
       methodTitle:'Como ler os dados hospitalares:', methodText:' o relatório usa AIHs processadas no SIH/RD. Renovações de longa permanência podem aparecer em competências sucessivas; rejeições RJ/ER não entram nesta soma.',
@@ -107,8 +115,8 @@
       id:'sih-rd-rejeicoes', system:'sih', systemCode:'SIH', kind:'RJ', requiredKinds:['RJ'], optionalKinds:['ER'], systemLabel:'SIH/SUS', sourceLabel:'AIHs rejeitadas',
       workspaceTitle:'AIHs rejeitadas · SIH/SUS', introLabel:'REJEIÇÕES HOSPITALARES · SIH/SUS', introTitle:'AIHs rejeitadas por estabelecimento.',
       introDescription:'Quantidade e valores associados às AIHs rejeitadas, com os motivos registrados no processamento.',
-      setupTitle:'AIHs rejeitadas por estabelecimento', setupDescription:'A consulta usa as AIHs rejeitadas na competência selecionada. Os filtros são opcionais.',
-      emptyMessage:'Escolha a UF e a competência. Município da internação, gestor da produção, financiamento (MAC/FAEC), subtipo FAEC, complexidade, natureza jurídica, natureza do prestador, gestão e caráter de atendimento são opcionais.',
+      setupTitle:'AIHs rejeitadas por estabelecimento', setupDescription:'A consulta usa as AIHs rejeitadas nas competências selecionadas. Os filtros são opcionais.',
+      emptyMessage:'Escolha a UF e uma ou mais competências. Município da internação, gestor da produção, financiamento (MAC/FAEC), subtipo FAEC, complexidade, natureza jurídica, natureza do prestador, gestão e caráter de atendimento são opcionais.',
       municipalityLabel:'MUNICÍPIO DA INTERNAÇÃO',
       filterNote:'O município selecionado representa o local da internação. Gestor da produção usa o Município Gestor oficial (UF_ZI) das AIHs rejeitadas. Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.',
       methodTitle:'Como interpretar os valores:', methodText:' o relatório usa os valores registrados na própria base SIH/RJ. Os motivos vêm do SIH/ER e uma AIH pode ter mais de uma crítica, sem duplicar seus valores.',
@@ -121,8 +129,8 @@
       systemLabel:'SIH/SUS · CNES', sourceLabel:'ocupação de leitos', tableMode:'occupancy', defaultMunicipalityCode:'150140',
       workspaceTitle:'Ocupação de leitos · SIH/SUS', introLabel:'OCUPAÇÃO DE LEITOS · SIH/SUS', introTitle:'Ocupação de leitos hospitalares.',
       introDescription:'Internações, diárias, rejeições e capacidade SUS por estabelecimento, com ligação às AIHs e aos serviços profissionais.',
-      setupTitle:'Ocupação de leitos por estabelecimento', setupDescription:'Escolha a UF e a competência. Município e filtros adicionais são opcionais.',
-      emptyMessage:'Escolha a UF e a competência. Município, gestor da produção, especialidade, financiamento, complexidade, natureza jurídica e demais filtros são opcionais.',
+      setupTitle:'Ocupação de leitos por estabelecimento', setupDescription:'Escolha a UF e uma ou mais competências. Município e filtros adicionais são opcionais.',
+      emptyMessage:'Escolha a UF e uma ou mais competências. Município, gestor da produção, especialidade, financiamento, complexidade, natureza jurídica e demais filtros são opcionais.',
       municipalityLabel:'MUNICÍPIO DA INTERNAÇÃO',
       filterNote:'Os filtros selecionados são aplicados às AIHs processadas e rejeitadas. Gestor da produção usa o Município Gestor oficial (UF_ZI). Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.',
       methodTitle:'Como interpretar a ocupação:', methodText:' as diárias registradas vêm das AIHs processadas no SIH/RD. As rejeições entram apenas no saldo potencial, sem serem tratadas como internações confirmadas. A quantidade de leitos vem da consulta atual ao CNES e pode não corresponder exatamente à competência histórica.',
@@ -135,8 +143,8 @@
       tableMode:'flat', defaultMunicipalityCode:'150140',
       workspaceTitle:'Serviços Profissionais · SIH/SUS', introLabel:'SERVIÇOS PROFISSIONAIS · SIH/SUS', introTitle:'Produção profissional por AIH.',
       introDescription:'Atos e valores profissionais por autorização, procedimento, estabelecimento e profissional executor.',
-      setupTitle:'Serviços profissionais por AIH', setupDescription:'Escolha a UF e a competência. O recorte inicial mostra Belém, Pará; os filtros de gestão e natureza completam dados ausentes no SIH/SP usando o CNES.',
-      emptyMessage:'Escolha a UF e a competência. Município, gestor da produção, CBO, tipo de gestão, natureza jurídica e atendimento hospitalar SUS são opcionais.',
+      setupTitle:'Serviços profissionais por AIH', setupDescription:'Escolha a UF e uma ou mais competências. O recorte inicial mostra Belém, Pará; os filtros de gestão e natureza completam dados ausentes no SIH/SP usando o CNES.',
+      emptyMessage:'Escolha a UF e uma ou mais competências. Município, gestor da produção, CBO, tipo de gestão, natureza jurídica e atendimento hospitalar SUS são opcionais.',
       municipalityLabel:'MUNICÍPIO DE ATENDIMENTO',
       filterNote:'O município representa o local de atendimento. Gestor e CBO vêm do SIH/SP. Como o SP não traz tipo de gestão nem natureza jurídica, esses filtros usam o CNES da mesma competência e recorrem ao cadastro atual quando não há registro histórico. O atendimento hospitalar SUS usa o cadastro atual.',
       methodTitle:'Como ler os valores profissionais:', methodText:' são somados os valores SP e seus complementos federais e locais. A quantidade de atos é contada uma vez por AIH, procedimento e CNS, mesmo quando há mais de um tipo de valor na base.',
@@ -151,8 +159,7 @@
   let filterDefinitions = activeReport.filters;
   filterCategories = Object.fromEntries(Object.keys(filterDefinitions).map((type) => [type, []]));
   const linkedYear = Number(params.get('ano')) || 0;
-  const rawLinkedMonth = Number(params.get('mes')) || 0;
-  const linkedMonth = rawLinkedMonth >= 1 && rawLinkedMonth <= 12 ? rawLinkedMonth : 0;
+  const linkedMonths = [...new Set(params.getAll('mes').map(Number).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b);
   const linkedCnes = (params.get('cnes') || '').replace(/\D/g, '').slice(0, 7);
   const linkedAih = (params.get('aih') || '').replace(/\D/g, '').slice(0, 13);
   const linkedReport = Object.prototype.hasOwnProperty.call(reportConfigurations, linkedReportId) || params.get('relatorio') === 'sia-pa-belem';
@@ -203,6 +210,63 @@
 
   function selectedUf() { return ufSelect.value || 'PA'; }
   function selectedOptionText(select, fallback) { return select.selectedOptions?.[0]?.textContent || fallback; }
+  function selectedMonths() {
+    return [...monthSelect.selectedOptions].map((option) => Number(option.value)).filter((month) => month >= 1 && month <= 12).sort((a, b) => a - b);
+  }
+  function closeMonthPicker(returnFocus = false) {
+    if (!monthPickerMenu || monthPickerMenu.hidden) return;
+    monthPickerMenu.hidden = true;
+    monthPickerTrigger.setAttribute('aria-expanded', 'false');
+    if (returnFocus) monthPickerTrigger.focus();
+  }
+  function updateMonthPicker() {
+    if (!monthPickerOptions) return;
+    const focusedMonth = monthPickerOptions.contains(document.activeElement) ? document.activeElement.value : '';
+    const options = [...monthSelect.options].filter((option) => Number(option.value) >= 1 && Number(option.value) <= 12);
+    const selected = selectedMonths();
+    const disabled = monthSelect.disabled || options.length === 0;
+    monthPickerTrigger.disabled = disabled;
+    if (!options.length) monthPickerTriggerText.textContent = monthSelect.options[0]?.textContent || 'Nenhuma competência disponível';
+    else if (monthSelect.disabled) monthPickerTriggerText.textContent = 'Consultando DATASUS…';
+    else if (!selected.length) monthPickerTriggerText.textContent = 'Selecione as competências';
+    else if (selected.length === 1) monthPickerTriggerText.textContent = `${monthNames[selected[0] - 1]} de ${yearSelect.value || ''}`.trim();
+    else monthPickerTriggerText.textContent = `${selected.length} competências selecionadas`;
+
+    monthPickerCount.textContent = selected.length ? `${selected.length} de ${options.length} selecionada${selected.length === 1 ? '' : 's'}` : 'Nenhum mês selecionado';
+    monthPickerOptions.replaceChildren();
+    for (const option of options) {
+      const month = Number(option.value);
+      const label = document.createElement('label');
+      label.className = 'setup-competency-option';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = String(month);
+      checkbox.checked = option.selected;
+      checkbox.disabled = disabled;
+      if (option.selected) label.classList.add('is-selected');
+      const text = document.createElement('span');
+      text.textContent = monthNames[month - 1];
+      label.append(checkbox, text);
+      monthPickerOptions.append(label);
+    }
+    if (focusedMonth) monthPickerOptions.querySelector(`input[value="${focusedMonth}"]`)?.focus({ preventScroll:true });
+    if (disabled) closeMonthPicker();
+  }
+  function setSelectedMonths(months) {
+    const selected = new Set(months.map(Number));
+    for (const option of monthSelect.options) option.selected = selected.has(Number(option.value));
+    updateMonthPicker();
+    monthSelect.dispatchEvent(new Event('change', { bubbles:true }));
+  }
+  function formatCompetencies(months, year) {
+    const valid = [...new Set((months || []).map(Number).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b);
+    if (valid.length === 12) return `Ano de ${year}`;
+    if (valid.length === 1) return `${monthNames[valid[0] - 1]} de ${year}`;
+    if (!valid.length) return String(year);
+    const names = valid.map((month) => monthNames[month - 1]);
+    const joined = names.length === 2 ? names.join(' e ') : `${names.slice(0, -1).join(', ')} e ${names.at(-1)}`;
+    return `${joined} de ${year}`;
+  }
 
   function activateReport(reportId) {
     const next = reportConfigurations[reportId];
@@ -263,7 +327,9 @@
 
   function updateScopeDescription() {
     const filters = selectedFilters();
-    const parts = [stateNames[filters.uf] || filters.uf];
+    const months = selectedMonths();
+    const year = Number(yearSelect.value);
+    const parts = [months.length ? formatCompetencies(months, year) : '', stateNames[filters.uf] || filters.uf].filter(Boolean);
     if (filters.municipalityCode) parts.push(filters.municipalityName);
     const chosenFilters = Object.values(filterDefinitions).filter((definition) => filters[definition.field].length).map((definition) => `${definition.label}: ${summarizeSelectedNames(filters[definition.nameField])}`);
     parts.push(...chosenFilters);
@@ -310,7 +376,7 @@
       reportControlsReady = true;
     }
     await Promise.all([
-      refreshCompetencies(Number(yearSelect.value), Number(monthSelect.value) || linkedMonth, selectedUf()),
+      refreshCompetencies(Number(yearSelect.value), selectedMonths().length ? selectedMonths() : linkedMonths, selectedUf()),
       loadOptionalFilters(selectedUf(), preferred)
     ]);
     updateScopeDescription();
@@ -416,21 +482,26 @@
     }
   }
 
-  function setMonthOptions(months, preferred = 0) {
+  function setMonthOptions(months, preferred = []) {
     const valid = [...new Set(months.map(Number).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b);
     monthSelect.replaceChildren();
     if (!valid.length) {
       monthSelect.add(new Option('Nenhuma competência disponível', ''));
       monthSelect.disabled = true;
       openButton.disabled = true;
+      updateMonthPicker();
       return false;
     }
-    monthSelect.add(new Option('Selecione uma competência…', ''));
-    for (const month of valid) monthSelect.add(new Option(monthNames[month - 1], String(month)));
-    const candidate = valid.includes(Number(preferred)) ? Number(preferred) : valid[valid.length - 1];
-    monthSelect.value = String(candidate);
+    const requested = (Array.isArray(preferred) ? preferred : [preferred]).map(Number).filter((month) => valid.includes(month));
+    const chosen = requested.length ? requested : [valid[valid.length - 1]];
+    for (const month of valid) {
+      const option = new Option(monthNames[month - 1], String(month));
+      option.selected = chosen.includes(month);
+      monthSelect.add(option);
+    }
     monthSelect.disabled = false;
-    openButton.disabled = false;
+    openButton.disabled = selectedMonths().length === 0;
+    updateMonthPicker();
     return true;
   }
 
@@ -440,7 +511,7 @@
     return [...(monthsByKind[0] || new Set())].filter((month) => monthsByKind.every((months) => months.has(month)));
   }
 
-  async function refreshCompetencies(year, preferred = 0, uf = selectedUf()) {
+  async function refreshCompetencies(year, preferred = [], uf = selectedUf()) {
     const requestId = ++competencyRequest;
     const cachedMonths = localMonths(year, uf);
     const hasLocal = setMonthOptions(cachedMonths, preferred);
@@ -448,6 +519,7 @@
     else {
       monthSelect.disabled = true;
       monthSelect.replaceChildren(new Option('Consultando DATASUS…', ''));
+      updateMonthPicker();
       openButton.disabled = true;
       setAvailability('Consultando competências no DATASUS.', 'loading');
     }
@@ -460,10 +532,10 @@
       const monthsByKind = requiredKinds.map((kind) => new Set(availableFiles.filter((file) => file.kind === kind).map((file) => Number(file.month))));
       const reportMonths = [...(monthsByKind[0] || new Set())].filter((month) => monthsByKind.every((months) => months.has(month)));
       const merged = [...new Set([...cachedMonths, ...reportMonths])];
-      const selected = Number(preferred) || Math.max(...merged) || 0;
+      const selected = (Array.isArray(preferred) ? preferred : [preferred]).map(Number).filter((month) => merged.includes(month));
       setMonthOptions(merged, selected);
       const localCount = new Set(cachedMonths).size;
-      setAvailability(`${merged.length} competência(s) de ${uf} encontrada(s) · ${localCount} na biblioteca local.`, 'good');
+      setAvailability(`${merged.length} competência(s) de ${uf} encontrada(s) · ${localCount} na biblioteca local. Selecione um ou mais meses.`, 'good');
     } catch (error) {
       if (requestId !== competencyRequest) return;
       if (hasLocal) setAvailability(`${cachedMonths.length} competência(s) de ${uf} na biblioteca local · DATASUS indisponível no momento.`, '');
@@ -624,7 +696,13 @@
 
   function tableColumns() {
     if (!activeResult) return [];
-    if (activeReport.tableMode === 'flat' || activeReport.tableMode === 'occupancy') return (activeResult.columns || []).map((column) => ({ ...column, filterable:column.kind !== 'action', sortable:column.kind !== 'action' }));
+    const competenceColumn = { id:'competence', label:'Competência', field:'competence', type:'text', sortField:'competence', filterable:true, sortable:true };
+    if (activeReport.tableMode === 'flat' || activeReport.tableMode === 'occupancy') {
+      const columns = (activeResult.columns || []).map((column) => ({ ...column, filterable:column.kind !== 'action', sortable:column.kind !== 'action' }));
+      const actionIndex = columns.findIndex((column) => column.kind === 'action');
+      columns.splice(actionIndex < 0 ? columns.length : actionIndex, 0, competenceColumn);
+      return columns;
+    }
     const summaryView = activeView === 'summary';
     let dimensions = summaryView ? [] : [...(activeResult.detailDimensions || [{ id:'complexity', label:'Complexidade' }])];
     if (activeReport.id === 'sia-pa-producao' && !summaryView) {
@@ -642,6 +720,7 @@
     }];
     for (const dimension of dimensions) columns.push({ id:`dimension:${dimension.id}`, label:dimension.label, field:dimension.id, type:'text', filterable:true, sortable:true });
     for (const [index, metric] of (activeResult.metrics || []).entries()) columns.push({ id:`metric:${metric.id}`, label:metric.label, metricId:metric.id, metricIndex:index, type:'number', decimals:metric.decimals, filterable:true, sortable:true });
+    columns.push(competenceColumn);
     if (summaryView) columns.push({ id:'action', label:'Detalhamento', kind:'action', filterable:false, sortable:false });
     return columns;
   }
@@ -753,6 +832,8 @@
     if (column.kind === 'action') {
       const action = document.createElement('td'); action.className = 'report-action-cell';
       const button = document.createElement('button'); button.type = 'button'; button.className = 'report-detail-button';
+      button.dataset.month = String(row._competenceMonth || activeMonth || '');
+      button.dataset.year = String(row._competenceYear || activeYear || '');
       if (column.actionType === 'services') { button.dataset.aih = row.aih; button.dataset.cnes = row.cnes || activeCnes; button.dataset.action = 'services'; button.textContent = 'Serviços →'; }
       else { button.dataset.cnes = row.code || row.cnes; button.dataset.action = 'detail'; button.textContent = column.actionLabel || 'Detalhar →'; }
       action.append(button); return action;
@@ -889,7 +970,8 @@
       ...(activeResult.legalNatureCode ? [{ label:'Natureza jurídica', value:activeResult.legalNature }] : [])
     ];
     for (const filter of appliedFilters) if (filter?.label && filter?.value) locationParts.push(`${filter.label}: ${filter.value}`);
-    $('reportSubtitle').textContent = `${monthNames[activeMonth - 1]} de ${activeYear} · ${locationParts.join(' · ')} · ${activeResult.file || ''}`;
+    const fileSummary = activeMonths.length > 1 ? `${formatNumber(activeMonths.length)} competências consultadas` : activeResult.file || '';
+    $('reportSubtitle').textContent = `${formatCompetencies(activeMonths, activeYear)} · ${locationParts.join(' · ')} · ${fileSummary}`;
     $('reportTitle').textContent = activeReport.tableMode === 'flat' || activeView === 'summary' ? activeReport.summaryTitle : activeView === 'services' ? `Serviços profissionais · AIH ${activeAih}` : `${activeReport.detailTitlePrefix} · ${activeResult.establishmentName || `CNES ${activeCnes}`}`;
     $('reportSearch').placeholder = activeView === 'summary' ? activeReport.tableSearchSummary : activeView === 'services' ? 'Buscar profissional, procedimento ou CNS' : activeReport.tableSearchDetail;
     renderKpis(rows, totals, metrics);
@@ -905,6 +987,41 @@
 
   function occupancyTotalsFor(rows) {
     const sum = (field) => rows.reduce((total, row) => total + (Number(String(row[field] ?? '').replace(',', '.')) || 0), 0);
+    if ((activeResult?.months || []).length > 1) {
+      const capacityByProvider = new Map();
+      for (const row of rows) {
+        const code = String(row.code || row.cnes || row.label || '');
+        const previous = capacityByProvider.get(code);
+        if (!previous || Number(row._competenceMonth) > Number(previous._competenceMonth)) capacityByProvider.set(code, row);
+      }
+      const capacityRows = [...capacityByProvider.values()];
+      const bedsKnown = capacityRows.every((row) => row.bedsSus != null && row.bedsSus !== '');
+      const beds = bedsKnown ? capacityRows.reduce((total, row) => total + (Number(row.bedsSus) || 0), 0) : null;
+      const actualDays = sum('dailyCount');
+      const visibleMonths = [...new Set(rows.map((row) => Number(row._competenceMonth)).filter((month) => month >= 1 && month <= 12))];
+      const calendarDays = visibleMonths.reduce((total, month) => total + new Date(activeYear, month, 0).getDate(), 0);
+      const bedDays = (beds || 0) * calendarDays;
+      const rejected = sum('rejectedCount');
+      const processed = sum('aihCount');
+      const rowsByProviderMonth = new Map(rows.map((row) => [`${row._competenceMonth}:${row.code || row.cnes || row.label}`, row]));
+      const monthlyBalances = visibleMonths.map((month) => capacityRows.reduce((balance, provider) => {
+        const code = provider.code || provider.cnes || provider.label;
+        const row = rowsByProviderMonth.get(`${month}:${code}`);
+        const days = new Date(activeYear, month, 0).getDate();
+        const daily = (Number(row?.dailyCount) || 0) + (Number(row?.rejectedDays) || 0);
+        return balance + (Number(provider.bedsSus) || 0) - (days ? daily / days : 0);
+      }, 0));
+      return {
+        bedsSus:beds,
+        aihCount:processed,
+        dailyCount:actualDays,
+        averageDaily:calendarDays ? actualDays / calendarDays : null,
+        occupancyRate:bedDays ? actualDays / bedDays * 100 : null,
+        potentialBalance:monthlyBalances.length ? monthlyBalances.reduce((total, value) => total + value, 0) / monthlyBalances.length : null,
+        rejectionRate:processed + rejected ? rejected / (processed + rejected) * 100 : 0,
+        rejectedCount:rejected
+      };
+    }
     const daysInMonth = Number(activeResult?.daysInMonth) || 0;
     const knownBedRows = rows.filter((row) => row.bedsSus != null && row.bedsSus !== '');
     const allBedsKnown = knownBedRows.length === rows.length;
@@ -1051,27 +1168,28 @@
     search.focus({ preventScroll:true });
   }
 
-  function rememberResult(view, cnes, data) {
-    const key = resultKey(view, cnes, view === 'services' ? activeAih : '');
+  function rememberResult(view, cnes, data, aih = activeAih, months = activeMonths) {
+    const key = resultKey(view, cnes, view === 'services' ? aih : '', months);
     results.set(key, data);
     return data;
   }
 
-  function resultKey(view, cnes, aih = '') {
+  function resultKey(view, cnes, aih = '', months = activeMonths) {
     const filters = selectedFilters();
-    return JSON.stringify([activeReport.id, activeYear, activeMonth, filters.uf, filters.municipalityCode, ...Object.values(filterDefinitions).map((definition) => filters[definition.field]), view, cnes || '', aih || '']);
+    return JSON.stringify([activeReport.id, activeYear, [...months], filters.uf, filters.municipalityCode, ...Object.values(filterDefinitions).map((definition) => filters[definition.field]), view, cnes || '', aih || '']);
   }
 
-  function cachedResult(view, cnes, aih = '') {
-    return results.get(resultKey(view, cnes, aih));
+  function cachedResult(view, cnes, aih = '', months = activeMonths) {
+    return results.get(resultKey(view, cnes, aih, months));
   }
 
-  function routeUrl(view, cnes = '', aih = '') {
+  function routeUrl(view, cnes = '', aih = '', months = activeMonths) {
     const next = new URL(location.href);
     const filters = selectedFilters();
     next.searchParams.set('relatorio', activeReport.id);
     next.searchParams.set('ano', String(activeYear));
-    next.searchParams.set('mes', String(activeMonth));
+    next.searchParams.delete('mes');
+    for (const month of months) next.searchParams.append('mes', String(month));
     next.searchParams.set('uf', filters.uf);
     const queryValues = [['municipio', filters.municipalityCode], ...Object.values(filterDefinitions).map((definition) => [definition.queryKey, filters[definition.field]])];
     for (const [key, rawValues] of queryValues) {
@@ -1190,12 +1308,130 @@
     }
   }
 
-  async function runReport(view = 'summary', cnes = '', updateUrl = true, aih = '') {
-    const year = Number(yearSelect.value);
-    const month = Number(monthSelect.value);
-    if (!year || !month) return;
+  function stampMonthlyResult(data, year, month) {
+    const competence = `${String(month).padStart(2, '0')}/${year}`;
+    return {
+      ...data,
+      year,
+      month,
+      competence,
+      rows: (data.rows || []).map((row) => ({
+        ...row,
+        competence,
+        _competenceMonth: month,
+        _competenceYear: year,
+        _monthDays: Number(data.daysInMonth) || Number(row._monthDays) || 0
+      }))
+    };
+  }
+
+  function combineMonthlyKpis(monthlyResults, rows, months, year) {
+    const first = monthlyResults[0]?.kpis;
+    if (!Array.isArray(first)) return undefined;
+    if (months.length === 1) return first;
+    return first.map((item, index) => {
+      const label = String(item.label || '');
+      if (/estabelecimentos/i.test(label)) {
+        const count = new Set(rows.map((row) => String(row.code || row.cnes || '')).filter(Boolean)).size;
+        return { ...item, value:{ value:count } };
+      }
+      if (/ocupa[cç][aã]o/i.test(label)) {
+        const capacityByProvider = new Map();
+        for (const row of rows) {
+          const code = String(row.code || row.cnes || row.label || '');
+          const previous = capacityByProvider.get(code);
+          if (!previous || Number(row._competenceMonth) > Number(previous._competenceMonth)) capacityByProvider.set(code, row);
+        }
+        const capacityRows = [...capacityByProvider.values()].filter((row) => row.bedsSus != null && row.bedsSus !== '');
+        const knownCodes = new Set(capacityRows.map((row) => String(row.code || row.cnes || row.label || '')));
+        const numerator = rows.filter((row) => knownCodes.has(String(row.code || row.cnes || row.label || ''))).reduce((sum, row) => sum + (Number(row.dailyCount) || 0), 0);
+        const totalDays = months.reduce((sum, month) => sum + new Date(year, month, 0).getDate(), 0);
+        const totalBeds = capacityRows.reduce((sum, row) => sum + (Number(row.bedsSus) || 0), 0);
+        const denominator = totalBeds * totalDays;
+        return denominator ? { ...item, value:{ ...(typeof item.value === 'object' ? item.value : {}), value:numerator / denominator * 100 } } : { ...item, value:{ text:'—' } };
+      }
+      const values = monthlyResults.map((result) => result.kpis?.[index]?.value);
+      const numeric = values.map((value) => typeof value === 'number' ? value : value && typeof value === 'object' && Number.isFinite(Number(value.value)) ? Number(value.value) : null);
+      if (numeric.some((value) => value === null)) return item;
+      const total = numeric.reduce((sum, value) => sum + value, 0);
+      const template = values.find((value) => value && typeof value === 'object') || {};
+      return { ...item, value:{ ...template, value:total } };
+    });
+  }
+
+  function combineMonthlyResults(monthlyResults, months, year) {
+    const first = monthlyResults[0];
+    const rows = monthlyResults.flatMap((result) => result.rows || []);
+    const files = [...new Set(monthlyResults.flatMap((result) => result.files?.length ? result.files : result.file ? [result.file] : []))];
+    const emptyMonths = monthlyResults.filter((result) => !(result.rows || []).length).map((result) => monthNames[result.month - 1]);
+    const notes = [...new Set(monthlyResults.flatMap((result) => result.notes || []))];
+    if (emptyMonths.length) notes.push(`Sem registros compatíveis nos meses: ${emptyMonths.join(', ')} de ${year}.`);
+    const combined = {
+      ...first,
+      year,
+      month:months[0],
+      months:[...months],
+      rows,
+      records:monthlyResults.reduce((total, result) => total + (Number(result.records) || 0), 0),
+      files,
+      file:files.length === 1 ? files[0] : `${files.length} arquivos DATASUS`,
+      notes,
+      kpis:combineMonthlyKpis(monthlyResults, rows, months, year)
+    };
+    if (monthlyResults.some((result) => result.totalAIHs != null)) combined.totalAIHs = monthlyResults.reduce((total, result) => total + (Number(result.totalAIHs) || 0), 0);
+    return combined;
+  }
+
+  async function tabulateReportMonth(view, cnes, aih, filters, year, month, monthIndex, monthCount) {
+    const filesByKind = await findOrDownloadReportFiles(year, month, filters.uf, view);
+    const dbfPaths = {};
+    const { kinds } = reportKindsForView(view);
+    for (const kind of kinds) {
+      if (filesByKind[kind]) dbfPaths[kind] = await ensureConverted(filesByKind[kind]);
+    }
+    const sourceKind = activeReport.tableMode === 'occupancy' && view === 'services' ? 'SP' : activeReport.kind;
+    const file = filesByKind[sourceKind];
+    const dbfPath = dbfPaths[sourceKind];
+    const filterDescription = [filters.municipalityName, ...Object.values(filterDefinitions).filter((definition) => filters[definition.nameField].length).map((definition) => summarizeSelectedNames(filters[definition.nameField]))].filter(Boolean).join(' · ');
+    const detailLabel = view === 'services' ? `os serviços profissionais da AIH ${aih}` : `${activeReport.detailPrefix || 'as AIHs'} do CNES ${cnes}`;
+    const monthProgress = Math.round(monthIndex / monthCount * 100);
+    setLoader(true, `Preparando competência ${monthIndex + 1} de ${monthCount}`, view === 'summary' ? `${monthNames[month - 1]} de ${year} · ${filterDescription || stateNames[filters.uf]} · agrupando os valores por estabelecimento.` : `${monthNames[month - 1]} de ${year} · consultando ${detailLabel}.`, monthProgress);
+    const sourcePaths = {};
+    if (activeReport.id === 'sih-rd-rejeicoes' || (activeReport.id === 'sih-rd-ocupacao' && view !== 'services')) {
+      sourcePaths.rejectedPath = filesByKind.RJ.path;
+      sourcePaths.rejectedDbfPath = dbfPaths.RJ;
+      if (filesByKind.ER) {
+        sourcePaths.errorPath = filesByKind.ER.path;
+        sourcePaths.errorDbfPath = dbfPaths.ER;
+      }
+    } else if (activeReport.id === 'sih-rd-ocupacao' && view === 'services') {
+      sourcePaths.professionalPath = filesByKind.SP.path;
+      sourcePaths.professionalDbfPath = dbfPaths.SP;
+    }
+    let job = await api({ action:'tabulate_start', path:file.path, dbfPath, ...sourcePaths, predefinedReport:activeReport.id, predefinedView:view, ...filters, ...((view === 'detail' || view === 'services') ? { establishmentCode:cnes } : {}), ...(view === 'services' ? { aih } : {}) });
+    if (job.done && job.result) return stampMonthlyResult(job.result, year, month);
+    if (!job.job_id) throw new Error('O SPPtab não retornou uma tarefa de tabulação válida.');
+    const tabulationJobId = job.job_id;
+    while (true) {
+      const localProgress = Math.max(0, Math.min(100, Number(job.progress) || 1));
+      setLoader(true, job.stage || `Montando competência ${monthIndex + 1} de ${monthCount}`, `${monthNames[month - 1]} de ${year} · ${job.message || `Aplicando os filtros selecionados · ${stateNames[filters.uf]}.`}`, Math.min(99, (monthIndex + localProgress / 100) / monthCount * 100));
+      await new Promise((resolve) => setTimeout(resolve, 850));
+      job = await api({ action:'tabulate_status', job_id:tabulationJobId });
+      if (job.status === 'error') throw new Error(job.message || `Não foi possível tabular ${monthNames[month - 1]} de ${year}.`);
+      if (job.status === 'done') {
+        if (!job.result?.ok) throw new Error(job.result?.error || `O resultado de ${monthNames[month - 1]} de ${year} não foi concluído.`);
+        return stampMonthlyResult(job.result, year, month);
+      }
+    }
+  }
+
+  async function runReport(view = 'summary', cnes = '', updateUrl = true, aih = '', monthList = null) {
+    const year = Number(yearSelect.value) || activeYear;
+    const requestedMonths = [...new Set((monthList == null ? (view === 'services' ? [activeMonth] : (reportMonths.length ? reportMonths : selectedMonths())) : monthList).map(Number).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b);
+    if (!year || !requestedMonths.length) return;
+    if (view === 'summary') reportMonths = [...requestedMonths];
     const filters = selectedFilters();
-    activeYear = year; activeMonth = month; activeView = view; activeCnes = cnes; activeAih = aih;
+    activeYear = year; activeMonths = requestedMonths; activeMonth = requestedMonths.at(-1); activeView = view; activeCnes = cnes; activeAih = aih;
     resetTableViewState();
     $('reportSearch').value = '';
     showNotice('');
@@ -1204,67 +1440,35 @@
     openButton.disabled = true;
     const setupSelects = [ufSelect, municipalitySelect, yearSelect, monthSelect, addFilterSelect, ...addedFilterRows.querySelectorAll('select')];
     for (const select of setupSelects) select.disabled = true;
-    if (updateUrl) routeUrl(view, cnes, aih);
-    const cached = cachedResult(view, cnes, aih);
+    updateMonthPicker();
+    if (updateUrl) routeUrl(view, cnes, aih, requestedMonths);
+    const cached = cachedResult(view, cnes, aih, requestedMonths);
     if (cached) {
       activeResult = cached; allRows = cached.rows || [];
       setLoader(false); renderTable();
       for (const select of setupSelects) select.disabled = false;
-      openButton.disabled = !monthSelect.value; return;
+      updateMonthPicker();
+      openButton.disabled = selectedMonths().length === 0; return;
     }
 
     try {
-      const filesByKind = await findOrDownloadReportFiles(year, month, filters.uf, view);
-      const dbfPaths = {};
-      const { kinds } = reportKindsForView(view);
-      for (const kind of kinds) {
-        if (filesByKind[kind]) dbfPaths[kind] = await ensureConverted(filesByKind[kind]);
+      const monthlyResults = [];
+      for (const [index, month] of requestedMonths.entries()) {
+        monthlyResults.push(await tabulateReportMonth(view, cnes, aih, filters, year, month, index, requestedMonths.length));
       }
-      const sourceKind = activeReport.tableMode === 'occupancy' && view === 'services' ? 'SP' : activeReport.kind;
-      const file = filesByKind[sourceKind];
-      const dbfPath = dbfPaths[sourceKind];
-      const filterDescription = [filters.municipalityName, ...Object.values(filterDefinitions).filter((definition) => filters[definition.nameField].length).map((definition) => summarizeSelectedNames(filters[definition.nameField]))].filter(Boolean).join(' · ');
-      const detailLabel = view === 'services' ? `os serviços profissionais da AIH ${aih}` : `${activeReport.detailPrefix || 'as AIHs'} do CNES ${cnes}`;
-      setLoader(true, view === 'summary' ? 'Somando a produção selecionada' : view === 'services' ? 'Detalhando os serviços da AIH' : 'Detalhando a produção do estabelecimento', view === 'summary' ? `${filterDescription || stateNames[filters.uf]} · agrupando os valores por estabelecimento.` : `Consultando ${detailLabel}.`, 1);
-      const sourcePaths = {};
-      if (activeReport.id === 'sih-rd-rejeicoes' || (activeReport.id === 'sih-rd-ocupacao' && view !== 'services')) {
-        sourcePaths.rejectedPath = filesByKind.RJ.path;
-        sourcePaths.rejectedDbfPath = dbfPaths.RJ;
-        if (filesByKind.ER) {
-          sourcePaths.errorPath = filesByKind.ER.path;
-          sourcePaths.errorDbfPath = dbfPaths.ER;
-        }
-      } else if (activeReport.id === 'sih-rd-ocupacao' && view === 'services') {
-        sourcePaths.professionalPath = filesByKind.SP.path;
-        sourcePaths.professionalDbfPath = dbfPaths.SP;
-      }
-      let job = await api({ action: 'tabulate_start', path: file.path, dbfPath, ...sourcePaths, predefinedReport: activeReport.id, predefinedView: view, ...filters, ...((view === 'detail' || view === 'services') ? { establishmentCode: cnes } : {}), ...(view === 'services' ? { aih } : {}) });
-      if (job.done && job.result) {
-        activeResult = rememberResult(view, cnes, job.result); allRows = activeResult.rows || [];
-      } else {
-        if (!job.job_id) throw new Error('O SPPtab não retornou uma tarefa de tabulação válida.');
-        const tabulationJobId = job.job_id;
-        while (true) {
-          setLoader(true, job.stage || 'Montando o relatório', job.message || `Aplicando o recorte selecionado · ${stateNames[filters.uf]}.`, job.progress ?? 1);
-          await new Promise((resolve) => setTimeout(resolve, 850));
-          job = await api({ action: 'tabulate_status', job_id: tabulationJobId });
-          if (job.status === 'error') throw new Error(job.message || 'Não foi possível tabular esta competência.');
-          if (job.status === 'done') {
-            if (!job.result?.ok) throw new Error(job.result?.error || 'O resultado não foi concluído.');
-            activeResult = rememberResult(view, cnes, job.result); allRows = activeResult.rows || [];
-            break;
-          }
-        }
-      }
+      activeResult = combineMonthlyResults(monthlyResults, requestedMonths, year);
+      rememberResult(view, cnes, activeResult, aih, requestedMonths);
+      allRows = activeResult.rows || [];
       setLoader(false);
       renderTable();
-      setAvailability(`${monthNames[month - 1]} de ${year} · resultado pronto neste computador.`, 'good');
+      setAvailability(`${formatCompetencies(requestedMonths, year)} · resultado pronto neste computador.`, 'good');
     } catch (error) {
       showReportFailure(error);
     } finally {
       for (const select of setupSelects) select.disabled = false;
-      monthSelect.disabled = ![...monthSelect.options].some((option) => option.value);
-      openButton.disabled = monthSelect.disabled || !monthSelect.value;
+      monthSelect.disabled = ![...monthSelect.options].some((option) => Number(option.value) >= 1 && Number(option.value) <= 12);
+      updateMonthPicker();
+      openButton.disabled = monthSelect.disabled || selectedMonths().length === 0;
     }
   }
 
@@ -1296,7 +1500,8 @@
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     const scope = [activeResult.uf, activeResult.municipalityCode || 'UF'].filter(Boolean).join('-');
-    link.href = url; link.download = `SPPtab-${activeResult.report || activeReport.id}-${scope}-${activeYear}-${String(activeMonth).padStart(2, '0')}.csv`;
+    const periodToken = activeMonths.length === 12 ? 'anual' : activeMonths.map((month) => String(month).padStart(2, '0')).join('-');
+    link.href = url; link.download = `SPPtab-${activeResult.report || activeReport.id}-${scope}-${activeYear}-${periodToken}.csv`;
     document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url);
   }
 
@@ -1310,15 +1515,16 @@
 
   async function generateConfiguredReport() {
     const year = Number(yearSelect.value);
-    const month = Number(monthSelect.value);
-    if (!year || !month) {
-      setAvailability('Escolha uma competência disponível antes de gerar o relatório.', 'error');
+    const months = selectedMonths();
+    if (!year || !months.length) {
+      setAvailability('Escolha pelo menos uma competência disponível antes de gerar o relatório.', 'error');
       return;
     }
+    reportMonths = months;
     if (setupDialog.open) setupDialog.close();
     setPageView('report', false);
     clearPreviousResult();
-    await runReport('summary');
+    await runReport('summary', '', true, '', months);
   }
 
   for (const reportCard of document.querySelectorAll('.predefined-card[data-report]')) {
@@ -1353,17 +1559,52 @@
     $('reportEmpty').querySelector('strong').textContent = 'Configure o recorte do relatório';
     $('reportEmptyMessage').textContent = activeReport.emptyMessage;
   }
-  yearSelect.addEventListener('change', () => refreshCompetencies(Number(yearSelect.value), 0, selectedUf()));
+  yearSelect.addEventListener('change', async () => {
+    await refreshCompetencies(Number(yearSelect.value), [], selectedUf());
+    updateScopeDescription();
+  });
   ufSelect.addEventListener('change', async () => {
     const preferred = selectedFilters();
     updateScopeDescription();
-    await Promise.all([refreshCompetencies(Number(yearSelect.value), 0, selectedUf()), loadOptionalFilters(selectedUf(), preferred)]);
+    await Promise.all([refreshCompetencies(Number(yearSelect.value), [], selectedUf()), loadOptionalFilters(selectedUf(), preferred)]);
+    updateScopeDescription();
   });
   municipalitySelect.addEventListener('change', () => {
     const preferred = selectedFilters();
     renderAdditionalFilterRows(preferred);
   });
-  monthSelect.addEventListener('change', updateScopeDescription);
+  monthSelect.addEventListener('change', () => {
+    updateMonthPicker();
+    updateScopeDescription();
+    openButton.disabled = selectedMonths().length === 0;
+  });
+  monthPickerTrigger.addEventListener('click', () => {
+    const opening = monthPickerMenu.hidden;
+    monthPickerMenu.hidden = !opening;
+    monthPickerTrigger.setAttribute('aria-expanded', String(opening));
+  });
+  monthPickerTrigger.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || monthPickerMenu.hidden) return;
+    event.preventDefault();
+    closeMonthPicker(true);
+  });
+  monthPickerOptions.addEventListener('change', (event) => {
+    if (!event.target.matches('input[type="checkbox"]')) return;
+    const option = [...monthSelect.options].find((item) => item.value === event.target.value);
+    if (option) option.selected = event.target.checked;
+    monthSelect.dispatchEvent(new Event('change', { bubbles:true }));
+  });
+  $('selectAllReportMonths').addEventListener('click', () => setSelectedMonths([...monthSelect.options].map((option) => Number(option.value)).filter((month) => month >= 1 && month <= 12)));
+  $('clearReportMonths').addEventListener('click', () => setSelectedMonths([]));
+  monthPickerMenu.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeMonthPicker(true);
+    }
+  });
+  document.addEventListener('pointerdown', (event) => {
+    if (!monthPicker.contains(event.target)) closeMonthPicker();
+  });
   addFilterSelect.addEventListener('change', () => {
     const preferred = selectedFilters();
     const type = addFilterSelect.value;
@@ -1397,36 +1638,36 @@
   $('reportRows').addEventListener('click', (event) => {
     const button = event.target.closest('.report-detail-button');
     if (!button?.dataset.cnes) return;
-    if (button.dataset.action === 'services' && button.dataset.aih) runReport('services', button.dataset.cnes, true, button.dataset.aih);
-    else runReport('detail', button.dataset.cnes);
+    if (button.dataset.action === 'services' && button.dataset.aih) runReport('services', button.dataset.cnes, true, button.dataset.aih, [Number(button.dataset.month) || activeMonth]);
+    else runReport('detail', button.dataset.cnes, true, '', reportMonths);
   });
   $('backToSummary').addEventListener('click', () => {
     if (activeView === 'services') {
-      const cachedDetail = cachedResult('detail', activeCnes);
+      const cachedDetail = cachedResult('detail', activeCnes, '', reportMonths);
       if (cachedDetail) {
-        routeUrl('detail', activeCnes); activeView = 'detail'; activeAih = ''; activeResult = cachedDetail; allRows = cachedDetail.rows || []; $('reportSearch').value = ''; resetTableViewState(); renderTable();
-      } else runReport('detail', activeCnes);
+        activeMonths = [...reportMonths]; activeMonth = activeMonths.at(-1) || activeMonth; routeUrl('detail', activeCnes, '', activeMonths); activeView = 'detail'; activeAih = ''; activeResult = cachedDetail; allRows = cachedDetail.rows || []; $('reportSearch').value = ''; resetTableViewState(); renderTable();
+      } else runReport('detail', activeCnes, true, '', reportMonths);
       return;
     }
-    const cached = cachedResult('summary', '');
+    const cached = cachedResult('summary', '', '', reportMonths);
     if (cached) {
-      routeUrl('summary'); activeView = 'summary'; activeCnes = ''; activeAih = ''; activeResult = cached; allRows = cached.rows || []; $('reportSearch').value = ''; resetTableViewState(); renderTable();
-    } else runReport('summary');
+      activeMonths = [...reportMonths]; activeMonth = activeMonths.at(-1) || activeMonth; routeUrl('summary', '', '', activeMonths); activeView = 'summary'; activeCnes = ''; activeAih = ''; activeResult = cached; allRows = cached.rows || []; $('reportSearch').value = ''; resetTableViewState(); renderTable();
+    } else runReport('summary', '', true, '', reportMonths);
   });
   window.addEventListener('popstate', async () => {
     const current = new URLSearchParams(location.search);
     const year = Number(current.get('ano'));
-    const month = Number(current.get('mes'));
+    const months = [...new Set(current.getAll('mes').map(Number).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b);
     const cnes = (current.get('cnes') || '').replace(/\D/g, '').slice(0, 7);
     const aih = (current.get('aih') || '').replace(/\D/g, '').slice(0, 13);
     const requestedId = current.get('relatorio') === 'sia-pa-belem' ? 'sia-pa-producao' : (current.get('relatorio') || 'sia-pa-producao');
     activateReport(reportConfigurations[requestedId] ? requestedId : 'sia-pa-producao');
-    const wantsReport = Object.prototype.hasOwnProperty.call(reportConfigurations, requestedId) || current.get('relatorio') === 'sia-pa-belem' || Boolean(year && month) || Boolean(cnes) || Boolean(aih);
+    const wantsReport = Object.prototype.hasOwnProperty.call(reportConfigurations, requestedId) || current.get('relatorio') === 'sia-pa-belem' || Boolean(year && months.length) || Boolean(cnes) || Boolean(aih);
     if (!wantsReport) { returnToCatalog(false); return; }
     const uf = String(current.get('uf') || 'PA').toUpperCase();
     setUfOptions(uf);
     const preferred = filtersFromParams(current);
-    if (!year || !month) {
+    if (!year || !months.length) {
       setPageView('catalog', false);
       await openReportSetup(preferred);
       return;
@@ -1436,8 +1677,10 @@
     await prepareReportControls(preferred);
     updateScopeDescription();
     yearSelect.value = String(year);
-    monthSelect.value = String(month);
-    await runReport(aih ? 'services' : cnes ? 'detail' : 'summary', cnes, false, aih);
+    const availableMonths = [...monthSelect.options].map((option) => Number(option.value)).filter((month) => month >= 1 && month <= 12);
+    setMonthOptions([...new Set([...availableMonths, ...months])], months);
+    reportMonths = [...months];
+    await runReport(aih ? 'services' : cnes ? 'detail' : 'summary', cnes, false, aih, months);
   });
 
   async function init() {
@@ -1445,8 +1688,8 @@
     setUfOptions(linkedUf);
     setYears();
     updateScopeDescription();
-    if (!linkedReport && !(linkedYear && linkedMonth) && !linkedCnes) return;
-    if (linkedYear && linkedMonth) {
+    if (!linkedReport && !(linkedYear && linkedMonths.length) && !linkedCnes) return;
+    if (linkedYear && linkedMonths.length) {
       setPageView('report', false);
       empty.hidden = true;
       showNotice('');
@@ -1454,12 +1697,11 @@
       try {
         await prepareReportControls(linkedFilters);
         updateScopeDescription();
-        activeYear = linkedYear; activeMonth = linkedMonth;
-        if (![...monthSelect.options].some((option) => Number(option.value) === linkedMonth)) {
-          monthSelect.add(new Option(monthNames[linkedMonth - 1] || `Mês ${linkedMonth}`, String(linkedMonth)));
-        }
-        monthSelect.value = String(linkedMonth);
-        await runReport(linkedAih ? 'services' : linkedCnes ? 'detail' : 'summary', linkedCnes, false, linkedAih);
+        activeYear = linkedYear;
+        const availableMonths = [...monthSelect.options].map((option) => Number(option.value)).filter((month) => month >= 1 && month <= 12);
+        setMonthOptions([...new Set([...availableMonths, ...linkedMonths])], linkedMonths);
+        reportMonths = [...linkedMonths];
+        await runReport(linkedAih ? 'services' : linkedCnes ? 'detail' : 'summary', linkedCnes, false, linkedAih, linkedMonths);
       } catch (error) {
         showReportFailure(error);
       }
@@ -1468,7 +1710,7 @@
 
   init().catch((error) => {
     setLoader(false);
-    if (linkedYear && linkedMonth) showReportFailure(error);
+    if (linkedYear && linkedMonths.length) showReportFailure(error);
     setAvailability(error.message || 'Não foi possível iniciar as tabulações prontas.', 'error');
   });
 })();

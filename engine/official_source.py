@@ -33,6 +33,7 @@ def _size_limit(name: str, default: int) -> int:
 
 MAX_ARCHIVE_BYTES = _size_limit("TABWIN2_MAX_ARCHIVE_BYTES", 2 * 1024 * 1024 * 1024)
 MAX_DBC_BYTES = _size_limit("TABWIN2_MAX_DBC_BYTES", 4 * 1024 * 1024 * 1024)
+TRANSFER_CHUNK_BYTES = 4 * 1024 * 1024
 
 
 class _VerifiedHTTPSRedirect(urllib.request.HTTPRedirectHandler):
@@ -117,7 +118,7 @@ def download_file(remote: str, expected_name: str, destination: Path, progress=N
                 raise ValueError("Não há espaço livre suficiente para receber o arquivo DATASUS.")
             downloaded = 0
             while True:
-                chunk = response.read(1024 * 1024)
+                chunk = response.read(TRANSFER_CHUNK_BYTES)
                 if not chunk:
                     break
                 if downloaded + len(chunk) > MAX_ARCHIVE_BYTES:
@@ -141,7 +142,7 @@ def download_file(remote: str, expected_name: str, destination: Path, progress=N
             try:
                 with os.fdopen(fd, "wb") as output, archive.open(candidates[0]) as source_file:
                     while True:
-                        chunk = source_file.read(1024 * 1024)
+                        chunk = source_file.read(TRANSFER_CHUNK_BYTES)
                         if not chunk:
                             break
                         written += len(chunk)

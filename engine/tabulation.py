@@ -5,7 +5,7 @@ import json, os, re, subprocess, tempfile, zipfile, secrets, threading, time, sy
 from datetime import date
 import urllib.request, urllib.error, urllib.parse, xml.etree.ElementTree as ET, sqlite3
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from ftplib import FTP
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
@@ -450,78 +450,29 @@ def jobfile(job_id: str) -> Path:
 def _job_directory_lock(folder: Path):
     """Serialize job status replacements across the web process and workers."""
     lock_path=folder/".job-write.lock"
-    with lock_path.open("a+b") as lock:
-        if os.name=="nt":
-            import msvcrt
-            lock.seek(0,os.SEEK_END)
-            if lock.tell()==0:
-                lock.write(b"\0")
-                lock.flush()
-            acquired=False
-            for _ in range(240):
-                lock.seek(0)
-                try:
-                    msvcrt.locking(lock.fileno(),msvcrt.LK_NBLCK,1)
-                    acquired=True
-                    break
-                except OSError:
-                    time.sleep(.05)
-            if not acquired:
-                raise TimeoutError("O status do processamento está sendo atualizado por outra tarefa.")
-            try:
-                yield
-            finally:
-                lock.seek(0)
-                msvcrt.locking(lock.fileno(),msvcrt.LK_UNLCK,1)
-        else:
-            import fcntl
-            fcntl.flock(lock.fileno(),fcntl.LOCK_EX)
-            try:
-                yield
-            finally:
-                fcntl.flock(lock.fileno(),fcntl.LOCK_UN)
+    with interprocess_lock(lock_path):
+        yield
 
 @contextmanager
 def source_use_locks(relative_paths, blocking=True):
     """Cross-process locks shared by readers/converters and library deletion."""
     lock_folder=UPLOADS/".jobs"/"file-locks"
     lock_folder.mkdir(parents=True,exist_ok=True)
-    handles=[]; acquired=[]
     try:
         identities=sorted({str(path).replace("\\","/").casefold() for path in relative_paths})
-        for identity in identities:
-            lock_path=lock_folder/(hashlib.sha256(identity.encode("utf-8")).hexdigest()+".lock")
-            handle=lock_path.open("a+b"); handles.append(handle)
-            if os.name=="nt":
-                import msvcrt
-                handle.seek(0,os.SEEK_END)
-                if handle.tell()==0:
-                    handle.write(b"\0"); handle.flush()
-                handle.seek(0)
-                msvcrt.locking(handle.fileno(),msvcrt.LK_LOCK if blocking else msvcrt.LK_NBLCK,1)
-            else:
-                import fcntl
-                flags=fcntl.LOCK_EX|(0 if blocking else fcntl.LOCK_NB)
-                fcntl.flock(handle.fileno(),flags)
-            acquired.append(handle)
-        yield
+        with ExitStack() as stack:
+            for identity in identities:
+                lock_path=lock_folder/(hashlib.sha256(identity.encode("utf-8")).hexdigest()+".lock")
+                stack.enter_context(interprocess_lock(lock_path,blocking=blocking))
+            yield
+    except TimeoutError as exc:
+        if not blocking:
+            raise ValueError("Este arquivo está em uso por uma conversão, tabulação ou exportação. Aguarde e tente novamente.") from exc
+        raise
     except (OSError,BlockingIOError) as exc:
         if not blocking:
             raise ValueError("Este arquivo está em uso por uma conversão, tabulação ou exportação. Aguarde e tente novamente.") from exc
         raise
-    finally:
-        for handle in reversed(acquired):
-            try:
-                if os.name=="nt":
-                    import msvcrt
-                    handle.seek(0); msvcrt.locking(handle.fileno(),msvcrt.LK_UNLCK,1)
-                else:
-                    import fcntl
-                    fcntl.flock(handle.fileno(),fcntl.LOCK_UN)
-            except OSError: pass
-        for handle in handles:
-            try: handle.close()
-            except OSError: pass
 
 def job_worker_alive(state: dict[str,Any], statefile: Path) -> bool:
     pid=state.get("worker_pid")
@@ -785,28 +736,38 @@ def _run_tabulation_worker_locked(job_id: str):
 def ensure_archive(system: str) -> Path:
     folder=UPLOADS/"DEFINICOES"/"originais"; folder.mkdir(parents=True,exist_ok=True)
     path=folder/f"TAB_{system}.zip"
-    if not path.exists() or path.stat().st_size < 1000:
-        tmp=path.with_suffix(".zip.part")
-        remote=f"/dissemin/publicos/{'SIASUS' if system=='SIA' else 'SIHSUS'}/200801_/Auxiliar/TAB_{system}.zip"
-        try:
+    with interprocess_lock(folder/f"TAB_{system}.lock"):
+        if not path.exists() or not 1000 <= path.stat().st_size <= 512*1024*1024:
+            tmp=path.with_suffix(".zip.part")
+            remote=f"/dissemin/publicos/{'SIASUS' if system=='SIA' else 'SIHSUS'}/200801_/Auxiliar/TAB_{system}.zip"
             try:
-                portal_download_file(remote, f"TAB_{system}.zip", tmp)
-            except Exception as https_error:
-                if not ALLOW_FTP_FALLBACK:
-                    raise RuntimeError(f"Não foi possível baixar as definições oficiais por HTTPS. O fallback FTP está desativado. Detalhe: {https_error}") from https_error
                 try:
-                    ftp=FTP("ftp.datasus.gov.br",timeout=12); ftp.login(); ftp.set_pasv(True)
+                    portal_download_file(remote, f"TAB_{system}.zip", tmp)
+                except Exception as https_error:
+                    if not ALLOW_FTP_FALLBACK:
+                        raise RuntimeError(f"Não foi possível baixar as definições oficiais por HTTPS. O fallback FTP está desativado. Detalhe: {https_error}") from https_error
                     try:
-                        with tmp.open("wb") as out: ftp.retrbinary(f"RETR {remote}",out.write,blocksize=1024*1024)
-                    finally:
-                        try: ftp.quit()
-                        except Exception: ftp.close()
-                except Exception as ftp_error:
-                    raise RuntimeError(f"Não foi possível baixar as definições oficiais por HTTPS nem FTP. HTTPS: {https_error}; FTP: {ftp_error}") from ftp_error
-            if tmp.stat().st_size < 1000: raise RuntimeError("O pacote oficial de definições chegou incompleto.")
-            tmp.replace(path)
-        finally:
-            tmp.unlink(missing_ok=True)
+                        ftp=FTP("ftp.datasus.gov.br",timeout=12); ftp.login(); ftp.set_pasv(True)
+                        try:
+                            written=0
+                            with tmp.open("wb") as out:
+                                def write_chunk(chunk):
+                                    nonlocal written
+                                    written+=len(chunk)
+                                    if written>512*1024*1024: raise RuntimeError("O pacote de definições ultrapassou o limite permitido.")
+                                    out.write(chunk)
+                                ftp.retrbinary(f"RETR {remote}",write_chunk,blocksize=1024*1024)
+                        finally:
+                            try: ftp.quit()
+                            except Exception: ftp.close()
+                    except Exception as ftp_error:
+                        raise RuntimeError(f"Não foi possível baixar as definições oficiais por HTTPS nem FTP. HTTPS: {https_error}; FTP: {ftp_error}") from ftp_error
+                if not 1000 <= tmp.stat().st_size <= 512*1024*1024: raise RuntimeError("O pacote oficial de definições chegou incompleto ou excedeu o limite permitido.")
+                with zipfile.ZipFile(tmp) as archive:
+                    if len(archive.infolist())>50000: raise RuntimeError("O pacote de definições contém itens demais.")
+                tmp.replace(path)
+            finally:
+                tmp.unlink(missing_ok=True)
     return path
 
 def archive_def(system: str, kind: str):
@@ -814,8 +775,9 @@ def archive_def(system: str, kind: str):
     if not name: return None,None
     archive=ensure_archive(system)
     with zipfile.ZipFile(archive) as z:
-        matches=[n for n in z.namelist() if PurePosixPath(n).name.lower()==name.lower()]
+        matches=[item for item in z.infolist() if PurePosixPath(item.filename).name.lower()==name.lower()]
         if not matches: return name,None
+        if len(matches)!=1 or matches[0].file_size>16*1024*1024: raise RuntimeError("A definição oficial contém um item inválido ou grande demais.")
         data=z.read(matches[0])
     dest=UPLOADS/"DEFINICOES"/system/name
     dest.parent.mkdir(parents=True,exist_ok=True)

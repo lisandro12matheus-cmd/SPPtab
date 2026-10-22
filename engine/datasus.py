@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import gzip
+import hashlib
 import os
 import re
 import shutil
@@ -15,6 +16,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from ftplib import FTP
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -197,6 +199,11 @@ def select_files(system: str, year: int, month: int | None = None, uf: str = "PA
             local = UPLOADS / relative_folder(system, year, int(match.group("mm")), kind) / filename
             found[-1]["local_path"] = str(local.relative_to(UPLOADS)).replace("\\", "/")
             found[-1]["downloaded"] = local.is_file() and local.stat().st_size > 0 and (size is None or local.stat().st_size == size)
+            if found[-1]["downloaded"]:
+                try:
+                    validate_dbc_header(local)
+                except (OSError, SourceError):
+                    found[-1]["downloaded"] = False
             found[-1]["incomplete"] = local.is_file() and not found[-1]["downloaded"]
             if size is None and found[-1]["downloaded"]:
                 found[-1]["size"] = local.stat().st_size
@@ -307,64 +314,77 @@ def download_selected(system: str, year: int, month: int, requested_names: list[
     if any(name not in allowed for name in names):
         raise SourceError("A seleção contém arquivo que não existe na competência escolhida.")
 
-    results = []
-    for name in names:
+    def download_one(name: str) -> dict[str, Any]:
         item = allowed[name]
         folder = UPLOADS / relative_folder(system, year, month, item["kind"])
         folder.mkdir(parents=True, exist_ok=True)
         target = folder / item["name"]
-        if target.exists() and target.stat().st_size > 0 and (item["size"] is None or target.stat().st_size == item["size"]):
-            results.append({"name": item["name"], "path": str(target.relative_to(UPLOADS)).replace("\\", "/"), "size": target.stat().st_size, "already_present": True, "source_mode": "biblioteca local"})
-            continue
-
-        fd, temporary = tempfile.mkstemp(prefix=f".{item['name']}.", suffix=".part", dir=folder)
-        os.close(fd)
-        written = 0
-        source_mode = "HTTPS · DATASUS"
-        try:
-            if item["size"] is not None and shutil.disk_usage(folder).free < item["size"] + 16 * 1024 * 1024:
-                raise SourceError("Não há espaço livre suficiente para salvar o arquivo selecionado.")
-            try:
-                portal_download_file(item["remote"], item["name"], Path(temporary))
-                written = Path(temporary).stat().st_size
-            except Exception as https_error:
-                if not ALLOW_FTP_FALLBACK:
-                    raise SourceError(f"Não foi possível baixar {item['name']} por HTTPS. O fallback FTP está desativado nesta instalação. Detalhe: {https_error}") from https_error
+        lock_id = hashlib.sha256(target.relative_to(UPLOADS).as_posix().casefold().encode("utf-8")).hexdigest()
+        with interprocess_lock(UPLOADS / ".jobs" / "file-locks" / f"{lock_id}.lock"):
+            if target.is_file() and target.stat().st_size > 0 and (item["size"] is None or target.stat().st_size == item["size"]):
                 try:
-                    ftp = connect()
-                    try:
-                        with open(temporary, "wb") as stream:
-                            def write_chunk(chunk: bytes) -> None:
-                                nonlocal written
-                                if written + len(chunk) > MAX_DBC_DOWNLOAD_BYTES or (item["size"] is not None and written + len(chunk) > item["size"]):
-                                    raise SourceError("O arquivo recebido ultrapassou o tamanho permitido ou declarado pelo DATASUS.")
-                                stream.write(chunk)
-                                written += len(chunk)
-                            ftp.retrbinary(f"RETR {item['remote']}", write_chunk, blocksize=1024 * 128)
-                    finally:
-                        try:
-                            ftp.quit()
-                        except Exception:
-                            ftp.close()
-                    source_mode = "FTP · DATASUS"
-                except Exception as ftp_error:
-                    raise SourceError(
-                        f"Não foi possível baixar {item['name']} por HTTPS nem FTP. "
-                        f"HTTPS: {https_error}; FTP: {ftp_error}"
-                    ) from ftp_error
-            if item["size"] is not None and written != item["size"]:
-                raise SourceError(f"O arquivo {item['name']} chegou incompleto ({written} de {item['size']} bytes).")
-            if written > MAX_DBC_DOWNLOAD_BYTES:
-                raise SourceError("O arquivo recebido ultrapassou o limite configurado de download.")
-            validate_dbc_header(Path(temporary))
-            os.replace(temporary, target)
-        except Exception:
+                    validate_dbc_header(target)
+                except (OSError, SourceError):
+                    pass
+                else:
+                    return {"name": item["name"], "path": str(target.relative_to(UPLOADS)).replace("\\", "/"), "size": target.stat().st_size, "already_present": True, "source_mode": "biblioteca local"}
+
+            fd, temporary = tempfile.mkstemp(prefix=f".{item['name']}.", suffix=".part", dir=folder)
+            os.close(fd)
+            written = 0
+            source_mode = "HTTPS · DATASUS"
             try:
-                os.unlink(temporary)
-            except OSError:
-                pass
-            raise
-        results.append({"name": item["name"], "path": str(target.relative_to(UPLOADS)).replace("\\", "/"), "size": written, "already_present": False, "source_mode": source_mode})
+                if item["size"] is not None and shutil.disk_usage(folder).free < item["size"] + 16 * 1024 * 1024:
+                    raise SourceError("Não há espaço livre suficiente para salvar o arquivo selecionado.")
+                try:
+                    portal_download_file(item["remote"], item["name"], Path(temporary))
+                    written = Path(temporary).stat().st_size
+                except Exception as https_error:
+                    if not ALLOW_FTP_FALLBACK:
+                        raise SourceError(f"Não foi possível baixar {item['name']} por HTTPS. O fallback FTP está desativado nesta instalação. Detalhe: {https_error}") from https_error
+                    try:
+                        ftp = connect()
+                        try:
+                            with open(temporary, "wb") as stream:
+                                def write_chunk(chunk: bytes) -> None:
+                                    nonlocal written
+                                    if written + len(chunk) > MAX_DBC_DOWNLOAD_BYTES or (item["size"] is not None and written + len(chunk) > item["size"]):
+                                        raise SourceError("O arquivo recebido ultrapassou o tamanho permitido ou declarado pelo DATASUS.")
+                                    stream.write(chunk)
+                                    written += len(chunk)
+                                ftp.retrbinary(f"RETR {item['remote']}", write_chunk, blocksize=1024 * 1024)
+                        finally:
+                            try:
+                                ftp.quit()
+                            except Exception:
+                                ftp.close()
+                        source_mode = "FTP · DATASUS"
+                    except Exception as ftp_error:
+                        raise SourceError(
+                            f"Não foi possível baixar {item['name']} por HTTPS nem FTP. "
+                            f"HTTPS: {https_error}; FTP: {ftp_error}"
+                        ) from ftp_error
+                if item["size"] is not None and written != item["size"]:
+                    raise SourceError(f"O arquivo {item['name']} chegou incompleto ({written} de {item['size']} bytes).")
+                if written > MAX_DBC_DOWNLOAD_BYTES:
+                    raise SourceError("O arquivo recebido ultrapassou o limite configurado de download.")
+                validate_dbc_header(Path(temporary))
+                os.replace(temporary, target)
+            except Exception:
+                try:
+                    os.unlink(temporary)
+                except OSError:
+                    pass
+                raise
+            return {"name": item["name"], "path": str(target.relative_to(UPLOADS)).replace("\\", "/"), "size": written, "already_present": False, "source_mode": source_mode}
+
+    if len(names) == 1:
+        results = [download_one(names[0])]
+    else:
+        # Two concurrent streams improve multi-file imports without saturating
+        # the DATASUS endpoint or the user's connection.
+        with ThreadPoolExecutor(max_workers=min(2, len(names)), thread_name_prefix="spptab-download") as pool:
+            results = list(pool.map(download_one, names))
 
     manifest_path = UPLOADS / "manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
