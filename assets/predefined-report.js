@@ -51,7 +51,8 @@
     legalNature: { label:'Natureza jurídica', field:'legalNatureCode', nameField:'legalNatureName', allLabel:'Todas as naturezas jurídicas', responseKey:'legalNatures', queryKey:'natureza', sourceLabel:'Arquivo DATASUS · SIA/PA' },
     managementType: { label:'Tipo de gestão', field:'managementTypeCode', nameField:'managementTypeName', allLabel:'Todos os tipos de gestão', responseKey:'managementTypes', queryKey:'tipo_gestao', sourceLabel:'Arquivo DATASUS · SIA/PA' },
     providerType: { label:'Tipo do prestador (público, privado etc.)', field:'providerTypeCode', nameField:'providerTypeName', allLabel:'Todos os tipos de prestador', responseKey:'providerTypes', queryKey:'tipo_prestador', sourceLabel:'Arquivo DATASUS · SIA/PA' },
-    complexity: { label:'Complexidade do procedimento', field:'complexityCode', nameField:'complexityName', allLabel:'Todas as complexidades', responseKey:'complexities', queryKey:'complexidade', sourceLabel:'Arquivo DATASUS · SIA/PA' }
+    complexity: { label:'Complexidade do procedimento', field:'complexityCode', nameField:'complexityName', allLabel:'Todas as complexidades', responseKey:'complexities', queryKey:'complexidade', sourceLabel:'Arquivo DATASUS · SIA/PA' },
+    financing: { label:'Financiamento (MAC/FAEC)', field:'financingCode', nameField:'financingName', allLabel:'Todos os financiamentos', responseKey:'financings', queryKey:'financiamento', sourceLabel:'Arquivo DATASUS · SIA/PA' }
   };
   const sihFilterDefinitions = {
     manager: { label:'Gestor da produção', field:'UF_ZI', nameField:'UF_ZIName', responseKey:'managers', queryKey:'gestor', sourceLabel:'Arquivo DATASUS · SIH (município gestor)' },
@@ -80,7 +81,7 @@
       workspaceTitle:'Produção Ambulatorial · SIA/SUS', introLabel:'PRODUÇÃO AMBULATORIAL · SIA/SUS', introTitle:'Produção ambulatorial por estabelecimento.',
       introDescription:'Relatório mensal da produção ambulatorial, com detalhamento por procedimento SIGTAP.',
       setupTitle:'Produção ambulatorial por estabelecimento', setupDescription:'Escolha a origem e a competência. Os filtros adicionais são opcionais.',
-      emptyMessage:'Escolha a UF e a competência. Município, gestão, tipo de prestador, natureza jurídica e complexidade são opcionais.',
+      emptyMessage:'Escolha a UF e a competência. Município, gestão, tipo de prestador, natureza jurídica, complexidade e financiamento são opcionais.',
       municipalityLabel:'MUNICÍPIO',
       filterNote:'O município e os demais filtros valem para toda a consulta. Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.',
       methodTitle:'Como ler glosas e rejeições:', methodText:' glosas são a diferença positiva entre o apresentado e o aprovado. A base ambulatorial não traz um total independente de rejeições; esse indicador conta linhas apresentadas com quantidade aprovada igual a zero.',

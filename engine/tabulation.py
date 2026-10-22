@@ -37,6 +37,7 @@ PREDEFINED_FILTER_SPECS = (
     {"key":"managementType","code":"managementTypeCode","name":"managementTypeName","label":"Tipo de gestão","field":"PA_CONDIC","relation":"CNV/TP_GESTAO.CNV","width":2,"allLabel":"Todos os tipos de gestão","response":"managementTypes","url":"tipo_gestao"},
     {"key":"providerType","code":"providerTypeCode","name":"providerTypeName","label":"Tipo do prestador (público, privado etc.)","field":"PA_TIPPRE","relation":"CNV/TIPOPRES.CNV","width":2,"allLabel":"Todos os tipos de prestador","response":"providerTypes","url":"tipo_prestador"},
     {"key":"complexity","code":"complexityCode","name":"complexityName","label":"Complexidade do procedimento","field":"PA_NIVCPL","relation":"CNV/COMPLEX.CNV","width":1,"allLabel":"Todas as complexidades","response":"complexities","url":"complexidade"},
+    {"key":"financing","code":"financingCode","name":"financingName","label":"Financiamento (MAC/FAEC)","field":"PA_TPFIN","relation":"CNV/FINANC.CNV","width":2,"allLabel":"Todos os financiamentos","response":"financings","url":"financiamento","auxiliaryRelation":True},
 )
 PREDEFINED_SIH_FILTER_SPECS = (
     {"key":"manager","label":"Gestor da produção","field":"UF_ZI","relation":"CNV/br_municgestor.cnv","width":6,"response":"managers","url":"gestor","stateScoped":True},
@@ -1303,7 +1304,7 @@ def predefined_filter_options(payload: dict[str,Any]):
     if uf not in PREDEFINED_UF_CODES:
         raise ValueError("Selecione uma unidade da Federação válida.")
     archive_path=ensure_archive("SIA")
-    cache=cache_target("predefined-filter-options",{"version":3,"archive":cache_file_identity(archive_path),"uf":uf})
+    cache=cache_target("predefined-filter-options",{"version":4,"archive":cache_file_identity(archive_path),"uf":uf})
     cached=cache_read(cache)
     if isinstance(cached,dict) and cached.get("ok") is True:
         return cached
@@ -1316,6 +1317,10 @@ def predefined_filter_options(payload: dict[str,Any]):
     result={"ok":True,"uf":uf}
     for spec in PREDEFINED_FILTER_SPECS:
         option=next((item for item in options if item.get("field")==spec["field"] and item.get("relation","").lower()==spec["relation"].lower()),None)
+        if option is None and spec.get("auxiliaryRelation"):
+            # PA_TPFIN is marked as an auxiliary field in the official DEF,
+            # so its relation must be resolved directly from the official CNV.
+            option={"field":spec["field"],"relation":spec["relation"]}
         mapping=relation_mapping("SIA",option) if option else {}
         exact=_report_exact_relation_index(mapping,spec["width"])
         prefix=PREDEFINED_UF_CODES[uf]
@@ -1506,6 +1511,8 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
     selected_filter_names={}
     for spec in PREDEFINED_FILTER_SPECS:
         option=next((item for item in all_options if item.get("field")==spec["field"] and item.get("relation","").lower()==spec["relation"].lower()),None)
+        if option is None and spec.get("auxiliaryRelation"):
+            option={"field":spec["field"],"relation":spec["relation"]}
         selected_codes=selected_filter_codes.get(spec["field"],[])
         if not selected_codes: continue
         valid=_report_exact_relation_index(relation_mapping("SIA",option),spec["width"]) if option else {}
