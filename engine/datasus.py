@@ -146,6 +146,8 @@ def select_files(system: str, year: int, month: int | None = None, uf: str = "PA
                 source_mode = "stale-cache"
             else:
                 try:
+                    if not ALLOW_FTP_FALLBACK:
+                        raise SourceError("O fallback FTP está desativado nesta instalação.")
                     ftp = connect()
                     names = ftp.nlst(directory)
                     source_mode = "ftp"
