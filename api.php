@@ -50,7 +50,8 @@ register_shutdown_function(static function (): void {
 $action = $payload['action'] ?? '';
 $tabulationActions = ['catalog', 'delete_file', 'schema', 'preset_list', 'preset_save', 'preset_get', 'preset_delete', 'column_values', 'category_values', 'predefined_filter_options', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status'];
 $dataActions = ['competencies', 'files', 'download', 'municipalities'];
-if (!in_array($action, [...$dataActions, ...$tabulationActions], true)) {
+$preferenceActions = ['report_defaults_get', 'report_defaults_save', 'report_defaults_delete'];
+if (!in_array($action, [...$dataActions, ...$tabulationActions, ...$preferenceActions], true)) {
     respond(['ok' => false, 'error' => 'Ação não reconhecida.'], 400);
 }
 
@@ -59,6 +60,63 @@ try {
 } catch (Throwable $error) {
     $status = http_response_code();
     respond(['ok' => false, 'error' => $error->getMessage()], is_int($status) && $status >= 400 ? $status : 400);
+}
+
+if (in_array($action, $preferenceActions, true)) {
+    $report = (string) ($payload['report'] ?? '');
+    if (!in_array($report, ['sia-pa-producao', 'sih-rd-producao', 'sih-rd-rejeicoes', 'sih-rd-ocupacao', 'sih-sp-profissionais'], true)) {
+        respond(['ok' => false, 'error' => 'Relatório inválido.'], 400);
+    }
+    $scope = (string) ($payload['scope'] ?? '');
+    $view = (string) ($payload['view'] ?? 'summary');
+    if ($action !== 'report_defaults_get' && (!in_array($scope, ['setup', 'table'], true) || !in_array($view, ['summary', 'detail', 'services'], true))) {
+        respond(['ok' => false, 'error' => 'Área de filtros inválida.'], 400);
+    }
+    $dataRoot = rtrim((string) (getenv('TABWIN2_DATA_DIR') ?: (__DIR__ . DIRECTORY_SEPARATOR . 'uploads')), '\\/');
+    $configDirectory = $dataRoot . DIRECTORY_SEPARATOR . '.config';
+    if (!is_dir($configDirectory) && !@mkdir($configDirectory, 0700, true) && !is_dir($configDirectory)) {
+        respond(['ok' => false, 'error' => 'Não foi possível preparar as preferências locais.'], 500);
+    }
+    $storePath = $configDirectory . DIRECTORY_SEPARATOR . 'report-filter-defaults.json';
+    $handle = @fopen($storePath, 'c+b');
+    if ($handle === false || !flock($handle, LOCK_EX)) {
+        if (is_resource($handle)) fclose($handle);
+        respond(['ok' => false, 'error' => 'Não foi possível acessar os filtros salvos.'], 500);
+    }
+    try {
+        rewind($handle);
+        $stored = json_decode((string) stream_get_contents($handle), true);
+        if (!is_array($stored)) $stored = [];
+        $entry = is_array($stored[$report] ?? null) ? $stored[$report] : [];
+        if ($action === 'report_defaults_get') {
+            respond(['ok' => true, 'defaults' => $entry]);
+        }
+        if ($scope === 'setup') {
+            $key = 'setup';
+        } else {
+            $key = 'table';
+            if (!is_array($entry[$key] ?? null)) $entry[$key] = [];
+        }
+        if ($action === 'report_defaults_save') {
+            $settings = $payload['settings'] ?? null;
+            $rawSettings = json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+            if (!is_array($settings) || $rawSettings === false || strlen($rawSettings) > 262144) {
+                respond(['ok' => false, 'error' => 'A combinação de filtros é inválida ou muito grande.'], 400);
+            }
+            if ($scope === 'setup') $entry[$key] = $settings;
+            else $entry[$key][$view] = $settings;
+        } elseif ($scope === 'setup') unset($entry[$key]);
+        else unset($entry[$key][$view]);
+        $stored[$report] = $entry;
+        $raw = json_encode($stored, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($raw === false || strlen($raw) > 1048576 || !ftruncate($handle, 0) || !rewind($handle) || fwrite($handle, $raw) !== strlen($raw) || !fflush($handle)) {
+            respond(['ok' => false, 'error' => 'Não foi possível salvar os filtros.'], 500);
+        }
+        respond(['ok' => true, 'defaults' => $entry]);
+    } finally {
+        flock($handle, LOCK_UN);
+        fclose($handle);
+    }
 }
 
 if (in_array($action, $tabulationActions, true)) {

@@ -111,6 +111,15 @@
 .report-search>span{font-size:17px}
 .report-search input{width:100%;border:0;outline:0;background:transparent;color:#344b52;font:11px 'DM Sans',sans-serif}
 .report-table-hint{color:#879499;font-size:9px;text-align:right}
+.report-table-toolbar-side{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0}
+.report-default-actions{display:flex;align-items:center;gap:7px;flex:none}
+.report-default-actions[hidden]{display:none}
+.report-default-actions button,.setup-default-actions button{border:0;background:none;color:#2767b2;font:600 9px 'DM Sans',sans-serif;cursor:pointer;padding:5px 2px;white-space:nowrap}
+.report-default-actions button:hover,.setup-default-actions button:hover{text-decoration:underline}
+.report-default-actions button[hidden],.setup-default-actions button[hidden]{display:none}
+.report-default-actions button:disabled,.setup-default-actions button:disabled{opacity:.55;cursor:wait}
+.setup-default-actions{display:flex;align-items:center;gap:8px;margin-right:auto;min-width:0}
+.setup-default-actions span{color:#718890;font-size:9px;white-space:nowrap}
 .report-table-wrap{max-height:min(66vh,760px);overflow:auto;border:1px solid #e7edef;border-radius:9px;scrollbar-color:#c5d0d5 #f7f9fa;scrollbar-width:thin}
 .report-table{width:100%;min-width:1180px;border-collapse:separate;border-spacing:0;background:#fff;font-variant-numeric:tabular-nums}
 .report-table th,.report-table td{padding:11px 12px;border-bottom:1px solid #edf0f2;font-size:10px}
@@ -197,6 +206,7 @@
 .setup-availability{margin:0;padding:9px 0 12px}
 .setup-dialog-footer{display:flex;justify-content:flex-end;gap:9px;padding-top:14px;border-top:1px solid #edf1f4}
 .setup-dialog-footer .button{min-height:38px;font-size:10px}
+.setup-dialog-footer{flex-wrap:wrap}
 .predefined-report-main .page-footer{margin-top:19px}
 @keyframes report-spin{to{transform:rotate(360deg)}}
 @keyframes report-tile{0%,100%{opacity:.4;transform:scale(.85)}50%{opacity:1;transform:scale(1)}}
@@ -278,3 +288,4 @@
 .report-table-pagination button:hover:not(:disabled){border-color:#c8d9ec;background:#f4f8fd;color:#286fc7}
 .report-table-pagination button:disabled{opacity:.45;cursor:default}
 @media(max-width:600px){.report-table-pagination{flex-wrap:wrap}.report-table-pagination label{margin-left:0}.report-table-pagination>div{margin-left:auto}.report-column-filter-menu{max-height:calc(100vh - 20px)}}
+@media(max-width:760px){.report-table-toolbar-side{width:100%;justify-content:space-between;flex-wrap:wrap}.report-table-hint{text-align:left}.setup-default-actions{flex-basis:100%}.setup-dialog-footer{justify-content:flex-end}}

@@ -35,6 +35,8 @@
   const workspacePanel = $('reportWorkspace');
   const localFiles = new Map();
   const results = new Map();
+  const reportDefaults = new Map();
+  const reportDefaultRequests = new Map();
   let allRows = [];
   let activeResult = null;
   let activeView = 'summary';
@@ -329,6 +331,83 @@
     return filters;
   }
 
+  async function loadReportDefaults(reportId = activeReport.id) {
+    if (reportDefaults.has(reportId)) return reportDefaults.get(reportId);
+    if (reportDefaultRequests.has(reportId)) return reportDefaultRequests.get(reportId);
+    const request = api({ action:'report_defaults_get', report:reportId }).then((data) => {
+      const defaults = data.defaults && typeof data.defaults === 'object' ? data.defaults : {};
+      reportDefaults.set(reportId, defaults);
+      return defaults;
+    }).catch(() => {
+      const defaults = {};
+      reportDefaults.set(reportId, defaults);
+      return defaults;
+    }).finally(() => reportDefaultRequests.delete(reportId));
+    reportDefaultRequests.set(reportId, request);
+    return request;
+  }
+
+  function setupSettings() {
+    const selected = selectedFilters();
+    const filters = {};
+    for (const definition of Object.values(filterDefinitions)) filters[definition.field] = selected[definition.field];
+    return { uf:selected.uf, municipalityCode:selected.municipalityCode, activeFilterTypes:[...activeFilterTypes], filters };
+  }
+
+  function setupPreference() {
+    const saved = reportDefaults.get(activeReport.id)?.setup;
+    if (!saved || typeof saved !== 'object') return null;
+    const filters = {};
+    for (const definition of Object.values(filterDefinitions)) filters[definition.field] = normalizeSelectedValues(saved.filters?.[definition.field]);
+    return {
+      uf:stateNames[saved.uf] ? saved.uf : selectedUf(),
+      municipalityCode:String(saved.municipalityCode || ''),
+      activeFilterTypes:(Array.isArray(saved.activeFilterTypes) ? saved.activeFilterTypes : []).filter((type) => filterDefinitions[type]),
+      filters
+    };
+  }
+
+  function updateSetupDefaultControls() {
+    const saved = setupPreference();
+    $('clearSetupDefault').hidden = !saved;
+    const matches = saved && JSON.stringify(setupSettings()) === JSON.stringify(saved);
+    $('saveSetupDefault').textContent = matches ? 'Padrão salvo' : saved ? 'Atualizar padrão' : 'Salvar filtros como padrão';
+    if (!matches && $('setupDefaultStatus').textContent === 'Aplicado nas próximas consultas') $('setupDefaultStatus').textContent = 'Alterações ainda não salvas';
+  }
+
+  async function saveSetupDefault() {
+    const button = $('saveSetupDefault');
+    button.disabled = true;
+    try {
+      const data = await api({ action:'report_defaults_save', report:activeReport.id, scope:'setup', settings:setupSettings() });
+      reportDefaults.set(activeReport.id, data.defaults || {});
+      $('setupDefaultStatus').textContent = 'Aplicado nas próximas consultas';
+      updateSetupDefaultControls();
+    } catch (error) {
+      $('setupDefaultStatus').textContent = error.message || 'Não foi possível salvar.';
+    } finally { button.disabled = false; }
+  }
+
+  async function clearSetupDefault() {
+    const button = $('clearSetupDefault');
+    button.disabled = true;
+    try {
+      const data = await api({ action:'report_defaults_delete', report:activeReport.id, scope:'setup' });
+      reportDefaults.set(activeReport.id, data.defaults || {});
+      $('setupDefaultStatus').textContent = 'Padrão removido';
+      updateSetupDefaultControls();
+    } catch (error) {
+      $('setupDefaultStatus').textContent = error.message || 'Não foi possível remover.';
+    } finally { button.disabled = false; }
+  }
+
+  function applySetupPreference(fallbackUf = selectedUf()) {
+    const saved = setupPreference();
+    setUfOptions(saved?.uf || fallbackUf);
+    activeFilterTypes = saved?.activeFilterTypes || [];
+    return saved ? { municipalityCode:saved.municipalityCode, ...saved.filters } : (activeReport.defaultMunicipalityCode ? { municipalityCode:activeReport.defaultMunicipalityCode } : {});
+  }
+
   function updateScopeDescription() {
     const filters = selectedFilters();
     const months = selectedMonths();
@@ -338,6 +417,7 @@
     const chosenFilters = Object.values(filterDefinitions).filter((definition) => filters[definition.field].length).map((definition) => `${definition.label}: ${summarizeSelectedNames(filters[definition.nameField])}`);
     parts.push(...chosenFilters);
     $('reportScopeDescription').textContent = `${parts.join(' · ')}${filters.municipalityCode || chosenFilters.length ? '' : ' · sem filtros adicionais'}`;
+    updateSetupDefaultControls();
   }
 
   function setUfOptions(preferred = 'PA') {
@@ -388,7 +468,13 @@
 
   async function openReportSetup(preferred = selectedFilters()) {
     if (!setupDialog.open) setupDialog.showModal();
-    await prepareReportControls(preferred);
+    $('setupDefaultStatus').textContent = '';
+    $('saveSetupDefault').disabled = true;
+    try { await prepareReportControls(preferred); }
+    finally {
+      $('saveSetupDefault').disabled = false;
+      updateSetupDefaultControls();
+    }
   }
 
   function returnToCatalog(updateUrl = true) {
@@ -1036,6 +1122,7 @@
     $('backToSummary').textContent = activeView === 'services' ? '← AIH' : '← Estabelecimentos';
     resultPanel.hidden = false;
     empty.hidden = true;
+    updateTableDefaultControls();
   }
 
   function occupancyTotalsFor(rows) {
@@ -1116,6 +1203,71 @@
     columnFilters = new Map();
     sortState = null;
     tablePage = 1;
+  }
+
+  function tableSettings() {
+    const columns = tableColumns();
+    const filters = {};
+    for (const [columnId, excluded] of columnFilters) {
+      const column = columns.find((item) => item.id === columnId && item.filterable);
+      if (!column || !excluded.size) continue;
+      const available = [...new Set(allRows.map((row) => columnFilterToken(row, column)))];
+      const included = available.filter((token) => !excluded.has(token));
+      const removed = available.filter((token) => excluded.has(token));
+      filters[columnId] = included.length <= removed.length
+        ? { mode:'include', values:included }
+        : { mode:'exclude', values:removed };
+    }
+    return { search:$('reportSearch').value.trim().slice(0, 120), sort:sortState, columns:filters };
+  }
+
+  function restoreTableDefaults() {
+    const saved = reportDefaults.get(activeReport.id)?.table?.[activeView];
+    if (!saved || typeof saved !== 'object') return;
+    $('reportSearch').value = typeof saved.search === 'string' ? saved.search.slice(0, 120) : '';
+    const columns = tableColumns();
+    const sortable = columns.find((column) => column.id === saved.sort?.columnId && column.sortable);
+    sortState = sortable && ['asc', 'desc'].includes(saved.sort.direction) ? { columnId:sortable.id, direction:saved.sort.direction } : null;
+    for (const [columnId, setting] of Object.entries(saved.columns || {})) {
+      const column = columns.find((item) => item.id === columnId && item.filterable);
+      if (!column || !setting || !Array.isArray(setting.values)) continue;
+      const values = new Set(setting.values.filter((item) => typeof item === 'string'));
+      const excluded = setting.mode === 'include'
+        ? new Set(allRows.map((row) => columnFilterToken(row, column)).filter((token) => !values.has(token)))
+        : new Set(values);
+      if (excluded.size) columnFilters.set(columnId, excluded);
+    }
+  }
+
+  function updateTableDefaultControls() {
+    const saved = reportDefaults.get(activeReport.id)?.table?.[activeView];
+    const hasFilters = Boolean($('reportSearch').value.trim() || columnFilters.size || sortState);
+    $('tableDefaultActions').hidden = !saved && !hasFilters;
+    $('clearTableDefault').hidden = !saved;
+    $('saveTableDefault').textContent = saved ? 'Atualizar padrão' : 'Salvar filtros como padrão';
+  }
+
+  async function saveTableDefault() {
+    const button = $('saveTableDefault');
+    button.disabled = true;
+    try {
+      const data = await api({ action:'report_defaults_save', report:activeReport.id, scope:'table', view:activeView, settings:tableSettings() });
+      reportDefaults.set(activeReport.id, data.defaults || {});
+      updateTableDefaultControls();
+      button.textContent = 'Padrão salvo';
+    } catch (error) { showNotice(error.message || 'Não foi possível salvar os filtros.', 'error'); }
+    finally { button.disabled = false; }
+  }
+
+  async function clearTableDefault() {
+    const button = $('clearTableDefault');
+    button.disabled = true;
+    try {
+      const data = await api({ action:'report_defaults_delete', report:activeReport.id, scope:'table', view:activeView });
+      reportDefaults.set(activeReport.id, data.defaults || {});
+      updateTableDefaultControls();
+    } catch (error) { showNotice(error.message || 'Não foi possível remover os filtros salvos.', 'error'); }
+    finally { button.disabled = false; }
   }
 
   function positionColumnFilterMenu() {
@@ -1509,6 +1661,7 @@
     const cached = cachedResult(view, cnes, aih, requestedMonths);
     if (cached) {
       activeResult = cached; allRows = cached.rows || [];
+      restoreTableDefaults();
       setLoader(false); renderTable();
       for (const select of setupSelects) select.disabled = false;
       updateMonthPicker();
@@ -1524,6 +1677,7 @@
       activeResult = combineMonthlyResults(monthlyResults, requestedMonths, year);
       rememberResult(view, cnes, activeResult, aih, requestedMonths);
       allRows = activeResult.rows || [];
+      restoreTableDefaults();
       setLoader(false);
       renderTable();
       setAvailability(`${formatCompetencies(requestedMonths, year)} · resultado pronto neste computador.`, 'good');
@@ -1593,12 +1747,14 @@
   }
 
   for (const reportCard of document.querySelectorAll('.predefined-card[data-report]')) {
-    const activate = () => {
+    const activate = async () => {
       const preferredUf = selectedUf();
-      if (!activateReport(reportCard.dataset.report)) return;
-      setUfOptions(preferredUf);
-      const preferred = activeReport.defaultMunicipalityCode ? { municipalityCode:activeReport.defaultMunicipalityCode } : {};
-      openReportSetup(preferred);
+      const reportId = reportCard.dataset.report;
+      if (!activateReport(reportId)) return;
+      await loadReportDefaults(reportId);
+      if (activeReport.id !== reportId) return;
+      const preferred = applySetupPreference(preferredUf);
+      await openReportSetup(preferred);
     };
     reportCard.addEventListener('click', activate);
     reportCard.addEventListener('keydown', (event) => {
@@ -1612,6 +1768,10 @@
   $('configureReportFromEmpty').addEventListener('click', () => openReportSetup());
   $('closeReportSetup').addEventListener('click', () => setupDialog.close());
   $('cancelReportSetup').addEventListener('click', () => setupDialog.close());
+  $('saveSetupDefault').addEventListener('click', saveSetupDefault);
+  $('clearSetupDefault').addEventListener('click', clearSetupDefault);
+  $('saveTableDefault').addEventListener('click', saveTableDefault);
+  $('clearTableDefault').addEventListener('click', clearTableDefault);
   openButton.addEventListener('click', generateConfiguredReport);
   function clearPreviousResult() {
     resultPanel.hidden = true;
@@ -1710,13 +1870,13 @@
     if (activeView === 'services') {
       const cachedDetail = cachedResult('detail', activeCnes, '', reportMonths);
       if (cachedDetail) {
-        activeMonths = [...reportMonths]; activeMonth = activeMonths.at(-1) || activeMonth; routeUrl('detail', activeCnes, '', activeMonths); activeView = 'detail'; activeAih = ''; activeResult = cachedDetail; allRows = cachedDetail.rows || []; $('reportSearch').value = ''; resetTableViewState(); renderTable();
+        activeMonths = [...reportMonths]; activeMonth = activeMonths.at(-1) || activeMonth; routeUrl('detail', activeCnes, '', activeMonths); activeView = 'detail'; activeAih = ''; activeResult = cachedDetail; allRows = cachedDetail.rows || []; $('reportSearch').value = ''; resetTableViewState(); restoreTableDefaults(); renderTable();
       } else runReport('detail', activeCnes, true, '', reportMonths);
       return;
     }
     const cached = cachedResult('summary', '', '', reportMonths);
     if (cached) {
-      activeMonths = [...reportMonths]; activeMonth = activeMonths.at(-1) || activeMonth; routeUrl('summary', '', '', activeMonths); activeView = 'summary'; activeCnes = ''; activeAih = ''; activeResult = cached; allRows = cached.rows || []; $('reportSearch').value = ''; resetTableViewState(); renderTable();
+      activeMonths = [...reportMonths]; activeMonth = activeMonths.at(-1) || activeMonth; routeUrl('summary', '', '', activeMonths); activeView = 'summary'; activeCnes = ''; activeAih = ''; activeResult = cached; allRows = cached.rows || []; $('reportSearch').value = ''; resetTableViewState(); restoreTableDefaults(); renderTable();
     } else runReport('summary', '', true, '', reportMonths);
   });
   window.addEventListener('popstate', async () => {
@@ -1727,11 +1887,13 @@
     const aih = (current.get('aih') || '').replace(/\D/g, '').slice(0, 13);
     const requestedId = current.get('relatorio') === 'sia-pa-belem' ? 'sia-pa-producao' : (current.get('relatorio') || 'sia-pa-producao');
     activateReport(reportConfigurations[requestedId] ? requestedId : 'sia-pa-producao');
+    await loadReportDefaults(activeReport.id);
     const wantsReport = Object.prototype.hasOwnProperty.call(reportConfigurations, requestedId) || current.get('relatorio') === 'sia-pa-belem' || Boolean(year && months.length) || Boolean(cnes) || Boolean(aih);
     if (!wantsReport) { returnToCatalog(false); return; }
     const uf = String(current.get('uf') || 'PA').toUpperCase();
-    setUfOptions(uf);
-    const preferred = filtersFromParams(current);
+    const hasExplicitScope = current.has('uf') || current.has('municipio') || Object.values(filterDefinitions).some((definition) => current.has(definition.queryKey));
+    const preferred = !year && !months.length && !hasExplicitScope ? applySetupPreference(uf) : filtersFromParams(current);
+    if (hasExplicitScope || year || months.length) setUfOptions(uf);
     if (!year || !months.length) {
       setPageView('catalog', false);
       await openReportSetup(preferred);
@@ -1750,7 +1912,10 @@
 
   async function init() {
     activateReport(activeReport.id);
-    setUfOptions(linkedUf);
+    if (linkedReport || linkedYear || linkedCnes) await loadReportDefaults(activeReport.id);
+    const hasExplicitScope = params.has('uf') || params.has('municipio') || Object.values(filterDefinitions).some((definition) => params.has(definition.queryKey));
+    const initialPreferred = linkedReport && !linkedYear && !linkedMonths.length && !hasExplicitScope ? applySetupPreference(linkedUf) : linkedFilters;
+    if (hasExplicitScope || linkedYear || linkedMonths.length || !linkedReport) setUfOptions(linkedUf);
     setYears();
     updateScopeDescription();
     if (!linkedReport && !(linkedYear && linkedMonths.length) && !linkedCnes) return;
@@ -1770,7 +1935,7 @@
       } catch (error) {
         showReportFailure(error);
       }
-    } else await openReportSetup(linkedFilters);
+    } else await openReportSetup(initialPreferred);
   }
 
   init().catch((error) => {
