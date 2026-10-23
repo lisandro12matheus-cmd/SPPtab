@@ -95,8 +95,8 @@
       id:'sia-pa-producao', system:'sia', systemCode:'SIA', kind:'PA', systemLabel:'SIA/SUS', sourceLabel:'produção ambulatorial',
       workspaceTitle:'Produção Ambulatorial · SIA/SUS', introLabel:'PRODUÇÃO AMBULATORIAL · SIA/SUS', introTitle:'Produção ambulatorial por estabelecimento.',
       introDescription:'Produção ambulatorial por competência, com detalhamento por procedimento SIGTAP.',
-      setupTitle:'Produção ambulatorial por estabelecimento', setupDescription:'Escolha a origem e uma ou mais competências. Os filtros adicionais são opcionais.',
-      emptyMessage:'Escolha a UF e uma ou mais competências. Município, gestão, tipo de prestador, natureza jurídica, complexidade e financiamento são opcionais.',
+      setupTitle:'Produção ambulatorial por estabelecimento', setupDescription:'Escolha a origem e a competência. Vários meses exigem bases já baixadas. Os filtros adicionais são opcionais.',
+      emptyMessage:'Escolha a UF e a competência. Município, gestão, tipo de prestador, natureza jurídica, complexidade e financiamento são opcionais.',
       municipalityLabel:'MUNICÍPIO',
       filterNote:'O município e os demais filtros valem para toda a consulta. Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.',
       methodTitle:'Como ler glosas e rejeições:', methodText:' glosas são a diferença positiva entre o apresentado e o aprovado. A base ambulatorial não traz um total independente de rejeições; esse indicador conta linhas apresentadas com quantidade aprovada igual a zero.',
@@ -108,8 +108,8 @@
       id:'sih-rd-producao', system:'sih', systemCode:'SIH', kind:'RD', systemLabel:'SIH/SUS', sourceLabel:'produção hospitalar',
       workspaceTitle:'Produção Hospitalar · SIH/SUS', introLabel:'PRODUÇÃO HOSPITALAR · SIH/SUS', introTitle:'Produção hospitalar por estabelecimento.',
       introDescription:'AIHs e valores por hospital, com detalhamento do procedimento principal, complexidade e financiamento.',
-      setupTitle:'Produção hospitalar por estabelecimento', setupDescription:'Escolha a UF e uma ou mais competências das AIHs. Município e filtros adicionais são opcionais.',
-      emptyMessage:'Escolha a UF e uma ou mais competências. Município da internação, gestor da produção, financiamento (MAC/FAEC), subtipo FAEC, complexidade, natureza jurídica, natureza do prestador, gestão e caráter de atendimento são opcionais.',
+      setupTitle:'Produção hospitalar por estabelecimento', setupDescription:'Escolha a UF e a competência das AIHs. Vários meses exigem bases já baixadas. Município e filtros adicionais são opcionais.',
+      emptyMessage:'Escolha a UF e a competência. Município da internação, gestor da produção, financiamento (MAC/FAEC), subtipo FAEC, complexidade, natureza jurídica, natureza do prestador, gestão e caráter de atendimento são opcionais.',
       municipalityLabel:'MUNICÍPIO DA INTERNAÇÃO',
       filterNote:'O município selecionado representa o local da internação. Gestor da produção usa o Município Gestor oficial (UF_ZI) das AIHs. Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.',
       methodTitle:'Como ler os dados hospitalares:', methodText:' o relatório usa AIHs processadas no SIH/RD. Renovações de longa permanência podem aparecer em competências sucessivas; rejeições RJ/ER não entram nesta soma.',
@@ -121,8 +121,8 @@
       id:'sih-rd-rejeicoes', system:'sih', systemCode:'SIH', kind:'RJ', requiredKinds:['RJ'], optionalKinds:['ER'], systemLabel:'SIH/SUS', sourceLabel:'AIHs rejeitadas',
       workspaceTitle:'AIHs rejeitadas · SIH/SUS', introLabel:'REJEIÇÕES HOSPITALARES · SIH/SUS', introTitle:'AIHs rejeitadas por estabelecimento.',
       introDescription:'Quantidade e valores associados às AIHs rejeitadas, com os motivos registrados no processamento.',
-      setupTitle:'AIHs rejeitadas por estabelecimento', setupDescription:'A consulta usa as AIHs rejeitadas nas competências selecionadas. Os filtros são opcionais.',
-      emptyMessage:'Escolha a UF e uma ou mais competências. Município da internação, gestor da produção, financiamento (MAC/FAEC), subtipo FAEC, complexidade, natureza jurídica, natureza do prestador, gestão e caráter de atendimento são opcionais.',
+      setupTitle:'AIHs rejeitadas por estabelecimento', setupDescription:'Escolha a competência. Vários meses exigem bases já baixadas. Os filtros são opcionais.',
+      emptyMessage:'Escolha a UF e a competência. Município da internação, gestor da produção, financiamento (MAC/FAEC), subtipo FAEC, complexidade, natureza jurídica, natureza do prestador, gestão e caráter de atendimento são opcionais.',
       municipalityLabel:'MUNICÍPIO DA INTERNAÇÃO',
       filterNote:'O município selecionado representa o local da internação. Gestor da produção usa o Município Gestor oficial (UF_ZI) das AIHs rejeitadas. Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.',
       methodTitle:'Como interpretar os valores:', methodText:' o relatório usa os valores registrados na própria base SIH/RJ. Os motivos vêm do SIH/ER e uma AIH pode ter mais de uma crítica, sem duplicar seus valores.',
@@ -135,8 +135,8 @@
       systemLabel:'SIH/SUS · CNES', sourceLabel:'ocupação de leitos', tableMode:'occupancy', defaultMunicipalityCode:'150140',
       workspaceTitle:'Ocupação de leitos · SIH/SUS', introLabel:'OCUPAÇÃO DE LEITOS · SIH/SUS', introTitle:'Ocupação de leitos hospitalares.',
       introDescription:'Internações, diárias, rejeições e capacidade SUS por estabelecimento, com ligação às AIHs e aos serviços profissionais.',
-      setupTitle:'Ocupação de leitos por estabelecimento', setupDescription:'Escolha a UF e uma ou mais competências. Município e filtros adicionais são opcionais.',
-      emptyMessage:'Escolha a UF e uma ou mais competências. Município, gestor da produção, especialidade, financiamento, complexidade, natureza jurídica e demais filtros são opcionais.',
+      setupTitle:'Ocupação de leitos por estabelecimento', setupDescription:'Escolha a UF e a competência. Vários meses exigem bases já baixadas. Município e filtros adicionais são opcionais.',
+      emptyMessage:'Escolha a UF e a competência. Município, gestor da produção, especialidade, financiamento, complexidade, natureza jurídica e demais filtros são opcionais.',
       municipalityLabel:'MUNICÍPIO DA INTERNAÇÃO',
       filterNote:'Os filtros selecionados são aplicados às AIHs processadas e rejeitadas. Gestor da produção usa o Município Gestor oficial (UF_ZI). Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.',
       methodTitle:'Como interpretar a ocupação:', methodText:' as diárias registradas vêm das AIHs processadas no SIH/RD. As rejeições entram apenas no saldo potencial, sem serem tratadas como internações confirmadas. A quantidade de leitos vem da consulta atual ao CNES e pode não corresponder exatamente à competência histórica.',
@@ -149,8 +149,8 @@
       tableMode:'flat', defaultMunicipalityCode:'150140',
       workspaceTitle:'Serviços Profissionais · SIH/SUS', introLabel:'SERVIÇOS PROFISSIONAIS · SIH/SUS', introTitle:'Produção profissional por AIH.',
       introDescription:'Atos e valores profissionais por autorização, procedimento, estabelecimento e profissional executor.',
-      setupTitle:'Serviços profissionais por AIH', setupDescription:'Escolha a UF e uma ou mais competências. O recorte inicial mostra Belém, Pará; os filtros de gestão e natureza completam dados ausentes no SIH/SP usando o CNES.',
-      emptyMessage:'Escolha a UF e uma ou mais competências. Município, gestor da produção, CBO, tipo de gestão, natureza jurídica e atendimento hospitalar SUS são opcionais.',
+      setupTitle:'Serviços profissionais por AIH', setupDescription:'Escolha a UF e a competência. Vários meses exigem bases já baixadas. O recorte inicial mostra Belém, Pará.',
+      emptyMessage:'Escolha a UF e a competência. Município, gestor da produção, CBO, tipo de gestão, natureza jurídica e atendimento hospitalar SUS são opcionais.',
       municipalityLabel:'MUNICÍPIO DE ATENDIMENTO',
       filterNote:'O município representa o local de atendimento. Gestor e CBO vêm do SIH/SP. Como o SP não traz tipo de gestão nem natureza jurídica, esses filtros usam o CNES da mesma competência e recorrem ao cadastro atual quando não há registro histórico. O atendimento hospitalar SUS usa o cadastro atual.',
       methodTitle:'Como ler os valores profissionais:', methodText:' são somados os valores SP e seus complementos federais e locais. A quantidade de atos é contada uma vez por AIH, procedimento e CNS, mesmo quando há mais de um tipo de valor na base.',
@@ -219,6 +219,12 @@
   function selectedMonths() {
     return [...monthSelect.selectedOptions].map((option) => Number(option.value)).filter((month) => month >= 1 && month <= 12).sort((a, b) => a - b);
   }
+  function allowedMonths(months, year = Number(yearSelect.value), uf = selectedUf()) {
+    const valid = [...new Set(months.map(Number).filter((month) => month >= 1 && month <= 12))];
+    if (valid.length < 2) return valid;
+    const downloaded = new Set(localMonths(year, uf));
+    return valid.every((month) => downloaded.has(month)) ? valid : [valid[valid.length - 1]];
+  }
   function closeMonthPicker(returnFocus = false) {
     if (!monthPickerMenu || monthPickerMenu.hidden) return;
     monthPickerMenu.hidden = true;
@@ -230,6 +236,7 @@
     const focusedMonth = monthPickerOptions.contains(document.activeElement) ? document.activeElement.value : '';
     const options = [...monthSelect.options].filter((option) => Number(option.value) >= 1 && Number(option.value) <= 12);
     const selected = selectedMonths();
+    const downloaded = new Set(localMonths(Number(yearSelect.value), selectedUf()));
     const disabled = monthSelect.disabled || options.length === 0;
     monthPickerTrigger.disabled = disabled;
     if (!options.length) monthPickerTriggerText.textContent = monthSelect.options[0]?.textContent || 'Nenhuma competência disponível';
@@ -238,7 +245,7 @@
     else if (selected.length === 1) monthPickerTriggerText.textContent = `${monthNames[selected[0] - 1]} de ${yearSelect.value || ''}`.trim();
     else monthPickerTriggerText.textContent = `${selected.length} competências selecionadas`;
 
-    monthPickerCount.textContent = selected.length ? `${selected.length} de ${options.length} selecionada${selected.length === 1 ? '' : 's'}` : 'Nenhum mês selecionado';
+    monthPickerCount.textContent = selected.length > 1 ? `${selected.length} competências da biblioteca` : selected.length ? (downloaded.has(selected[0]) ? '1 competência na biblioteca' : '1 competência · busca ao abrir') : 'Nenhuma competência selecionada';
     monthPickerOptions.replaceChildren();
     for (const option of options) {
       const month = Number(option.value);
@@ -253,13 +260,18 @@
       const text = document.createElement('span');
       text.textContent = monthNames[month - 1];
       label.append(checkbox, text);
+      if (downloaded.has(month)) {
+        const localBadge = document.createElement('small');
+        localBadge.textContent = 'Local';
+        label.append(localBadge);
+      }
       monthPickerOptions.append(label);
     }
     if (focusedMonth) monthPickerOptions.querySelector(`input[value="${focusedMonth}"]`)?.focus({ preventScroll:true });
     if (disabled) closeMonthPicker();
   }
   function setSelectedMonths(months) {
-    const selected = new Set(months.map(Number));
+    const selected = new Set(allowedMonths(months));
     for (const option of monthSelect.options) option.selected = selected.has(Number(option.value));
     updateMonthPicker();
     monthSelect.dispatchEvent(new Event('change', { bubbles:true }));
@@ -631,7 +643,7 @@
       updateMonthPicker();
       return false;
     }
-    const requested = (Array.isArray(preferred) ? preferred : [preferred]).map(Number).filter((month) => valid.includes(month));
+    const requested = allowedMonths((Array.isArray(preferred) ? preferred : [preferred]).map(Number).filter((month) => valid.includes(month)), Number(yearSelect.value), selectedUf());
     const chosen = requested.length ? requested : [valid[valid.length - 1]];
     for (const month of valid) {
       const option = new Option(monthNames[month - 1], String(month));
@@ -674,7 +686,7 @@
       const selected = (Array.isArray(preferred) ? preferred : [preferred]).map(Number).filter((month) => merged.includes(month));
       setMonthOptions(merged, selected);
       const localCount = new Set(cachedMonths).size;
-      setAvailability(`${merged.length} competência(s) de ${uf} encontrada(s) · ${localCount} na biblioteca local. Selecione um ou mais meses.`, 'good');
+      setAvailability(`${merged.length} competência(s) de ${uf} encontrada(s) · ${localCount} na biblioteca local. Vários meses apenas com arquivos locais.`, 'good');
     } catch (error) {
       if (requestId !== competencyRequest) return;
       if (hasLocal) setAvailability(`${cachedMonths.length} competência(s) de ${uf} na biblioteca local · DATASUS indisponível no momento.`, '');
@@ -1433,7 +1445,7 @@
     return item;
   }
 
-  async function findOrDownloadReportFiles(year, month, uf, view = 'summary') {
+  async function findOrDownloadReportFiles(year, month, uf, view = 'summary', localOnly = false) {
     const { requiredKinds, optionalKinds, kinds } = reportKindsForView(view);
     const filesByKind = {};
     for (const kind of kinds) {
@@ -1444,6 +1456,11 @@
       } else updateDownloadTask(year, month, kind, 'checking');
     }
     if (kinds.every((kind) => filesByKind[kind])) return filesByKind;
+    if (localOnly) {
+      if (!requiredKinds.every((kind) => filesByKind[kind])) throw new Error(`Para consultar várias competências, baixe antes os arquivos de ${monthNames[month - 1]} de ${year} na biblioteca.`);
+      for (const kind of optionalKinds) if (!filesByKind[kind]) updateDownloadTask(year, month, kind, 'unavailable');
+      return filesByKind;
+    }
 
     setLoader(true, 'Consultando os arquivos oficiais', `${stateNames[uf]} · ${monthNames[month - 1]} de ${year} · localizando ${kinds.map((kind) => `SIH/${kind}`).join(' e ')} no DATASUS.`, null, true);
     let listing;
@@ -1599,7 +1616,7 @@
   }
 
   async function tabulateReportMonth(view, cnes, aih, filters, year, month, monthIndex, monthCount) {
-    const filesByKind = await findOrDownloadReportFiles(year, month, filters.uf, view);
+    const filesByKind = await findOrDownloadReportFiles(year, month, filters.uf, view, monthCount > 1);
     const dbfPaths = {};
     const { kinds } = reportKindsForView(view);
     for (const kind of kinds) {
@@ -1643,8 +1660,11 @@
 
   async function runReport(view = 'summary', cnes = '', updateUrl = true, aih = '', monthList = null) {
     const year = Number(yearSelect.value) || activeYear;
-    const requestedMonths = [...new Set((monthList == null ? (view === 'services' ? [activeMonth] : (reportMonths.length ? reportMonths : selectedMonths())) : monthList).map(Number).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b);
+    let requestedMonths = [...new Set((monthList == null ? (view === 'services' ? [activeMonth] : (reportMonths.length ? reportMonths : selectedMonths())) : monthList).map(Number).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b);
     if (!year || !requestedMonths.length) return;
+    const requestedCount = requestedMonths.length;
+    requestedMonths = allowedMonths(requestedMonths, year, selectedUf()).sort((a, b) => a - b);
+    if (requestedCount > 1 && requestedMonths.length === 1) setSelectedMonths(requestedMonths);
     if (view === 'summary') reportMonths = [...requestedMonths];
     const filters = selectedFilters();
     activeYear = year; activeMonths = requestedMonths; activeMonth = requestedMonths.at(-1); activeView = view; activeCnes = cnes; activeAih = aih;
@@ -1815,11 +1835,10 @@
   });
   monthPickerOptions.addEventListener('change', (event) => {
     if (!event.target.matches('input[type="checkbox"]')) return;
-    const option = [...monthSelect.options].find((item) => item.value === event.target.value);
-    if (option) option.selected = event.target.checked;
-    monthSelect.dispatchEvent(new Event('change', { bubbles:true }));
+    const month = Number(event.target.value);
+    const current = selectedMonths().filter((item) => item !== month);
+    setSelectedMonths(event.target.checked ? [...current, month] : current);
   });
-  $('selectAllReportMonths').addEventListener('click', () => setSelectedMonths([...monthSelect.options].map((option) => Number(option.value)).filter((month) => month >= 1 && month <= 12)));
   $('clearReportMonths').addEventListener('click', () => setSelectedMonths([]));
   monthPickerMenu.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
