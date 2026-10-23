@@ -544,7 +544,9 @@ internal static class LauncherProgram
     private sealed class LauncherForm : Form
     {
         private readonly Label status;
+        private readonly Label statusDetail;
         private readonly Label updateStatus;
+        private readonly Panel statusDot;
         private readonly Button open;
         private readonly Button close;
         private readonly Button update;
@@ -567,20 +569,50 @@ internal static class LauncherProgram
             MaximizeBox = false;
             MinimizeBox = true;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(430, 220);
+            AutoScaleMode = AutoScaleMode.Font;
             Font = new Font("Segoe UI", 9F);
-            status = new Label { Left = 24, Top = 16, Width = 382, Height = 54, Text = "Iniciando o SPPtab…" };
-            open = new Button { Left = 24, Top = 78, Width = 178, Height = 38, Text = "Abrir no navegador", Enabled = false };
-            close = new Button { Left = 212, Top = 78, Width = 194, Height = 38, Text = "Encerrar SPPtab" };
-            updateStatus = new Label { Left = 24, Top = 132, Width = 276, Height = 48, Text = "SPPtab v" + CurrentVersion + " · verificando atualizações…", ForeColor = Color.DimGray };
-            update = new Button { Left = 308, Top = 132, Width = 98, Height = 34, Text = "Atualizar", Visible = false, Enabled = false };
+            ClientSize = new Size(500, 320);
+            BackColor = Color.FromArgb(245, 248, 252);
+
+            Panel header = new Panel { Left = 0, Top = 0, Width = 500, Height = 101, BackColor = Color.White };
+            PictureBox logo = new PictureBox { Left = 23, Top = 20, Width = 60, Height = 60, SizeMode = PictureBoxSizeMode.Zoom };
+            try
+            {
+                using (Icon largeIcon = new Icon(Path.Combine(AppPath, "assets", "spptab-icon.ico"), new Size(64, 64)))
+                    logo.Image = largeIcon.ToBitmap();
+            }
+            catch { logo.Image = appIcon.ToBitmap(); }
+            Label title = new Label { Left = 96, Top = 25, Width = 250, Height = 35, Text = "SPPtab", ForeColor = Color.FromArgb(16, 47, 72), Font = new Font("Segoe UI", 19F, FontStyle.Bold) };
+            Label tagline = new Label { Left = 98, Top = 61, Width = 250, Height = 20, Text = "SAÚDE EM DADOS", ForeColor = Color.FromArgb(111, 133, 153), Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            Label version = new Label { Left = 379, Top = 36, Width = 96, Height = 23, Text = "v" + CurrentVersion, TextAlign = ContentAlignment.MiddleRight, ForeColor = Color.FromArgb(77, 108, 137), Font = new Font("Segoe UI", 9F) };
+            header.Controls.Add(logo);
+            header.Controls.Add(title);
+            header.Controls.Add(tagline);
+            header.Controls.Add(version);
+            Controls.Add(header);
+            Controls.Add(new Panel { Left = 0, Top = 100, Width = 500, Height = 1, BackColor = Color.FromArgb(222, 232, 243) });
+
+            statusDot = new Panel { Left = 25, Top = 131, Width = 8, Height = 8, BackColor = Color.FromArgb(51, 128, 229) };
+            status = new Label { Left = 43, Top = 119, Width = 430, Height = 28, Text = "Preparando o SPPtab…", ForeColor = Color.FromArgb(17, 48, 71), Font = new Font("Segoe UI", 11F, FontStyle.Bold) };
+            statusDetail = new Label { Left = 25, Top = 149, Width = 450, Height = 33, Text = "Iniciando seu espaço de trabalho neste computador.", ForeColor = Color.FromArgb(99, 120, 138) };
+            Panel updatePanel = new Panel { Left = 24, Top = 190, Width = 452, Height = 62, BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+            updateStatus = new Label { Left = 13, Top = 10, Width = 314, Height = 42, Text = "Verificando se há uma versão mais recente…", ForeColor = Color.FromArgb(76, 102, 127) };
+            update = new Button { Left = 346, Top = 12, Width = 91, Height = 36, Text = "Atualizar", Visible = false, Enabled = false, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(45, 112, 218), ForeColor = Color.White, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
+            update.FlatAppearance.BorderSize = 0;
+            updatePanel.Controls.Add(updateStatus);
+            updatePanel.Controls.Add(update);
+            open = new Button { Left = 24, Top = 267, Width = 289, Height = 42, Text = "Abrir SPPtab", Enabled = false, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(45, 112, 218), ForeColor = Color.White, Font = new Font("Segoe UI", 10F, FontStyle.Bold) };
+            open.FlatAppearance.BorderSize = 0;
+            close = new Button { Left = 326, Top = 267, Width = 150, Height = 42, Text = "Encerrar", FlatStyle = FlatStyle.Flat, BackColor = Color.White, ForeColor = Color.FromArgb(48, 76, 102) };
+            close.FlatAppearance.BorderColor = Color.FromArgb(209, 223, 237);
             open.Click += delegate { try { OpenApp(); } catch (Exception ex) { MessageBox.Show(ex.Message); } };
+            AcceptButton = open;
             close.Click += delegate { allowExit = true; Close(); };
             update.Click += delegate { BeginUpdateDownload(); };
-            Controls.Add(status); Controls.Add(open); Controls.Add(close); Controls.Add(updateStatus); Controls.Add(update);
+            Controls.Add(statusDot); Controls.Add(status); Controls.Add(statusDetail); Controls.Add(updatePanel); Controls.Add(open); Controls.Add(close);
 
             ContextMenuStrip trayMenu = new ContextMenuStrip();
-            trayMenu.Items.Add("Abrir SPPtab no navegador", null, delegate { try { OpenApp(); } catch (Exception ex) { MessageBox.Show(ex.Message); } });
+            trayMenu.Items.Add("Abrir SPPtab no navegador", null, delegate { if (!open.Enabled) { RestoreLauncher(); return; } try { OpenApp(); } catch (Exception ex) { MessageBox.Show(ex.Message); } });
             trayMenu.Items.Add("Mostrar esta janela", null, delegate { RestoreLauncher(); });
             trayMenu.Items.Add("Verificar atualizações", null, delegate { CheckForUpdates(); RestoreLauncher(); });
             trayMenu.Items.Add(new ToolStripSeparator());
@@ -604,7 +636,7 @@ internal static class LauncherProgram
                     if (!trayNoticeShown)
                     {
                         trayIcon.BalloonTipTitle = "SPPtab continua ativo";
-                        trayIcon.BalloonTipText = "O sistema segue aberto no navegador. Use o ícone do SPPtab perto do relógio para reabrir ou encerrar.";
+                        trayIcon.BalloonTipText = "O SPPtab continua ativo. Use o ícone perto do relógio para abrir ou encerrar.";
                         trayIcon.ShowBalloonTip(3500);
                         trayNoticeShown = true;
                     }
@@ -634,9 +666,9 @@ internal static class LauncherProgram
                     if (!WaitForServer(15)) throw new InvalidOperationException("O serviço local não respondeu. Verifique o log em AppData\\Local\\SPPtab\\logs.");
                     BeginInvoke((MethodInvoker)delegate
                     {
-                        status.Text = "SPPtab está funcionando neste computador.\nO X recolhe para a bandeja; use Encerrar para desligar.";
-                        open.Enabled = true;
-                        try { OpenApp(); } catch (Exception ex) { status.Text += "\nAbra pelo botão. " + ex.Message; }
+                        status.Text = "Serviço local pronto";
+                        statusDetail.Text = "Verificando a versão antes de liberar a abertura.";
+                        statusDot.BackColor = Color.FromArgb(50, 163, 125);
                         CheckForUpdates();
                     });
                 }
@@ -646,7 +678,9 @@ internal static class LauncherProgram
                     {
                         startupFailed = true;
                         trayIcon.Visible = false;
-                        status.Text = "Não foi possível iniciar o SPPtab.\n" + ex.Message;
+                        status.Text = "Não foi possível iniciar o SPPtab";
+                        statusDetail.Text = ex.Message;
+                        statusDot.BackColor = Color.FromArgb(205, 69, 69);
                         close.Text = "Fechar";
                     });
                 }
@@ -659,7 +693,7 @@ internal static class LauncherProgram
         {
             if (updateCheckRunning || startupFailed || IsDisposed) return;
             updateCheckRunning = true;
-            if (availableTag == null) updateStatus.Text = "SPPtab v" + CurrentVersion + " · verificando atualizações…";
+            if (availableTag == null) updateStatus.Text = "Verificando se há uma versão mais recente…";
             Thread worker = new Thread(delegate()
             {
                 try
@@ -673,18 +707,24 @@ internal static class LauncherProgram
                         {
                             availableTag = tag;
                             availableVersion = version;
+                            status.Text = "Atualização disponível";
+                            statusDetail.Text = "Instale a nova versão ou abra a versão atual.";
                             updateStatus.Text = "Nova versão v" + version + " disponível. Seus dados locais serão preservados.";
                             updateStatus.ForeColor = Color.FromArgb(34, 91, 176);
                             update.Visible = true;
                             update.Enabled = true;
+                            open.Enabled = true;
                         }
                         else
                         {
                             availableTag = null;
                             availableVersion = null;
+                            status.Text = "SPPtab pronto para abrir";
+                            statusDetail.Text = "O navegador abrirá quando você clicar em Abrir SPPtab.";
                             update.Visible = false;
-                            updateStatus.Text = "SPPtab v" + CurrentVersion + " · você está com a versão mais recente.";
+                            updateStatus.Text = "Versão atualizada. Você já pode abrir o SPPtab.";
                             updateStatus.ForeColor = Color.DimGray;
+                            open.Enabled = true;
                         }
                     });
                 }
@@ -695,8 +735,15 @@ internal static class LauncherProgram
                         BeginInvoke((MethodInvoker)delegate
                         {
                             updateCheckRunning = false;
-                            updateStatus.Text = "SPPtab v" + CurrentVersion + " · atualização indisponível agora.";
+                            availableTag = null;
+                            availableVersion = null;
+                            update.Visible = false;
+                            update.Enabled = false;
+                            status.Text = "SPPtab pronto para abrir";
+                            statusDetail.Text = "A verificação falhou; você pode usar a versão instalada.";
+                            updateStatus.Text = "Não foi possível verificar atualizações agora. Você ainda pode abrir o SPPtab.";
                             updateStatus.ForeColor = Color.DimGray;
+                            open.Enabled = true;
                         });
                     }
                     catch { updateCheckRunning = false; }
@@ -723,6 +770,7 @@ internal static class LauncherProgram
         {
             if (String.IsNullOrEmpty(availableTag) || update.Enabled == false) return;
             update.Enabled = false;
+            open.Enabled = false;
             close.Enabled = false;
             updateStatus.ForeColor = Color.FromArgb(34, 91, 176);
             updateStatus.Text = "Baixando o pacote oficial…";
@@ -788,6 +836,7 @@ internal static class LauncherProgram
                         BeginInvoke((MethodInvoker)delegate
                         {
                             close.Enabled = true;
+                            open.Enabled = true;
                             update.Enabled = true;
                             updateStatus.Text = "Não foi possível atualizar: " + ex.Message;
                             updateStatus.ForeColor = Color.Firebrick;

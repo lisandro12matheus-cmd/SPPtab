@@ -122,7 +122,7 @@ SPPtab — versão portátil para Windows 64 bits
 
 Extraia a pasta SPPtab para um local que você possa acessar, como Downloads ou Área de Trabalho. Depois, abra SPPtab.exe. Não precisa instalar PHP, Python nem servidor.
 
-Uma janela pequena mantém o serviço local ligado e o app abre no navegador padrão. O botão X recolhe a janela para a bandeja, mantendo o sistema funcionando. Para desligar, use “Encerrar SPPtab” na janela ou no menu do ícone perto do relógio.
+Uma janela com o T do SPPtab verifica atualizações antes de liberar a abertura. Clique em “Abrir SPPtab” para abrir o navegador padrão. O botão X recolhe a janela para a bandeja, mantendo o serviço local funcionando. Para desligar, use “Encerrar” na janela ou “Encerrar SPPtab” no menu do ícone perto do relógio.
 
 Em uma pasta nova, os arquivos baixados e convertidos ficam em data, ao lado de SPPtab.exe. Se você já usava outra versão, o app reaproveita a biblioteca existente. Se a pasta escolhida não permitir gravação, usa uma pasta local da sua conta. Para levar a biblioteca para outro computador, copie a pasta de dados indicada na etapa de conversão.
 

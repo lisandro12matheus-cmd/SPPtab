@@ -111,9 +111,9 @@ internal sealed class InstallerForm : Form
         CreateShortcut(Path.Combine(startMenu, "SPPtab.lnk"));
         File.WriteAllText(Path.Combine(InstallDirectory, "LEIA-ME.txt"),
             "SPPtab\r\n\r\n" +
-            "Use o atalho SPPtab. A janela pequena do iniciador deve ficar aberta enquanto o sistema estiver em uso.\r\n" +
+            "Use o atalho SPPtab. Confira as atualizações na janela inicial e clique em Abrir SPPtab para abrir o navegador.\r\n" +
             "O app busca bases e definições oficiais pela internet. Arquivos e resultados ficam em %LOCALAPPDATA%\\SPPtab\\data.\r\n" +
-            "Para encerrar o serviço local, feche a janela do iniciador.\r\n", System.Text.Encoding.UTF8);
+            "O X recolhe a janela para a bandeja. Para desligar o serviço local, clique em Encerrar na janela ou no ícone perto do relógio.\r\n", System.Text.Encoding.UTF8);
         worker.ReportProgress(100, "Pronto.");
     }
 

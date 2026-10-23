@@ -4,7 +4,7 @@ Ferramenta local para buscar, converter e tabular microdados ambulatoriais (SIA/
 
 ## Baixar o SPPtab
 
-Baixe `SPPtab-Setup.exe` na página de [Releases](https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest) e abra o arquivo. O executável já contém o SPPtab, o PHP e o Python necessários: ele prepara os componentes automaticamente no computador e inicia o sistema no navegador, sem pedir para extrair ou organizar pastas. A biblioteca de dados permanece na conta do usuário para não ser perdida quando o programa for atualizado. Não é necessário instalar XAMPP, PHP ou Python separadamente. A versão empacotada é destinada a Windows 64 bits.
+Baixe `SPPtab-Setup.exe` na página de [Releases](https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest) e abra o arquivo. O executável já contém o SPPtab, o PHP e o Python necessários: ele prepara os componentes automaticamente e mostra primeiro a janela do SPPtab para verificar atualizações. Clique em **Abrir SPPtab** para iniciar o navegador; ele não abre sozinho. A biblioteca de dados permanece na conta do usuário para não ser perdida quando o programa for atualizado. Não é necessário instalar XAMPP, PHP ou Python separadamente. A versão empacotada é destinada a Windows 64 bits.
 
 O iniciador verifica em segundo plano se existe uma versão mais recente publicada no GitHub. Quando encontra uma atualização, mostra a opção **Atualizar**; o pacote é baixado por HTTPS, conferido por SHA-256 e aplicado ao fechar o iniciador. A biblioteca `data` e os demais dados do usuário ficam fora das pastas substituídas. Versões anteriores a v0.1.26 precisam ser atualizadas manualmente uma vez para receber esse mecanismo; a partir daí, as versões seguintes podem ser atualizadas pelo próprio SPPtab.
 
