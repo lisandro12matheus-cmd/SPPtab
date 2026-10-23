@@ -73,7 +73,7 @@
             <div class="report-result-actions"><button class="button button-secondary" id="backToSummary" type="button" hidden>← Estabelecimentos</button><button class="button button-secondary" id="exportReport" type="button">Baixar CSV</button></div>
           </div>
           <div class="report-kpis" id="reportKpis"></div>
-          <div class="report-table-toolbar"><label class="report-search"><span class="sr-only">Buscar no resultado</span><span aria-hidden="true">⌕</span><input id="reportSearch" type="search" placeholder="Buscar estabelecimento ou procedimento"></label><div class="report-table-toolbar-side"><span class="report-table-hint" id="reportTableHint"></span><div class="report-default-actions" id="tableDefaultActions" hidden><button type="button" id="saveTableDefault">Salvar filtros como padrão</button><button type="button" id="clearTableDefault" hidden>Remover padrão</button></div></div></div>
+          <div class="report-table-toolbar"><label class="report-search"><span class="sr-only">Buscar no resultado</span><span aria-hidden="true">⌕</span><input id="reportSearch" type="search" placeholder="Buscar estabelecimento ou procedimento"></label><div class="report-table-toolbar-side"><span class="report-table-hint" id="reportTableHint"></span><div class="report-default-actions" id="tableDefaultActions"><button type="button" id="saveTableDefault">Salvar filtros como padrão</button><button type="button" id="clearTableDefault" hidden>Remover padrão</button></div></div></div>
           <div class="report-table-wrap"><table class="report-table"><thead><tr id="reportHeader"></tr></thead><tbody id="reportRows"></tbody><tfoot><tr id="reportTotals"></tr></tfoot></table></div>
           <div class="report-table-pagination" id="reportTablePagination"><span id="reportPageInfo">Página 1 de 1</span><label>Linhas por página <select id="reportPageSize"><option value="50">50</option><option value="100" selected>100</option><option value="250">250</option></select></label><div><button type="button" id="reportPagePrevious" aria-label="Página anterior">←</button><button type="button" id="reportPageNext" aria-label="Próxima página">→</button></div></div>
           <div class="report-notes" id="reportNotes"></div>
@@ -91,6 +91,6 @@
       <div class="setup-dialog-footer"><div class="setup-default-actions"><button type="button" id="saveSetupDefault">Salvar filtros como padrão</button><button type="button" id="clearSetupDefault" hidden>Remover padrão</button><span id="setupDefaultStatus" role="status"></span></div><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=35" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=36" defer></script>
 </body>
 </html>

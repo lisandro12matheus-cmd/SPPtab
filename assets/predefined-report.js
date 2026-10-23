@@ -1253,8 +1253,7 @@
 
   function updateTableDefaultControls() {
     const saved = reportDefaults.get(activeReport.id)?.table?.[activeView];
-    const hasFilters = Boolean($('reportSearch').value.trim() || columnFilters.size || sortState);
-    $('tableDefaultActions').hidden = !saved && !hasFilters;
+    $('tableDefaultActions').hidden = false;
     $('clearTableDefault').hidden = !saved;
     $('saveTableDefault').textContent = saved ? 'Atualizar padrão' : 'Salvar filtros como padrão';
   }

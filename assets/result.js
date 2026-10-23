@@ -5,6 +5,9 @@
   const runId = params.get('run');
   const MAX_FILTER_OPTIONS = 250;
   let result = null;
+  let resultDefaultKey = '';
+  let resultDefault = null;
+  let applyingSavedExtra = false;
   let activeFilterMenu = null;
   let filterState = new Map();
   const filterSortDirections = new Map();
@@ -77,6 +80,100 @@
 
   function activeFilterCount() {
     return [...filterState.values()].filter((selected) => selected !== null).length;
+  }
+
+  async function defaultKeyFor(data) {
+    const signature = JSON.stringify({
+      definition: data.definition || '',
+      row: data.rowDimension?.id || '',
+      columns: (data.columnDimensions || []).map((item) => item.id),
+      metric: (data.metrics || []).map((item) => item.id),
+    });
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(signature));
+    return `custom-${[...new Uint8Array(digest)].slice(0, 16).map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+  }
+
+  async function defaultRequest(payload) {
+    const response = await fetch('api.php', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-SPPtab-CSRF': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok || !data?.ok) throw new Error(data?.error || 'Não foi possível acessar os filtros salvos.');
+    return data;
+  }
+
+  function currentTableSettings() {
+    const columns = {};
+    for (const [key, selected] of filterState) {
+      if (selected === null) continue;
+      const available = distinctValuesFor(result, key);
+      const included = available.filter((value) => selected.has(value));
+      const excluded = available.filter((value) => !selected.has(value));
+      columns[key] = {
+        label: key.startsWith('value:') ? result.columns?.[Number(key.slice(6))] || '' : key,
+        mode: included.length <= excluded.length ? 'include' : 'exclude',
+        values: included.length <= excluded.length ? included : excluded,
+      };
+    }
+    const extraFilters = (result.resultFilters || []).filter((item) => item.option && item.optionType && item.value)
+      .map((item) => ({ option: item.option, optionType: item.optionType, value: item.value, label: item.label || '' }));
+    return { columns, extraFilters };
+  }
+
+  function restoreTableDefault() {
+    filterState = new Map();
+    const saved = resultDefault?.columns;
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
+    for (const [key, setting] of Object.entries(saved)) {
+      if (!/^(row|rowtotal|value:\d+)$/.test(key) || !setting || !Array.isArray(setting.values)) continue;
+      if (key.startsWith('value:') && result.columns?.[Number(key.slice(6))] !== setting.label) continue;
+      const available = distinctValuesFor(result, key);
+      const values = new Set(setting.values.filter((value) => typeof value === 'string'));
+      const selected = setting.mode === 'include'
+        ? new Set(available.filter((value) => values.has(value)))
+        : new Set(available.filter((value) => !values.has(value)));
+      if (selected.size < available.length) filterState.set(key, selected);
+    }
+  }
+
+  function updateDefaultControls() {
+    $('#clearResultDefault').hidden = !resultDefault;
+    $('#saveResultDefault').textContent = resultDefault ? 'Atualizar padrão' : 'Salvar filtros como padrão';
+    $('#saveResultDefault').disabled = isUpdatingResultFilters;
+  }
+
+  async function saveTableDefault() {
+    if (!result || !resultDefaultKey || isUpdatingResultFilters) return;
+    const button = $('#saveResultDefault');
+    button.disabled = true;
+    try {
+      const settings = currentTableSettings();
+      await defaultRequest({ action: 'report_defaults_save', report: resultDefaultKey, scope: 'table', view: 'summary', settings });
+      resultDefault = settings;
+      updateDefaultControls();
+      button.textContent = 'Padrão salvo';
+    } catch (error) {
+      $('#resultStatus').textContent = error.message || 'Não foi possível salvar os filtros.';
+      $('#resultStatus').classList.add('error');
+    } finally { button.disabled = false; }
+  }
+
+  async function clearTableDefault() {
+    if (!resultDefaultKey) return;
+    const button = $('#clearResultDefault');
+    button.disabled = true;
+    try {
+      await defaultRequest({ action: 'report_defaults_delete', report: resultDefaultKey, scope: 'table', view: 'summary' });
+      resultDefault = null;
+      updateDefaultControls();
+      $('#resultStatus').textContent = 'Padrão removido. Os filtros atuais permanecem até abrir outra tabulação.';
+      $('#resultStatus').classList.remove('error');
+    } catch (error) {
+      $('#resultStatus').textContent = error.message || 'Não foi possível remover o padrão.';
+      $('#resultStatus').classList.add('error');
+    } finally { button.disabled = false; }
   }
 
   function visibleRows() {
@@ -165,6 +262,7 @@
 
     updateFilterSummary(rows);
     updateFilterTriggerStates();
+    updateDefaultControls();
   }
 
   function closeFilterMenu() {
@@ -594,8 +692,15 @@
     renderResultFilters();
   }
 
-  function draw(data, updating = false) {
+  async function draw(data, updating = false) {
     const previous = result;
+    if (!updating) {
+      resultDefaultKey = await defaultKeyFor(data);
+      try {
+        const stored = await defaultRequest({ action: 'report_defaults_get', report: resultDefaultKey });
+        resultDefault = stored.defaults?.table?.summary || null;
+      } catch (_) { resultDefault = null; }
+    }
     if (updating && previous) {
       const preserved = new Map();
       for (const key of ['row', 'rowtotal']) {
@@ -608,6 +713,8 @@
       filterState = preserved;
     }
     result = data;
+    if (resultDefault && (!updating || applyingSavedExtra)) restoreTableDefault();
+    applyingSavedExtra = false;
     if (updating && Array.isArray(data.resultFilters)) preserveAppliedResultFilters(data.resultFilters);
     closeFilterMenu();
     $('#resultTitle').textContent = 'Resultado da tabulação';
@@ -651,6 +758,21 @@
     $('#resultStatus').classList.remove('error');
     $('#exportCsv').disabled = false;
     $('#printTable').disabled = false;
+    if (!updating && Array.isArray(resultDefault?.extraFilters) && resultDefault.extraFilters.length && window.opener) {
+      const options = new Set((data.filterOptions || []).map((item) => resultFilterKey(item.optionType, item.id)));
+      const filters = resultDefault.extraFilters.filter((item) =>
+        item && typeof item.value === 'string' && options.has(resultFilterKey(item.optionType, item.option)));
+      if (filters.length === resultDefault.extraFilters.length && !sameResultFilters(filters, data.resultFilters || [])) {
+        applyingSavedExtra = true;
+        isUpdatingResultFilters = true;
+        $('#resultStatus').textContent = 'Aplicando os filtros padrão ao resultado…';
+        renderResultFilters();
+        updateDefaultControls();
+        window.opener.postMessage({ type: 'tabwin2-result-filters', runId, filters }, location.origin);
+      } else if (filters.length !== resultDefault.extraFilters.length) {
+        $('#resultStatus').textContent = 'Os filtros da tabela foram aplicados. Alguns filtros adicionais salvos não existem nesta base.';
+      }
+    }
   }
 
   function escapeCsv(value, textual = false) {
@@ -689,6 +811,8 @@
   });
 
   $('#printTable').addEventListener('click', () => window.print());
+  $('#saveResultDefault').addEventListener('click', saveTableDefault);
+  $('#clearResultDefault').addEventListener('click', clearTableDefault);
 
   document.addEventListener('click', (event) => {
     if (!activeFilterMenu) return;
@@ -723,10 +847,12 @@
     }
     else if (message.type === 'tabwin2-filter-error') {
       isUpdatingResultFilters = false;
+      applyingSavedExtra = false;
       resultFilterError = message.message || 'Não foi possível aplicar os filtros.';
       $('#resultStatus').textContent = message.message || 'Não foi possível aplicar os filtros.';
       $('#resultStatus').classList.add('error');
       renderResultFilters();
+      updateDefaultControls();
     } else if (message.type === 'tabwin2-error') showError(message.message || 'Falha ao gerar a tabulação.');
     else if (message.type === 'tabwin2-progress') {
       const progress = Number(message.progress) || 0;

@@ -64,12 +64,16 @@ try {
 
 if (in_array($action, $preferenceActions, true)) {
     $report = (string) ($payload['report'] ?? '');
-    if (!in_array($report, ['sia-pa-producao', 'sih-rd-producao', 'sih-rd-rejeicoes', 'sih-rd-ocupacao', 'sih-sp-profissionais'], true)) {
+    $isCustomTable = preg_match('/^custom-[a-f0-9]{32}$/D', $report) === 1;
+    if (!$isCustomTable && !in_array($report, ['sia-pa-producao', 'sih-rd-producao', 'sih-rd-rejeicoes', 'sih-rd-ocupacao', 'sih-sp-profissionais'], true)) {
         respond(['ok' => false, 'error' => 'Relatório inválido.'], 400);
     }
     $scope = (string) ($payload['scope'] ?? '');
     $view = (string) ($payload['view'] ?? 'summary');
     if ($action !== 'report_defaults_get' && (!in_array($scope, ['setup', 'table'], true) || !in_array($view, ['summary', 'detail', 'services'], true))) {
+        respond(['ok' => false, 'error' => 'Área de filtros inválida.'], 400);
+    }
+    if ($isCustomTable && $action !== 'report_defaults_get' && ($scope !== 'table' || $view !== 'summary')) {
         respond(['ok' => false, 'error' => 'Área de filtros inválida.'], 400);
     }
     $dataRoot = rtrim((string) (getenv('TABWIN2_DATA_DIR') ?: (__DIR__ . DIRECTORY_SEPARATOR . 'uploads')), '\\/');
