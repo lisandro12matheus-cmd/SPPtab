@@ -24,6 +24,10 @@
   const progress = $('reportProgress');
   const progressFill = $('reportProgressFill');
   const progressLabel = $('reportProgressLabel');
+  const downloadQueue = $('reportDownloadQueue');
+  const downloadHeading = $('reportDownloadHeading');
+  const downloadFiles = $('reportDownloadFiles');
+  const downloadTasks = new Map();
   const notice = $('reportNotice');
   const empty = $('reportEmpty');
   const resultPanel = $('reportResult');
@@ -445,7 +449,10 @@
   function setLoader(visible, title = '', description = '', percent = null, indeterminate = false) {
     loader.hidden = !visible;
     loader.setAttribute('aria-busy', visible ? 'true' : 'false');
-    if (!visible) return;
+    if (!visible) {
+      downloadQueue.hidden = true;
+      return;
+    }
     stage.textContent = title;
     detail.textContent = description;
     const hasProgress = percent !== null && Number.isFinite(Number(percent));
@@ -462,6 +469,52 @@
       progressFill.style.width = '';
       progress.removeAttribute('aria-valuenow');
     }
+  }
+
+  function downloadTaskKey(year, month, kind) {
+    return `${year}-${month}-${kind}`;
+  }
+
+  function beginDownloadQueue(year, months, view) {
+    downloadTasks.clear();
+    downloadFiles.replaceChildren();
+    downloadQueue.hidden = months.length < 2;
+    if (downloadQueue.hidden) return;
+    const { kinds } = reportKindsForView(view);
+    for (const month of months) {
+      for (const kind of kinds) {
+        const row = document.createElement('div');
+        row.className = 'report-download-file';
+        row.dataset.status = 'pending';
+        const name = document.createElement('span');
+        name.className = 'report-download-file-name';
+        name.textContent = `${kind} · ${monthNames[month - 1]} ${year}`;
+        const state = document.createElement('span');
+        state.className = 'report-download-file-state';
+        state.textContent = 'Aguardando';
+        row.append(name, state);
+        downloadFiles.append(row);
+        downloadTasks.set(downloadTaskKey(year, month, kind), { row, name, state });
+      }
+    }
+    updateDownloadHeading();
+  }
+
+  function updateDownloadHeading() {
+    if (downloadQueue.hidden) return;
+    const tasks = [...downloadTasks.values()];
+    const finished = tasks.filter(({ row }) => ['ready', 'unavailable', 'error'].includes(row.dataset.status)).length;
+    downloadHeading.textContent = `Arquivos conferidos: ${finished} de ${tasks.length} · transferência individual`;
+  }
+
+  function updateDownloadTask(year, month, kind, status, fileName = '') {
+    const task = downloadTasks.get(downloadTaskKey(year, month, kind));
+    if (!task) return;
+    const labels = { pending:'Aguardando', checking:'Localizando', downloading:'Baixando', ready:fileName ? 'Baixado' : 'Na base', unavailable:'Não publicado', error:'Falha' };
+    task.row.dataset.status = status;
+    task.state.textContent = labels[status] || status;
+    if (fileName) task.name.title = fileName;
+    updateDownloadHeading();
   }
 
   function localFor(year, month, uf = selectedUf()) {
@@ -1233,7 +1286,10 @@
     const filesByKind = {};
     for (const kind of kinds) {
       const local = localForKind(year, month, uf, kind);
-      if (local) filesByKind[kind] = local;
+      if (local) {
+        filesByKind[kind] = local;
+        updateDownloadTask(year, month, kind, 'ready');
+      } else updateDownloadTask(year, month, kind, 'checking');
     }
     if (kinds.every((kind) => filesByKind[kind])) return filesByKind;
 
@@ -1242,7 +1298,11 @@
     try {
       listing = await api({ action:'files', system:activeReport.system, year:Number(year), month:Number(month), uf });
     } catch (error) {
-      if (requiredKinds.every((kind) => filesByKind[kind])) return filesByKind;
+      if (requiredKinds.every((kind) => filesByKind[kind])) {
+        for (const kind of optionalKinds) if (!filesByKind[kind]) updateDownloadTask(year, month, kind, 'unavailable');
+        return filesByKind;
+      }
+      for (const kind of requiredKinds) if (!filesByKind[kind]) updateDownloadTask(year, month, kind, 'error');
       throw error;
     }
     const pendingDownloads = [];
@@ -1251,39 +1311,43 @@
       const prefix = `${kind}${uf}${String(year).slice(-2)}${String(month).padStart(2, '0')}`;
       const file = (listing.files || []).find((item) => item.kind === kind && String(item.uf || '').toUpperCase() === uf && item.name?.toUpperCase().startsWith(prefix));
       if (!file) {
-        if (requiredKinds.includes(kind)) throw new Error(`O DATASUS ainda não disponibilizou o arquivo SIH/${kind} desta competência para ${stateNames[uf]}.`);
+        if (requiredKinds.includes(kind)) {
+          updateDownloadTask(year, month, kind, 'error');
+          throw new Error(`O DATASUS ainda não disponibilizou o arquivo SIH/${kind} desta competência para ${stateNames[uf]}.`);
+        }
+        updateDownloadTask(year, month, kind, 'unavailable');
         continue;
       }
       if (file.downloaded && file.local_path) {
         const item = { ...file, path:file.local_path, system:activeReport.systemCode, year:Number(year), month:Number(month), uf, kind };
         filesByKind[kind] = item;
         addLocalFiles([item]);
+        updateDownloadTask(year, month, kind, 'ready');
       } else pendingDownloads.push({ kind, file });
     }
-    async function downloadGroup(items, optional = false) {
-      if (!items.length) return;
-      const names = items.map(({ file }) => file.name);
-      setLoader(true, optional ? 'Buscando os motivos de rejeição' : 'Baixando as bases hospitalares', `${names.join(' · ')} · o tempo depende da conexão com o DATASUS.`, null, true);
-      let downloaded;
+    const orderedDownloads = [
+      ...pendingDownloads.filter(({ kind }) => requiredKinds.includes(kind)),
+      ...pendingDownloads.filter(({ kind }) => optionalKinds.includes(kind))
+    ];
+    for (const { kind, file } of orderedDownloads) {
+      const optional = optionalKinds.includes(kind);
+      const taskIndex = [...downloadTasks.keys()].indexOf(downloadTaskKey(year, month, kind)) + 1;
+      updateDownloadTask(year, month, kind, 'downloading', file.name);
+      setLoader(true, taskIndex ? `Baixando arquivo ${taskIndex} de ${downloadTasks.size}` : 'Baixando arquivo DATASUS', `${file.name} · ${monthNames[month - 1]} de ${year}. Aguarde a conclusão antes do próximo arquivo.`, null, true);
       try {
-        downloaded = await api({ action:'download', system:activeReport.system, year:Number(year), month:Number(month), uf, names });
-      } catch (error) {
-        if (optional) return;
-        throw error;
-      }
-      for (const { kind, file } of items) {
+        const downloaded = await api({ action:'download', system:activeReport.system, year:Number(year), month:Number(month), uf, names:[file.name] });
         const saved = (downloaded.files || []).find((item) => item.name?.toUpperCase() === file.name.toUpperCase());
-        if (!saved?.path) {
-          if (optional) continue;
-          throw new Error(`O DATASUS não confirmou a gravação do arquivo ${file.name}.`);
-        }
+        if (!saved?.path) throw new Error(`O DATASUS não confirmou a gravação do arquivo ${file.name}.`);
         const item = { ...file, ...saved, system:activeReport.systemCode, kind, uf, year:Number(year), month:Number(month), path:saved.path };
         filesByKind[kind] = item;
         addLocalFiles([item]);
+        updateDownloadTask(year, month, kind, 'ready', file.name);
+      } catch (error) {
+        updateDownloadTask(year, month, kind, 'error');
+        if (optional) continue;
+        throw error;
       }
     }
-    await downloadGroup(pendingDownloads.filter(({ kind }) => requiredKinds.includes(kind)));
-    await downloadGroup(pendingDownloads.filter(({ kind }) => optionalKinds.includes(kind)), true);
     for (const kind of requiredKinds) {
       if (!filesByKind[kind]) throw new Error(`Não foi possível localizar o arquivo SIH/${kind} desta competência.`);
     }
@@ -1451,6 +1515,7 @@
       openButton.disabled = selectedMonths().length === 0; return;
     }
 
+    beginDownloadQueue(year, requestedMonths, view);
     try {
       const monthlyResults = [];
       for (const [index, month] of requestedMonths.entries()) {

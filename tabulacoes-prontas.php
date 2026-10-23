@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>Tabulações prontas · SPPtab</title>
-      <link rel="stylesheet" href="assets/app.css?v=15"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=20"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
+      <link rel="stylesheet" href="assets/app.css?v=15"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=21"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
 </head>
 <body>
   <div class="app-shell">
@@ -62,6 +62,7 @@
           <div class="report-loader-copy"><strong id="reportStage">Preparando a competência</strong><span id="reportDetail">Aguarde enquanto a base é conferida.</span></div>
           <div class="report-progress" id="reportProgress" hidden><span id="reportProgressFill"></span></div>
           <span class="report-progress-label" id="reportProgressLabel" hidden>0%</span>
+          <div class="report-download-queue" id="reportDownloadQueue" hidden><div class="report-download-heading" id="reportDownloadHeading"></div><div class="report-download-files" id="reportDownloadFiles"></div></div>
         </div>
         <div class="report-notice" id="reportNotice" role="status" aria-live="polite" hidden></div>
         <div class="report-empty" id="reportEmpty" role="status"><span class="report-empty-icon" aria-hidden="true">▤</span><strong>Configure o recorte do relatório</strong><span id="reportEmptyMessage">Escolha a UF e a competência. Município, gestão, tipo de prestador, natureza jurídica e complexidade são opcionais.</span><button class="button button-secondary" id="configureReportFromEmpty" type="button">Escolher filtros e competência</button></div>
@@ -90,6 +91,6 @@
       <div class="setup-dialog-footer"><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=32" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=33" defer></script>
 </body>
 </html>

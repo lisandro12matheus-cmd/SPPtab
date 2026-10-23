@@ -35,10 +35,20 @@ internal static class LauncherProgram
             if (args.Length > 0 && string.Equals(args[0], "--apply-update", StringComparison.OrdinalIgnoreCase))
                 return ApplyUpdate(args);
             if (selfTest) return RunSelfTest();
-            RefreshShortcutIcons();
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new LauncherForm());
+            bool firstInstance;
+            using (Mutex instance = new Mutex(false, @"Local\SPPtab-Launcher", out firstInstance))
+            using (EventWaitHandle activation = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\SPPtab-Activate"))
+            {
+                if (!firstInstance)
+                {
+                    activation.Set();
+                    return 0;
+                }
+                RefreshShortcutIcons();
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Application.Run(new LauncherForm(activation));
+            }
             return 0;
         }
         catch (Exception ex)
@@ -552,6 +562,7 @@ internal static class LauncherProgram
         private readonly Button update;
         private readonly NotifyIcon trayIcon;
         private readonly Icon appIcon;
+        private readonly EventWaitHandle activationEvent;
         private bool startupStarted;
         private bool allowExit;
         private bool startupFailed;
@@ -560,8 +571,9 @@ internal static class LauncherProgram
         private string availableTag;
         private string availableVersion;
 
-        public LauncherForm()
+        public LauncherForm(EventWaitHandle activationEvent)
         {
+            this.activationEvent = activationEvent;
             Text = "SPPtab";
             appIcon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
             Icon = appIcon;
@@ -627,6 +639,7 @@ internal static class LauncherProgram
             trayIcon.DoubleClick += delegate { RestoreLauncher(); };
 
             Load += delegate { if (!startupStarted) { startupStarted = true; StartInBackground(); } };
+            Shown += delegate { StartActivationListener(); };
             FormClosing += delegate(object sender, FormClosingEventArgs e)
             {
                 if (!allowExit && !startupFailed && e.CloseReason == CloseReason.UserClosing)
@@ -654,6 +667,26 @@ internal static class LauncherProgram
             if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
             Show();
             Activate();
+        }
+
+        private void StartActivationListener()
+        {
+            Thread listener = new Thread(delegate()
+            {
+                try
+                {
+                    while (!IsDisposed)
+                    {
+                        activationEvent.WaitOne();
+                        if (IsDisposed) break;
+                        try { BeginInvoke((MethodInvoker)delegate { RestoreLauncher(); }); }
+                        catch (InvalidOperationException) { break; }
+                    }
+                }
+                catch (ObjectDisposedException) { }
+            });
+            listener.IsBackground = true;
+            listener.Start();
         }
 
         private void StartInBackground()
