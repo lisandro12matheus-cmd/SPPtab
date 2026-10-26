@@ -96,10 +96,66 @@ def validate_dbc_header(path: Path) -> None:
 
 
 def connect() -> FTP:
-    ftp = FTP(HOST, timeout=8)
+    ftp = FTP(HOST, timeout=15)
     ftp.login()
     ftp.set_pasv(True)
     return ftp
+
+
+def _download_via_ftp(remote: str, destination: Path, expected_size: int | None) -> int:
+    """Download with a bounded data-socket timeout and one clean retry."""
+    last_error: Exception | None = None
+    for attempt in range(2):
+        ftp = None
+        data_socket = None
+        written = 0
+        try:
+            ftp = connect()
+            ftp.voidcmd("TYPE I")
+            transfer_size = expected_size
+            try:
+                remote_size = ftp.size(remote)
+                if remote_size is not None:
+                    if remote_size > MAX_DBC_DOWNLOAD_BYTES:
+                        raise SourceError("O arquivo remoto ultrapassa o limite configurado para download.")
+                    transfer_size = remote_size
+            except SourceError:
+                raise
+            except Exception:
+                pass
+            data_socket = ftp.transfercmd(f"RETR {remote}")
+            data_socket.settimeout(20)
+            with destination.open("wb") as stream:
+                while True:
+                    chunk = data_socket.recv(1024 * 1024)
+                    if not chunk:
+                        break
+                    written += len(chunk)
+                    if written > MAX_DBC_DOWNLOAD_BYTES or (expected_size is not None and written > expected_size):
+                        raise SourceError("O arquivo recebido ultrapassou o tamanho permitido ou declarado pelo DATASUS.")
+                    stream.write(chunk)
+            data_socket.close()
+            data_socket = None
+            ftp.voidresp()
+            if transfer_size is not None and written != transfer_size:
+                raise ConnectionError(f"O arquivo chegou incompleto ({written} de {transfer_size} bytes).")
+            return written
+        except SourceError:
+            raise
+        except Exception as exc:
+            last_error = exc
+        finally:
+            if data_socket is not None:
+                try:
+                    data_socket.close()
+                except OSError:
+                    pass
+            if ftp is not None:
+                try:
+                    ftp.close()
+                except OSError:
+                    pass
+    raise SourceError(f"A transferência FTP parou ou foi interrompida após duas tentativas: {last_error}") from last_error
 
 
 def source_cache(system: str, year: int, uf: str = "PA") -> Path:
@@ -345,21 +401,7 @@ def download_selected(system: str, year: int, month: int, requested_names: list[
                     if not ALLOW_FTP_FALLBACK:
                         raise SourceError(f"Não foi possível baixar {item['name']} por HTTPS. O fallback FTP está desativado nesta instalação. Detalhe: {https_error}") from https_error
                     try:
-                        ftp = connect()
-                        try:
-                            with open(temporary, "wb") as stream:
-                                def write_chunk(chunk: bytes) -> None:
-                                    nonlocal written
-                                    if written + len(chunk) > MAX_DBC_DOWNLOAD_BYTES or (item["size"] is not None and written + len(chunk) > item["size"]):
-                                        raise SourceError("O arquivo recebido ultrapassou o tamanho permitido ou declarado pelo DATASUS.")
-                                    stream.write(chunk)
-                                    written += len(chunk)
-                                ftp.retrbinary(f"RETR {item['remote']}", write_chunk, blocksize=1024 * 1024)
-                        finally:
-                            try:
-                                ftp.quit()
-                            except Exception:
-                                ftp.close()
+                        written = _download_via_ftp(item["remote"], Path(temporary), item["size"])
                         source_mode = "FTP · DATASUS"
                     except Exception as ftp_error:
                         raise SourceError(
