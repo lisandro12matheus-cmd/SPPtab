@@ -10,12 +10,13 @@ tabwin2_page_security();
   <meta name="theme-color" content="#f4f7f8">
   <meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>SPPtab · DATASUS</title>
-  <link rel="stylesheet" href="assets/app.css?v=15">
+  <link rel="stylesheet" href="assets/app.css?v=16">
   <link rel="stylesheet" href="assets/file-selection.css?v=1">
   <link rel="stylesheet" href="assets/brand.css?v=1">
-  <link rel="stylesheet" href="assets/launch.css?v=2">
+  <link rel="stylesheet" href="assets/launch.css?v=3">
   <link rel="stylesheet" href="assets/search-loading.css?v=3">
   <link rel="stylesheet" href="assets/compact-headings.css?v=1">
+  <script src="assets/launch-gate.js?v=1"></script>
 </head>
 <body>
   <div class="launch-splash" id="launchSplash" role="status" aria-live="polite">
@@ -26,7 +27,7 @@ tabwin2_page_security();
     </div>
     <p class="launch-splash__message" id="launchMessage">Carregando recursos</p>
   </div>
-  <div class="app-shell">
+  <div class="app-shell state-not-selected">
     <aside class="sidebar">
       <a class="brand" href="./" aria-label="SPPtab, início">
         <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span>
@@ -34,11 +35,13 @@ tabwin2_page_security();
       </a>
       <div class="nav-label">ESPAÇO DE TRABALHO</div>
       <nav aria-label="Navegação principal">
-        <a class="nav-item active" href="#busca"><span class="nav-icon">⌕</span>Buscar arquivos</a>
-        <a class="nav-item" href="bases.php"><span class="nav-icon">▦</span>Minhas bases</a>
-        <a class="nav-item" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a>
-        <a class="nav-item" href="tabulacoes-prontas.php"><span class="nav-icon">▧</span>Tabulações prontas</a>
-        <a class="nav-item" id="savedTabulationsNav" href="minhas-tabulacoes.php" hidden><span class="nav-icon">▧</span>Minhas Tabulações</a>
+        <a class="nav-item active" data-nav="home" href="index.php" aria-current="page"><span class="nav-icon">⌂</span>Início · mapa</a>
+        <a class="nav-item" data-nav="ready" href="tabulacoes-prontas.php"><span class="nav-icon">▧</span>Tabulações prontas</a>
+        <a class="nav-item" data-nav="files" href="index.php?etapa=arquivos"><span class="nav-icon">⌕</span>Buscar arquivos</a>
+        <a class="nav-item" data-nav="bases" href="bases.php"><span class="nav-icon">▦</span>Minhas bases</a>
+        <a class="nav-item" data-nav="tabular" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a>
+        <a class="nav-item" data-nav="sigtap" href="sigtap.php"><span class="nav-icon">▦</span>Explorar SIGTAP</a>
+        <a class="nav-item" data-nav="saved" href="minhas-tabulacoes.php" id="savedTabulationsNav" hidden><span class="nav-icon">▧</span>Minhas Tabulações</a>
       </nav>
       <div class="sidebar-foot">
         <span class="source-dot"></span>
@@ -48,17 +51,17 @@ tabwin2_page_security();
     </aside>
 
     <main class="main-content location-main" id="busca">
-      <header class="topbar"><div class="breadcrumb">Dados públicos <span>/</span> <strong>Busca de arquivos</strong></div><div class="top-tag" id="locationTag"><span></span><b>Escolha a UF</b></div></header>
+      <header class="topbar"><div class="breadcrumb">Dados públicos <span>/</span> <strong id="pageBreadcrumb">Início</strong></div><div class="top-tag" id="locationTag"><span></span><b>Escolha a UF</b></div></header>
       <section class="intro" id="pageIntro">
-        <div class="eyebrow"><span class="eyebrow-line"></span> IMPORTAÇÃO DE DADOS</div>
+        <div class="eyebrow"><span class="eyebrow-line"></span> DADOS PÚBLICOS DE SAÚDE</div>
         <h1>Comece pela<br class="mobile-break"> localidade.</h1>
         <p>Escolha o estado dos dados. Se quiser, defina também um município para recortar a tabulação quando o relatório oferecer esse campo.</p>
       </section>
 
-      <nav class="search-progress" aria-label="Etapas da busca de arquivos">
+      <nav class="search-progress" aria-label="Etapas de acesso aos dados">
         <div class="search-progress-step active" id="progressLocation" aria-current="step"><span>01</span><div><strong>Localidade</strong><small>Estado e recorte opcional</small></div></div>
         <i aria-hidden="true"></i>
-        <div class="search-progress-step" id="progressFiles"><span>02</span><div><strong>Arquivos</strong><small>Base e competência</small></div></div>
+        <div class="search-progress-step" id="progressFiles"><span>02</span><div><strong id="nextStepTitle">Tabulações prontas</strong><small id="nextStepHint">Relatórios disponíveis</small></div></div>
       </nav>
 
       <section class="location-step-screen" id="locationStep" aria-label="Escolha da localidade">
@@ -73,7 +76,7 @@ tabwin2_page_security();
             <label class="field"><span>ESTADO / UNIDADE DA FEDERAÇÃO</span><select id="uf"><option value="">Selecione um estado…</option><option value="AC">Acre · AC</option><option value="AL">Alagoas · AL</option><option value="AP">Amapá · AP</option><option value="AM">Amazonas · AM</option><option value="BA">Bahia · BA</option><option value="CE">Ceará · CE</option><option value="DF">Distrito Federal · DF</option><option value="ES">Espírito Santo · ES</option><option value="GO">Goiás · GO</option><option value="MA">Maranhão · MA</option><option value="MT">Mato Grosso · MT</option><option value="MS">Mato Grosso do Sul · MS</option><option value="MG">Minas Gerais · MG</option><option value="PA">Pará · PA</option><option value="PB">Paraíba · PB</option><option value="PR">Paraná · PR</option><option value="PE">Pernambuco · PE</option><option value="PI">Piauí · PI</option><option value="RJ">Rio de Janeiro · RJ</option><option value="RN">Rio Grande do Norte · RN</option><option value="RS">Rio Grande do Sul · RS</option><option value="RO">Rondônia · RO</option><option value="RR">Roraima · RR</option><option value="SC">Santa Catarina · SC</option><option value="SP">São Paulo · SP</option><option value="SE">Sergipe · SE</option><option value="TO">Tocantins · TO</option></select></label>
             <div class="municipality-picker"><label class="field"><span>RECORTE MUNICIPAL · OPCIONAL</span><input id="municipalitySearch" type="search" aria-label="Localizar município" placeholder="Localizar município" autocomplete="off" disabled></label><label class="field municipality-select-field"><span class="sr-only">Selecionar município</span><select id="municipality" aria-label="Selecionar município para a tabulação" disabled><option value="">Escolha primeiro um estado…</option></select></label></div>
             <div class="location-hint" id="locationHint" role="status">Escolha uma UF no mapa ou na lista para continuar.</div>
-            <button class="button button-primary location-continue" id="advanceToFiles" type="button" disabled>Avançar para os arquivos <span aria-hidden="true">→</span></button>
+            <button class="button button-primary location-continue" id="advanceToFiles" type="button" disabled>Ver tabulações prontas <span aria-hidden="true">→</span></button>
           </div>
         </section>
       </section>
@@ -89,9 +92,9 @@ tabwin2_page_security();
         <div class="scope-note"><span class="info-icon">i</span><span id="scopeCopy">A lista acompanha o estado escolhido. O município selecionado poderá ser aplicado à tabulação quando o relatório tiver um campo municipal compatível; isso não altera a abrangência do arquivo DBC.</span></div>
 
         <div class="results" id="results" aria-live="polite">
-          <div class="empty-state is-loading" id="emptyState">
-            <div class="search-loader" id="searchLoader" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
-            <div class="empty-icon" id="emptyIcon" hidden><span>⌕</span></div>
+          <div class="empty-state" id="emptyState">
+            <div class="search-loader" id="searchLoader" aria-hidden="true" hidden><span></span><span></span><span></span><span></span><span></span></div>
+            <div class="empty-icon" id="emptyIcon"><span>⌕</span></div>
             <strong id="emptyTitle">Escolha uma localidade</strong>
             <p id="emptyCopy">Selecione uma UF no mapa ou na lista para consultar os arquivos estaduais.</p>
           </div>
@@ -111,11 +114,11 @@ tabwin2_page_security();
         </section>
       </section>
 
-      <footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> <span id="pageStepLabel">etapa 1 de 3</span></span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer>
+      <footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> <span id="pageStepLabel">escolha da localidade</span></span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer>
     </main>
   </div>
-  <script src="assets/app.js?v=20" defer></script>
+  <script src="assets/app.js?v=23" defer></script>
   <script src="assets/tabulations-nav.js?v=1" defer></script>
-  <script src="assets/launch-splash.js?v=2" defer></script>
+  <script src="assets/launch-splash.js?v=3" defer></script>
 </body>
 </html>

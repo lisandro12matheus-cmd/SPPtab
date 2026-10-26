@@ -20,7 +20,7 @@ if ($path === '/__tabwin2_health') {
     return true;
 }
 
-if ($path === '/' || preg_match('~^/(?:index|api|bases|tabular|minhas-tabulacoes|tabulacoes-prontas|resultado|download)\.php$~i', $path)) {
+if ($path === '/' || preg_match('~^/(?:index|api|bases|tabular|minhas-tabulacoes|tabulacoes-prontas|sigtap|sigtap-zip|resultado|download)\.php$~i', $path)) {
     return false;
 }
 

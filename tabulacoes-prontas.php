@@ -3,14 +3,22 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>Tabulações prontas · SPPtab</title>
-      <link rel="stylesheet" href="assets/app.css?v=15"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=23"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
+      <link rel="stylesheet" href="assets/app.css?v=15"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=23"><link rel="stylesheet" href="assets/compact-headings.css?v=1"><link rel="stylesheet" href="assets/sigtap-filter-widget.css?v=1">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
       <a class="brand" href="./" aria-label="SPPtab, início"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span><span><strong>SPPtab</strong><small>saúde em dados</small></span></a>
       <div class="nav-label">ESPAÇO DE TRABALHO</div>
-      <nav aria-label="Navegação principal"><a class="nav-item" href="index.php"><span class="nav-icon">⌕</span>Buscar arquivos</a><a class="nav-item" href="bases.php"><span class="nav-icon">▦</span>Minhas bases</a><a class="nav-item" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a><a class="nav-item active" href="tabulacoes-prontas.php" aria-current="page"><span class="nav-icon">▧</span>Tabulações prontas</a><a class="nav-item" id="savedTabulationsNav" href="minhas-tabulacoes.php" hidden><span class="nav-icon">▧</span>Minhas Tabulações</a></nav>
+      <nav aria-label="Navegação principal">
+        <a class="nav-item" data-nav="home" href="index.php"><span class="nav-icon">⌂</span>Início · mapa</a>
+        <a class="nav-item active" data-nav="ready" href="tabulacoes-prontas.php" aria-current="page"><span class="nav-icon">▧</span>Tabulações prontas</a>
+        <a class="nav-item" data-nav="files" href="index.php?etapa=arquivos"><span class="nav-icon">⌕</span>Buscar arquivos</a>
+        <a class="nav-item" data-nav="bases" href="bases.php"><span class="nav-icon">▦</span>Minhas bases</a>
+        <a class="nav-item" data-nav="tabular" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a>
+        <a class="nav-item" data-nav="sigtap" href="sigtap.php"><span class="nav-icon">▦</span>Explorar SIGTAP</a>
+        <a class="nav-item" data-nav="saved" href="minhas-tabulacoes.php" id="savedTabulationsNav" hidden><span class="nav-icon">▧</span>Minhas Tabulações</a>
+      </nav>
       <div class="sidebar-foot"><span class="source-dot"></span><div><strong>SIA/SUS · SIH/SUS</strong><small>Relatórios prontos</small></div><span class="sidebar-version">v<?= htmlspecialchars(tabwin2_app_version(), ENT_QUOTES, 'UTF-8') ?></span></div>
     </aside>
     <main class="main-content predefined-report-main" id="predefinedMain">
@@ -87,10 +95,11 @@
       <div class="setup-dialog-header"><span class="report-mark" aria-hidden="true"><span class="tile-motif"><i></i><i></i><i></i><i></i><i></i></span></span><div><div class="eyebrow"><span class="eyebrow-line"></span> RECORTE DA CONSULTA</div><h2 id="reportSetupTitle">Produção ambulatorial por estabelecimento</h2><p id="reportSetupDescription">Escolha a origem e a competência. Os filtros adicionais são opcionais.</p></div><button class="setup-dialog-close" id="closeReportSetup" type="button" aria-label="Fechar">×</button></div>
       <div class="setup-section"><div class="setup-section-heading"><strong>Local e período</strong><span>A UF define qual arquivo estadual será consultado.</span></div><div class="setup-primary-grid"><label class="field"><span>ESTADO (UF)</span><select id="reportUf" aria-label="Estado de origem dos dados"></select></label><label class="field"><span id="reportMunicipalityLabel">MUNICÍPIO <small>opcional</small></span><select id="reportMunicipality"><option value="">Todos os municípios</option></select></label><label class="field"><span>ANO</span><select id="reportYear" disabled><option value="">Carregando…</option></select></label><div class="field setup-competency-field"><span id="reportMonthLabel">COMPETÊNCIA <small>uma por vez; várias se já baixadas</small></span><select class="setup-month-source" id="reportMonth" multiple hidden aria-hidden="true" tabindex="-1"><option value="">Consultando DATASUS…</option></select><div class="setup-competency-picker" id="reportMonthPicker"><button class="setup-competency-trigger" id="reportMonthTrigger" type="button" aria-expanded="false" aria-controls="reportMonthMenu" aria-labelledby="reportMonthLabel reportMonthTriggerText" disabled><span id="reportMonthTriggerText">Consultando DATASUS…</span><span class="setup-competency-chevron" aria-hidden="true"></span></button><div class="setup-competency-menu" id="reportMonthMenu" role="group" aria-label="Selecionar competências" hidden><div class="setup-competency-menu-head"><span id="reportMonthCount">Nenhuma competência selecionada</span><div><button type="button" id="clearReportMonths">Limpar</button></div></div><div class="setup-competency-options" id="reportMonthOptions"></div></div></div><small class="setup-competency-help">Vários meses só com bases já baixadas. Uma competência pode ser buscada no DATASUS ao abrir.</small></div></div></div>
       <div class="setup-section setup-optional-section"><div class="setup-section-heading"><strong>Filtros adicionais <span>opcionais</span></strong><span>Adicione apenas os critérios que deseja aplicar.</span></div><label class="field setup-add-filter-field"><span>ADICIONAR UM FILTRO</span><select id="addReportFilter"><option value="">Adicionar filtro opcional…</option></select></label><div class="setup-filter-rows" id="reportAdditionalFilters"></div><p class="report-filter-note" id="reportFilterNote">O município e os demais filtros valem para toda a consulta. Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.</p></div>
+      <div class="sigtap-widget" id="reportSigtap"></div>
       <div class="report-availability setup-availability" id="reportAvailability" role="status">Localizando competências disponíveis…</div>
       <div class="setup-dialog-footer"><div class="setup-default-actions"><button type="button" id="saveSetupDefault">Salvar filtros como padrão</button><button type="button" id="clearSetupDefault" hidden>Remover padrão</button><span id="setupDefaultStatus" role="status"></span></div><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=36" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/sigtap-filter-widget.js?v=2" defer></script><script src="assets/predefined-report.js?v=38" defer></script>
 </body>
 </html>

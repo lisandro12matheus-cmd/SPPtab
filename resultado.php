@@ -11,4 +11,4 @@
   <section class="result-filter-builder" id="resultFilterBuilder" hidden aria-label="Filtros adicionais"><div class="result-filter-builder__head"><div><strong>Filtros adicionais</strong><span>Escolha uma informação e um valor. O resultado e os totais serão atualizados sem alterar as colunas.</span></div><button class="text-button" id="addAnotherResultFilter" type="button">+ Outro filtro</button></div><div class="result-filter-rows" id="resultFilterRows"></div><p class="result-filter-builder__status" id="resultFilterHelp" role="status">Os filtros selecionados serão aplicados à base e aos totais.</p></section>
   <section class="result-table-panel" id="resultPanel" hidden><div class="result-table-wrap"><table class="result-table"><thead id="resultHead"></thead><tbody id="resultBody"></tbody><tfoot id="resultFoot"></tfoot></table></div></section>
   <footer class="result-footer"><span>Definição oficial · DATASUS / TabWin</span><span>SPPtab</span></footer>
-</main><script src="assets/result.js?v=19" defer></script></body></html>
+</main><script src="assets/result.js?v=20" defer></script></body></html>

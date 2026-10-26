@@ -15,6 +15,7 @@ from typing import Any
 
 from official_source import download_file as portal_download_file, open_verified_https
 from storage_lock import interprocess_lock
+from sigtap import matching_codes as sigtap_matching_codes
 
 ROOT = Path(__file__).resolve().parents[1]
 UPLOADS = Path(os.environ.get("TABWIN2_DATA_DIR", ROOT / "uploads")).expanduser().resolve()
@@ -1023,7 +1024,10 @@ def validated_preset_options(relative: str, supplied):
         clean_column_filter={"option":option,"value":value}
     unclassified=str(supplied.get("unclassified") or "ignore")
     if unclassified not in {"ignore","include","discriminate"}: unclassified="ignore"
-    clean={"row":row,"column":column,"metrics":list(dict.fromkeys(metrics)),"filters":clean_filters,"columnFilter":clean_column_filter,"suppressRows":bool(supplied.get("suppressRows",True)),"suppressColumns":bool(supplied.get("suppressColumns",True)),"testCrc":bool(supplied.get("testCrc",False)),"saveRecords":bool(supplied.get("saveRecords",False)),"unclassified":unclassified,"municipalityFilter":bool(supplied.get("municipalityFilter",False))}
+    sigtap_filters=supplied.get("sigtapFilters") or {}
+    if not isinstance(sigtap_filters,dict) or len(sigtap_filters)>12 or any(not isinstance(key,str) or not isinstance(value,str) or len(key)>30 or len(value)>20 for key,value in sigtap_filters.items()):
+        raise ValueError("O filtro SIGTAP da combinação é inválido.")
+    clean={"row":row,"column":column,"metrics":list(dict.fromkeys(metrics)),"filters":clean_filters,"columnFilter":clean_column_filter,"suppressRows":bool(supplied.get("suppressRows",True)),"suppressColumns":bool(supplied.get("suppressColumns",True)),"testCrc":bool(supplied.get("testCrc",False)),"saveRecords":bool(supplied.get("saveRecords",False)),"unclassified":unclassified,"municipalityFilter":bool(supplied.get("municipalityFilter",False)),"sigtapFilters":sigtap_filters}
     option_by_id={item["id"]:item for group_items in (rows,columns,selections) for item in group_items}
     metric_labels={"FREQ":f"Frequência · {group.get('field') if group else 'registros'}","RECORDS":"Número de registros"}
     metric_labels.update({item["field"]:item["label"] for item in increments})
@@ -1409,6 +1413,55 @@ def predefined_sih_sp_filter_options(payload: dict[str,Any]):
     cache_write(cache,result,max_bytes=5_000_000,keep=32)
     return result
 
+def _sigtap_unmatched_codes(dbf: Path, field: str, competence: str, version: str) -> dict[str,Any]:
+    """Audit distinct source codes against the complete SIGTAP table, not the chosen subset."""
+    target=cache_target("sigtap-unmatched",{"dbf":cache_file_identity(dbf),"field":field,"competence":competence,"version":version})
+    cached=cache_read(target)
+    if isinstance(cached,dict) and "count" in cached: return cached
+    published,_=sigtap_matching_codes(competence,{})
+    missing=set()
+    for (raw,) in iter_dbf_fields(dbf,[field]):
+        code=_report_code(raw,10)
+        if code and code not in published: missing.add(code)
+    result={"count":len(missing),"codes":sorted(missing)[:30],"truncated":len(missing)>30}
+    cache_write(target,result,max_bytes=5000,keep=100)
+    return result
+
+
+def _sigtap_procedure_filter(payload: dict[str,Any], year: int, month: int, fields: set[str] | dict, field: str, dbf: Path | None=None):
+    """Return an exact-competence DBF prefilter; codes are unique before scanning."""
+    selected=payload.get("sigtapFilters") or {}
+    if not isinstance(selected,dict): raise ValueError("O filtro SIGTAP é inválido.")
+    if not selected: return None,None
+    if field not in fields: raise ValueError(f"Esta base não possui {field} para cruzar com o SIGTAP.")
+    if len(selected)>12: raise ValueError("Selecione menos atributos SIGTAP.")
+    competence=f"{year:04d}{month:02d}"
+    try:
+        codes,status=sigtap_matching_codes(competence,selected)
+    except Exception as exc:
+        raise ValueError(f"Não foi possível obter o SIGTAP da competência {month:02d}/{year} para o cruzamento: {exc}") from exc
+    if dbf is not None:
+        status={**status,"unmatched":_sigtap_unmatched_codes(dbf,field,competence,status["sha256"]),"unmatchedSource":dbf.name}
+    return (field,sorted(codes) if codes else ["!"]),{**status,"matchingCodes":len(codes)}
+
+
+def _attach_sigtap_source(result: dict[str,Any], status: dict[str,Any] | None):
+    if not status: return
+    result["sigtapSource"]=status
+    month=status["competence"]
+    message=f"Filtro SIGTAP: {status['matchingCodes']:,} código(s) elegível(is) na competência {month[4:6]}/{month[:4]}; tabela carregada em {status['loadedAt']}.".replace(",",".")
+    unmatched=status.get("unmatched") or {}
+    if unmatched.get("count"):
+        message+=f" A base {status.get('unmatchedSource','consultada')} contém {unmatched['count']} código(s) de procedimento sem correspondência nessa competência: {', '.join(unmatched['codes'])}{' e outros' if unmatched.get('truncated') else ''}. Esses registros não entraram no recorte SIGTAP."
+    elif unmatched:
+        message+=" Todos os códigos de procedimento dessa base têm correspondência no SIGTAP da competência."
+    other=status.get("unmatchedOther") or {}
+    if other.get("count"):
+        message+=f" A base {status.get('unmatchedOtherSource','adicional')} contém {other['count']} código(s) sem correspondência: {', '.join(other['codes'])}{' e outros' if other.get('truncated') else ''}."
+    if status.get("warning"): message+=f" {status['warning']}"
+    result.setdefault("notes",[]).append(message)
+
+
 def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
     """Monthly state-level SIA production, with optional municipal/profile filters."""
     if progress: progress(2,"Conferindo a base ambulatorial")
@@ -1496,8 +1549,9 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
     procedure_labels=_report_relation_index(relation_mapping("SIA",procedure_option),10) if procedure_option else {}
     complexity_labels=relation_mapping("SIA",complexity_option) if view=="detail" and complexity_option else {}
 
+    sigtap_filter,sigtap_source=_sigtap_procedure_filter(payload,2000+int(filename_match.group("yy")),int(filename_match.group("mm")),fieldinfo,"PA_PROC_ID",dbf)
     archive=UPLOADS/"DEFINICOES"/"originais"/"TAB_SIA.zip"
-    identity={"report":"sia-pa-production-v6","source":cache_file_identity(source),"dbf":cache_file_identity(dbf),"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_filter_codes}
+    identity={"report":"sia-pa-production-v6","source":cache_file_identity(source),"dbf":cache_file_identity(dbf),"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_filter_codes,"sigtap":payload.get("sigtapFilters"),"sigtapVersion":sigtap_source.get("sha256") if sigtap_source else None,"sigtapAuditVersion":1}
     target=cache_target("predefined-reports",identity)
     cached=cache_read(target)
     if isinstance(cached,dict) and cached.get("ok") is True:
@@ -1507,6 +1561,7 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
     filters=[]
     if municipality: filters.append(("PA_UFMUN",municipality))
     filters.extend(selected_filter_codes.items())
+    if sigtap_filter: filters.append(sigtap_filter)
     municipality_name=str(payload.get("municipalityName") or "").strip()[:80] if municipality else "Todos os municípios"
     for spec in PREDEFINED_FILTER_SPECS:
         if spec["key"] not in selected_filter_names: continue
@@ -1604,6 +1659,7 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
         "metrics":metrics,"totals":total_values,"records":sum(values[7] for values in sums.values()),"rows":rows,
         "notes":["No detalhamento, um mesmo procedimento pode aparecer em mais de uma linha quando houver diferenças de complexidade ou financiamento (MAC/FAEC).","Glosas são calculadas pela diferença positiva entre o apresentado e o aprovado.","¹ A base PA não tem um campo separado de rejeição. O indicador conta as linhas com quantidade apresentada maior que zero e quantidade aprovada igual a zero; não representa um total oficial de registros rejeitados."],
     }
+    _attach_sigtap_source(result,sigtap_source)
     if progress: progress(97,"Finalizando totais e descrições")
     cache_write(target,result,max_bytes=25_000_000,keep=30)
     return result
@@ -1676,8 +1732,9 @@ def predefined_sih_rd_production(payload: dict[str,Any], progress=None):
     def hospital_label(code):
         return _report_label(cnes_labels.get(code) or f"CNES {code}")
 
+    sigtap_filter,sigtap_source=_sigtap_procedure_filter(payload,2000+int(filename_match.group("yy")),int(filename_match.group("mm")),fieldinfo,"PROC_REA",dbf)
     archive=UPLOADS/"DEFINICOES"/"originais"/"TAB_SIH.zip"
-    identity={"report":"sih-rd-production-v1","source":cache_file_identity(source),"dbf":cache_file_identity(dbf),"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_filter_codes}
+    identity={"report":"sih-rd-production-v1","source":cache_file_identity(source),"dbf":cache_file_identity(dbf),"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_filter_codes,"sigtap":payload.get("sigtapFilters"),"sigtapVersion":sigtap_source.get("sha256") if sigtap_source else None,"sigtapAuditVersion":1}
     target=cache_target("predefined-reports",identity)
     cached=cache_read(target)
     if isinstance(cached,dict) and cached.get("ok") is True:
@@ -1695,6 +1752,7 @@ def predefined_sih_rd_production(payload: dict[str,Any], progress=None):
     filters=[]
     if municipality: filters.append(("MUNIC_MOV",municipality))
     filters.extend(selected_filter_codes.items())
+    if sigtap_filter: filters.append(sigtap_filter)
     if progress: progress(12,"Somando AIHs e valores do recorte selecionado")
 
     group_field="CNES" if view=="summary" else "PROC_REA"
@@ -1772,6 +1830,7 @@ def predefined_sih_rd_production(payload: dict[str,Any], progress=None):
             "Arquivos de AIH rejeitada ou com erro (RJ/ER) não entram nesta soma; esta tabulação não calcula glosas ou rejeições.",
         ],
     }
+    _attach_sigtap_source(result,sigtap_source)
     if progress: progress(97,"Finalizando totais e descrições oficiais")
     cache_write(target,result,max_bytes=25_000_000,keep=30)
     return result
@@ -1874,8 +1933,9 @@ def predefined_sih_rd_rejections(payload: dict[str,Any], progress=None):
     def hospital_label(code):
         return _report_label(cnes_labels.get(code) or f"CNES {code}")
 
+    sigtap_filter,sigtap_source=_sigtap_procedure_filter(payload,year,month,rejected_fields,"PROC_REA",rejected["dbf"])
     archive=UPLOADS/"DEFINICOES"/"originais"/"TAB_SIH.zip"
-    identity={"report":"sih-rj-rejeicoes-v3","sources":[cache_file_identity(item["source"])|{"dbf":cache_file_identity(item["dbf"])} for item in (rejected,*([errors] if errors else []))],"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_filter_codes}
+    identity={"report":"sih-rj-rejeicoes-v3","sources":[cache_file_identity(item["source"])|{"dbf":cache_file_identity(item["dbf"])} for item in (rejected,*([errors] if errors else []))],"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_filter_codes,"sigtap":payload.get("sigtapFilters"),"sigtapVersion":sigtap_source.get("sha256") if sigtap_source else None,"sigtapAuditVersion":1}
     target=cache_target("predefined-reports",identity)
     cached=cache_read(target)
     if isinstance(cached,dict) and cached.get("ok") is True:
@@ -1893,6 +1953,7 @@ def predefined_sih_rd_rejections(payload: dict[str,Any], progress=None):
     filters=[]
     if municipality: filters.append(("MUNIC_MOV",municipality))
     filters.extend(selected_filter_codes.items())
+    if sigtap_filter: filters.append(sigtap_filter)
     dimension_fields=["COMPLEX","FINANC","FAEC_TP"]
     rejected_names=list(dict.fromkeys(["CNES","N_AIH","PROC_REA",*dimension_fields,"VAL_TOT","VAL_SH","VAL_SP",*selected_filter_codes]))
     rejected_names=[name for name in rejected_names if name in rejected_fields]
@@ -2005,11 +2066,12 @@ def predefined_sih_rd_rejections(payload: dict[str,Any], progress=None):
             *( ["O arquivo ou a referência oficial dos códigos SIH/ER não está disponível para esta competência; os valores de rejeição foram preservados, mas os motivos não puderam ser identificados."] if not errors else [] ),
         ],
     }
+    _attach_sigtap_source(result,sigtap_source)
     if progress: progress(97,"Finalizando valores, totais e motivos oficiais")
     cache_write(target,result,max_bytes=100_000_000,keep=30)
     return result
 
-def _read_cnes_establishment_cache(cnes: str, competence: str):
+def _read_cnes_establishment_cache(cnes: str, competence: str, allow_stale: bool=False):
     connection=None
     try:
         with CNES_ESTABLISHMENT_CACHE_LOCK:
@@ -2018,9 +2080,14 @@ def _read_cnes_establishment_cache(cnes: str, competence: str):
             connection.execute("CREATE TABLE IF NOT EXISTS establishment_classifications (cnes TEXT NOT NULL, competence TEXT NOT NULL, data_json TEXT NOT NULL, fetched_at REAL NOT NULL, PRIMARY KEY(cnes,competence))")
             connection.commit()
             row=connection.execute("SELECT data_json,fetched_at FROM establishment_classifications WHERE cnes=? AND competence=?",(cnes,competence)).fetchone()
-        if not row or time.time()-float(row[1])>=30*86400: return None
+        if not row: return None
         data=json.loads(row[0])
-        return data if isinstance(data,dict) else None
+        if not isinstance(data,dict) or data.get("schemaVersion")!=2: return None
+        age=time.time()-float(row[1])
+        if age>=7*86400 and not allow_stale: return None
+        data["cachedAt"]=float(row[1])
+        if age>=7*86400: data["stale"]=True
+        return data
     except (OSError,sqlite3.Error,ValueError,TypeError):
         return None
     finally:
@@ -2033,6 +2100,7 @@ def _write_cnes_establishment_cache(cnes: str, competence: str, data: dict[str,A
             CNES_ESTABLISHMENT_CACHE.parent.mkdir(parents=True,exist_ok=True)
             connection=sqlite3.connect(str(CNES_ESTABLISHMENT_CACHE),timeout=8)
             connection.execute("CREATE TABLE IF NOT EXISTS establishment_classifications (cnes TEXT NOT NULL, competence TEXT NOT NULL, data_json TEXT NOT NULL, fetched_at REAL NOT NULL, PRIMARY KEY(cnes,competence))")
+            data["schemaVersion"]=2
             connection.execute("INSERT OR REPLACE INTO establishment_classifications(cnes,competence,data_json,fetched_at) VALUES(?,?,?,?)",(cnes,competence,json.dumps(data,ensure_ascii=True,separators=(",",":")),time.time()))
             connection.commit()
     except (OSError,sqlite3.Error,ValueError,TypeError):
@@ -2093,6 +2161,7 @@ def _cnes_establishment_classification(cnes: str, year: int, month: int, need_su
     if not re.fullmatch(r"\d{7}",digits): return None,False
     competence=f"{year:04d}{month:02d}"
     cached=_read_cnes_establishment_cache(digits,competence) if check_cache else None
+    stale=_read_cnes_establishment_cache(digits,competence,allow_stale=True) if check_cache and cached is None else None
     if cached is not None and (not need_sus or cached.get("attendanceChecked")):
         return cached,True
 
@@ -2114,30 +2183,27 @@ def _cnes_establishment_classification(cnes: str, year: int, month: int, need_su
             })
         data["competenceChecked"]=bool(ok)
 
-    needs_current=(
-        need_sus
-        or data.get("management") in {None,"","NAO_INFORMADA"}
-        or not data.get("legalNature")
-        or data.get("natureGroup") in {None,"","NAO_INFORMADA"}
-    )
+    # Current CNES records cannot silently supply historical classification.
+    needs_current=need_sus
     if needs_current and not data.get("currentChecked"):
         current,ok=_cnes_open_data_json(f"/cnes/estabelecimentos/{digits}")
         service_available=service_available or ok
         if isinstance(current,dict) and str(current.get("codigo_cnes") or "").zfill(7)==digits:
             legal_code=_cnes_nature_code(current.get("descricao_natureza_juridica_estabelecimento"))
-            if not data.get("management") or data.get("management")=="NAO_INFORMADA":
-                data["management"]=_normalize_cnes_management(current.get("tipo_gestao") or current.get("descricao_esfera_administrativa"))
-            if not data.get("legalNature"): data["legalNature"]=legal_code
-            if data.get("natureGroup") in {None,"","NAO_INFORMADA"}: data["natureGroup"]=_normalize_cnes_nature_group("",legal_code)
+            data["currentLegalNature"] = legal_code
             if need_sus:
                 attendance=current.get("estabelecimento_faz_atendimento_hospitalar_sus")
                 if attendance is None: attendance=current.get("estabelecimento_possui_atendimento_hospitalar")
                 data["hospitalSUS"]=_normalize_cnes_sus(attendance)
             data["currentUpdatedAt"]=_report_label(current.get("data_atualizacao") or "")[:20]
-            if data.get("source")!="competence": data["source"]="current"
+            if data.get("source")!="competence": data["source"]="current-attendance-only"
         data["currentChecked"]=bool(ok)
         if need_sus: data["attendanceChecked"]=bool(ok)
 
+    if stale and stale.get("source")=="competence" and data.get("source")!="competence":
+        return stale,service_available
+    if stale and not service_available:
+        return stale,False
     if data:
         if not data.get("management"): data["management"]="NAO_INFORMADA"
         if not data.get("natureGroup"): data["natureGroup"]="NAO_INFORMADA"
@@ -2166,7 +2232,7 @@ def _cnes_establishment_classifications(cnes_codes: list[str], year: int, month:
             try:
                 data,available=future.result()
                 if data is not None: result[code]=data
-                if not available: failures+=1
+                if not available and not (data or {}).get("stale"): failures+=1
             except Exception:
                 failures+=1
             completed+=1
@@ -2192,7 +2258,7 @@ def _read_cnes_professional_cache(cns_hash: str):
             connection.execute("CREATE TABLE IF NOT EXISTS professional_names (cns_hash TEXT PRIMARY KEY, name TEXT NOT NULL, cbos_json TEXT NOT NULL, fetched_at REAL NOT NULL)")
             connection.commit()
             row=connection.execute("SELECT name, cbos_json, fetched_at FROM professional_names WHERE cns_hash=?",(cns_hash,)).fetchone()
-        if not row or time.time()-float(row[2])>=90*86400: return None
+        if not row or time.time()-float(row[2])>=7*86400: return None
         cbos=json.loads(row[1])
         return {"name":str(row[0] or ""),"cbos":cbos if isinstance(cbos,list) else []}
     except (OSError,sqlite3.Error,ValueError,TypeError):
@@ -2297,7 +2363,7 @@ def _read_cnes_professional_cache_many(cns_hashes: list[str]):
                 batch=cns_hashes[start:start+500]
                 placeholders=",".join("?" for _ in batch)
                 for cns_hash,name,cbos_json,fetched_at in connection.execute(f"SELECT cns_hash,name,cbos_json,fetched_at FROM professional_names WHERE cns_hash IN ({placeholders})",batch):
-                    if time.time()-float(fetched_at)>=90*86400: continue
+                    if time.time()-float(fetched_at)>=7*86400: continue
                     try: cbos=json.loads(cbos_json)
                     except (ValueError,TypeError): cbos=[]
                     result[cns_hash]={"name":str(name or ""),"cbos":cbos if isinstance(cbos,list) else []}
@@ -2461,12 +2527,13 @@ def predefined_sih_sp_professionals(payload: dict[str,Any], progress=None):
     cbo_labels=_report_relation_index(relation_mapping("SIH",cbo_option),6)
     manager_labels=_report_relation_index(manager_mapping,manager_spec["width"])
 
+    sigtap_filter,sigtap_source=_sigtap_procedure_filter(payload,2000+int(filename_match.group("yy")),int(filename_match.group("mm")),fieldinfo,"SP_ATOPROF",dbf)
     source_identity=cache_file_identity(source); dbf_identity=cache_file_identity(dbf)
     archive=UPLOADS/"DEFINICOES"/"originais"/"TAB_SIH.zip"
-    identity={"report":"sih-sp-profissionais-v6","source":source_identity,"dbf":dbf_identity,"definition":cache_file_identity(archive),"uf":uf,"municipality":municipality,"filters":selected_filter_codes}
+    identity={"report":"sih-sp-profissionais-v6","source":source_identity,"dbf":dbf_identity,"definition":cache_file_identity(archive),"uf":uf,"municipality":municipality,"filters":selected_filter_codes,"sigtap":payload.get("sigtapFilters"),"sigtapVersion":sigtap_source.get("sha256") if sigtap_source else None,"sigtapAuditVersion":1}
     target=cache_target("predefined-reports",identity)
     cached=cache_read(target)
-    if isinstance(cached,dict) and cached.get("ok") is True and time.time()-float(cached.get("cachedAt",0) or 0)<30*86400:
+    if isinstance(cached,dict) and cached.get("ok") is True and time.time()-float(cached.get("cachedAt",0) or 0)<7*86400:
         if progress: progress(98,"Abrindo o relatório salvo neste computador")
         return cached
 
@@ -2479,6 +2546,7 @@ def predefined_sih_sp_professionals(payload: dict[str,Any], progress=None):
     if manager_spec["field"] in selected_filter_codes: filters.append((manager_spec["field"],selected_filter_codes[manager_spec["field"]]))
     if cbo_spec["field"] in selected_filter_codes: filters.append((cbo_spec["field"],selected_filter_codes[cbo_spec["field"]]))
     filters.append(("IN_TP_VAL",sorted(professional_value_codes)))
+    if sigtap_filter: filters.append(sigtap_filter)
     grouped={}
     cns_frequency=defaultdict(int)
     processed=[0]
@@ -2540,12 +2608,16 @@ def predefined_sih_sp_professionals(payload: dict[str,Any], progress=None):
             if matches: filtered_grouped[key]=values
         grouped=filtered_grouped
         source_competence_count=sum(1 for data in cnes_classifications.values() if data.get("source")=="competence")
-        source_current_count=sum(1 for data in cnes_classifications.values() if data.get("source")=="current")
-        cnes_filter_notes.append("Tipo de gestão e natureza jurídica vêm do CNES quando não existem no arquivo SIH/SP. O sistema tenta primeiro a competência do relatório e usa o cadastro atual somente quando a competência não retorna registro.")
+        source_current_count=sum(1 for data in cnes_classifications.values() if data.get("source")=="current-attendance-only")
+        cnes_filter_notes.append("Tipo de gestão e natureza jurídica do CNES usam apenas a competência do relatório. Quando o cadastro histórico não está disponível, esses campos ficam sem classificação.")
+        stale_classifications=[data for data in cnes_classifications.values() if data.get("stale")]
+        if stale_classifications:
+            latest=max(float(data.get("cachedAt") or 0) for data in stale_classifications)
+            cnes_filter_notes.append(f"O CNES não respondeu para {len(stale_classifications):,} cadastro(s); usada a última cópia válida da competência {filename_match.group('mm')}/{2000+int(filename_match.group('yy'))}, consultada em {time.strftime('%d/%m/%Y',time.localtime(latest))}.".replace(",","."))
         if need_sus:
             cnes_filter_notes.append("O filtro de atendimento hospitalar SUS consulta a situação atual do CNES e pode diferir da situação do estabelecimento na competência histórica.")
         if source_current_count:
-            cnes_filter_notes.append(f"O cadastro atual do CNES foi usado para {source_current_count:,} estabelecimento(s) sem classificação disponível na competência selecionada.".replace(",","."))
+            cnes_filter_notes.append(f"A situação atual de atendimento SUS foi consultada para {source_current_count:,} estabelecimento(s) sem classificação histórica disponível; ela não substitui gestão ou natureza jurídica da competência.".replace(",","."))
         if cnes_unclassified:
             cnes_filter_notes.append(f"{cnes_unclassified:,} estabelecimento(s) não tiveram classificação localizada no CNES e foram excluídos pelo filtro selecionado.".replace(",","."))
         allowed_cns={key[5] for key in grouped if key[5]}
@@ -2635,6 +2707,7 @@ def predefined_sih_sp_professionals(payload: dict[str,Any], progress=None):
         "records":sum(row["records"] for row in rows),"totalAIHs":total_aihs,"rows":rows,
         "notes":notes,"cachedAt":time.time(),"professionalLookups":len(cached_profiles),"professionalLookupCandidates":len(cns_frequency),
     }
+    _attach_sigtap_source(result,sigtap_source)
     if progress: progress(97,"Finalizando a tabela de produção profissional")
     if not lookup_error: cache_write(target,result,max_bytes=100_000_000,keep=30)
     return result
@@ -2646,7 +2719,7 @@ CNES_CODE_NS = "http://servicos.saude.gov.br/schema/cnes/v1r0/codigocnes"
 CNES_BED_CACHE = UPLOADS/".cache"/"cnes-bed-counts.sqlite3"
 CNES_BED_CACHE_LOCK = threading.RLock()
 
-def _read_cnes_bed_cache(cnes: str):
+def _read_cnes_bed_cache(cnes: str, allow_stale: bool=False):
     connection=None
     try:
         with CNES_BED_CACHE_LOCK:
@@ -2655,9 +2728,14 @@ def _read_cnes_bed_cache(cnes: str):
             connection.execute("CREATE TABLE IF NOT EXISTS bed_counts (cnes TEXT PRIMARY KEY, data_json TEXT NOT NULL, fetched_at REAL NOT NULL)")
             connection.commit()
             row=connection.execute("SELECT data_json,fetched_at FROM bed_counts WHERE cnes=?",(cnes,)).fetchone()
-        if not row or time.time()-float(row[1])>=7*86400: return None
+        if not row: return None
         data=json.loads(row[0])
-        return data if isinstance(data,dict) else None
+        if not isinstance(data,dict): return None
+        age=time.time()-float(row[1])
+        if age>=7*86400 and not allow_stale: return None
+        data["cachedAt"]=float(row[1])
+        if age>=7*86400: data["stale"]=True
+        return data
     except (OSError,sqlite3.Error,ValueError,TypeError):
         return None
     finally:
@@ -2859,9 +2937,12 @@ def predefined_sih_bed_occupancy(payload: dict[str,Any], progress=None):
             error_labels=relation_mapping("SIH",error_option) if error_option else {}
             if not error_labels: er=None
 
+    sigtap_filter,sigtap_source=_sigtap_procedure_filter(payload,year,month,rd_fields,"PROC_REA",rd["dbf"])
+    if sigtap_source and "PROC_REA" in rj_fields:
+        sigtap_source={**sigtap_source,"unmatchedOther":_sigtap_unmatched_codes(rj["dbf"],"PROC_REA",f"{year:04d}{month:02d}",sigtap_source["sha256"]),"unmatchedOtherSource":rj["dbf"].name}
     source_items=[rd,rj,*([er] if er else [])]
     archive=UPLOADS/"DEFINICOES"/"originais"/"TAB_SIH.zip"
-    identity={"report":"sih-bed-occupancy-v3","sources":[cache_file_identity(item["source"])|{"dbf":cache_file_identity(item["dbf"])} for item in source_items],"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_codes}
+    identity={"report":"sih-bed-occupancy-v3","sources":[cache_file_identity(item["source"])|{"dbf":cache_file_identity(item["dbf"])} for item in source_items],"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_codes,"sigtap":payload.get("sigtapFilters"),"sigtapVersion":sigtap_source.get("sha256") if sigtap_source else None,"sigtapAuditVersion":1}
     target=cache_target("predefined-reports",identity)
     cached=cache_read(target)
     if isinstance(cached,dict) and cached.get("ok") is True and time.time()-float(cached.get("cachedAt",0) or 0)<7*86400:
@@ -2887,6 +2968,7 @@ def predefined_sih_bed_occupancy(payload: dict[str,Any], progress=None):
         for name,value in base_filters:
             if name not in fields: raise ValueError(f"O campo {name} não existe na base {component['kind']}.")
             required_filter.append((name,value))
+        if sigtap_filter: required_filter.append(sigtap_filter)
         count=dbf_layout(component["dbf"])[0]
         processed=[0]
         unique={}
@@ -2968,8 +3050,14 @@ def predefined_sih_bed_occupancy(payload: dict[str,Any], progress=None):
                 try:
                     value,ok=future.result()
                     if ok and value is not None: beds_by_cnes[code]=value
+                    else:
+                        stale=_read_cnes_bed_cache(code,allow_stale=True)
+                        if stale is not None: beds_by_cnes[code]=stale
+                        else: lookup_errors+=1
+                except Exception:
+                    stale=_read_cnes_bed_cache(code,allow_stale=True)
+                    if stale is not None: beds_by_cnes[code]=stale
                     else: lookup_errors+=1
-                except Exception: lookup_errors+=1
                 completed+=1
                 if progress and (completed%5==0 or completed==len(missing_beds)):
                     progress(min(96,86+int(10*completed/max(1,len(missing_beds)))),f"Consultando leitos SUS no CNES · {completed} de {len(missing_beds)}")
@@ -3052,6 +3140,7 @@ def predefined_sih_bed_occupancy(payload: dict[str,Any], progress=None):
             "A taxa de rejeição é calculada como AIHs no RJ ÷ (AIHs no RD + AIHs no RJ). As faixas de situação são referências visuais do SPPtab, não uma classificação oficial do CNES/SIH.",
             *( [f"A última atualização de leitos informada pelo CNES nesta consulta é {max((str(value.get('updatedAt') or '') for value in beds_by_cnes.values()),default='')}." ] if any(value.get("updatedAt") for value in beds_by_cnes.values()) else [] ),
             *([f"O CNES não respondeu para {lookup_errors} estabelecimento(s); a ocupação e o saldo desses locais ficam sem cálculo até uma próxima consulta."] if lookup_errors else []),
+            *([f"O CNES está indisponível para {sum(1 for item in beds_by_cnes.values() if item.get('stale'))} estabelecimento(s); seus leitos usam a última cópia válida, consultada em {time.strftime('%d/%m/%Y',time.localtime(max(float(item.get('cachedAt') or 0) for item in beds_by_cnes.values() if item.get('stale'))))}."] if any(item.get('stale') for item in beds_by_cnes.values()) else []),
         ]
     else:
         rows=[]
@@ -3084,6 +3173,7 @@ def predefined_sih_bed_occupancy(payload: dict[str,Any], progress=None):
         ]
     bed_reference_date=max((str(value.get("updatedAt") or "") for value in beds_by_cnes.values()),default="")
     result={"ok":True,"report":"sih-rd-ocupacao","view":view,"file":" · ".join(item["source"].name for item in source_items),"files":[item["source"].name for item in source_items],"path":rd["relative"],"year":year,"month":month,"daysInMonth":month_days,"bedReferenceDate":bed_reference_date,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality or None,"establishmentCode":establishment or None,"establishmentName":hospital_label(establishment) if establishment else None,"filters":filter_summary,"columns":columns,"metrics":[],"kpis":kpis,"rows":rows,"records":len(rows),"notes":notes,"cachedAt":time.time()}
+    _attach_sigtap_source(result,sigtap_source)
     if progress: progress(97,"Finalizando totais, nomes oficiais e ocupação")
     cache_write(target,result,max_bytes=100_000_000,keep=30)
     return result
@@ -3123,7 +3213,7 @@ def _predefined_sih_occupancy_services(payload: dict[str,Any], uf: str, progress
     archive=UPLOADS/"DEFINICOES"/"originais"/"TAB_SIH.zip"
     result_cache=cache_target("predefined-reports",{"report":"sih-bed-services-v1","source":cache_file_identity(sp["source"]),"dbf":cache_file_identity(sp["dbf"]),"definition":cache_file_identity(archive),"uf":uf,"cnes":establishment,"aih":aih})
     cached_result=cache_read(result_cache)
-    if isinstance(cached_result,dict) and cached_result.get("ok") is True and time.time()-float(cached_result.get("cachedAt",0) or 0)<30*86400:
+    if isinstance(cached_result,dict) and cached_result.get("ok") is True and time.time()-float(cached_result.get("cachedAt",0) or 0)<7*86400:
         if progress: progress(98,"Abrindo os serviços profissionais salvos neste computador")
         return cached_result
     fields=list(dict.fromkeys(name for name in (aliases["aih"],aliases["cns"],"SP_CNES","SP_ATOPROF","SP_PF_CBO","SP_QTD_ATO","SP_VALATO","IN_TP_VAL",aliases["admission"],aliases["discharge"]) if name and name in fieldinfo))
@@ -3227,10 +3317,14 @@ def tabulate(payload, progress=None):
         if not isinstance(item,dict): raise ValueError("A lista de arquivos é inválida.")
         source=safe_file(item.get("path","")); canonical_relative=source.relative_to(UPLOADS).as_posix(); system,kind,filename_match=meta(source); uf=filename_match.group("uf").upper(); dbf=safe_dbf(item.get("dbfPath") or converted_relative(canonical_relative),canonical_relative)
         if sources and (system,kind,uf)!=(sources[0]["system"],sources[0]["kind"],sources[0]["uf"]): raise ValueError("Todos os arquivos precisam pertencer à mesma família, tipo de base e unidade da Federação.")
-        sources.append({"source":source,"dbf":dbf,"system":system,"kind":kind,"uf":uf})
+        sources.append({"source":source,"dbf":dbf,"system":system,"kind":kind,"uf":uf,"year":2000+int(filename_match.group("yy")),"month":int(filename_match.group("mm"))})
     system,kind=sources[0]["system"],sources[0]["kind"]
     _,_,_,fieldinfo=dbf_layout(sources[0]["dbf"])
     fieldset=set(fieldinfo)
+    sigtap_field=next((name for name in ("PA_PROC_ID","PROC_REA","SP_ATOPROF") if name in fieldset),None)
+    if payload.get("sigtapFilters") and not sigtap_field:
+        raise ValueError("Esta base não possui um código de procedimento compatível com o filtro SIGTAP.")
+    sigtap_by_file={item["source"].name:_sigtap_procedure_filter(payload,item["year"],item["month"],fieldset,sigtap_field or "",item["dbf"]) for item in sources} if payload.get("sigtapFilters") else {}
     for item in sources[1:]:
         _,_,_,other=dbf_layout(item["dbf"])
         if set(other)!=fieldset or any((other[n]["type"],other[n]["length"],other[n]["decimals"])!=(v["type"],v["length"],v["decimals"]) for n,v in fieldinfo.items()):
@@ -3301,7 +3395,7 @@ def tabulate(payload, progress=None):
     suppress_rows=bool(payload.get("suppressRows",True)); suppress_columns=bool(payload.get("suppressColumns",True))
     save_records=bool(payload.get("saveRecords",False)); test_crc=bool(payload.get("testCrc",False))
     archive=UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip"
-    identity={"cacheVersion":8,"dbfs":[cache_file_identity(x["dbf"]) for x in sources],"definition":cache_file_identity(archive) if archive.is_file() else defname,"row":rowoption["id"],"columns":[item["id"] for item in column_options],"metrics":metrics,"municipalityCode":municipality,"municipalitySkipped":municipality_skipped,"filters":[[key,mode,sorted(values)] for key,state in filters.items() for mode,values in state.items()],"columnFilter":{"option":coloption["id"],"value":column_value} if column_value and coloption else None,"unclassified":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns}
+    identity={"cacheVersion":9,"dbfs":[cache_file_identity(x["dbf"]) for x in sources],"definition":cache_file_identity(archive) if archive.is_file() else defname,"row":rowoption["id"],"columns":[item["id"] for item in column_options],"metrics":metrics,"municipalityCode":municipality,"municipalitySkipped":municipality_skipped,"filters":[[key,mode,sorted(values)] for key,state in filters.items() for mode,values in state.items()],"sigtap":payload.get("sigtapFilters"),"sigtapVersions":[pair[1].get("sha256") for pair in sigtap_by_file.values()],"columnFilter":{"option":coloption["id"],"value":column_value} if column_value and coloption else None,"unclassified":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns}
     target=cache_target("tabulations",identity)
     if not save_records and not test_crc:
         cached=cache_read(target)
@@ -3320,12 +3414,14 @@ def tabulate(payload, progress=None):
     if progress: progress(5,"Lendo os registros")
     for item in sources:
         if test_crc: verify_dbc_against_dbf(item["source"],item["dbf"])
+        sigtap_filter,sigtap_source=sigtap_by_file.get(item["source"].name,(None,None))
         selected_indexes=[] if save_records else None
         processed_file=[0]
         def scan_update(file_processed,_file_total):
             if progress and total_to_scan:
                 progress(min(94,5+int(89*(processed+file_processed)/total_to_scan)),f"Lendo os registros · {processed+file_processed:,} de {total_to_scan:,}".replace(",","."))
-        for record_index,record in iter_dbf_fields(item["dbf"],names,with_index=True,pre_filter=(munfield,municipality) if usemun else None,processed_counter=processed_file,scan_callback=scan_update if progress else None):
+        prefilters=([(munfield,municipality)] if usemun else [])+([sigtap_filter] if sigtap_filter else [])
+        for record_index,record in iter_dbf_fields(item["dbf"],names,with_index=True,pre_filter=prefilters or None,processed_counter=processed_file,scan_callback=scan_update if progress else None):
             passed=True
             for index,condition in filter_indexes:
                 value=record[index]
@@ -3410,7 +3506,8 @@ def tabulate(payload, progress=None):
         total=None
     else:
         column_totals=[scaled_text(totals[0],metric_details[0]["decimals"])]; total=scaled_text(totals[0],metric_details[0]["decimals"])
-    result={"ok":True,"definition":defname,"uf":sources[0]["uf"],"rowDimension":{"id":rowoption["id"],"label":rowoption["label"],"field":rowfield},"column":coloption["id"] if coloption else None,"metrics":[{"id":m["id"],"label":m["label"]} for m in metric_details],"metric":metric_details[0]["label"] if len(metrics)==1 else f"{len(metrics)} incrementos","records":records,"processedRecords":processed,"excludedUnclassified":excluded_unclassified,"total":total,"totalsByMetric":[scaled_text(value,detail["decimals"]) for value,detail in zip(totals,metric_details)],"columnTotals":column_totals,"municipalityApplied":usemun,"municipalitySkipped":municipality_skipped,"municipalityCode":municipality or None,"municipalityName":municipality_name or None,"municipalityField":munfield if usemun else None,"appliedFilters":sum(len(state["include"])+len(state["exclude"]) for state in filters.values())+(1 if column_value else 0),"columns":display_columns,"columnDimensions":[{"id":item["id"],"label":item["label"],"field":item["field"]} for item in column_options],"filterOptions":result_filter_options,"availableColumns":[{"id":item["id"],"label":item["label"],"field":item["field"]} for item in cols],"additionalColumns":additional_ids,"rows":result_rows,"totalCategories":len(raw_rows),"truncated":len(raw_rows)>5000,"files":[x["source"].name for x in sources],"unclassifiedMode":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns,"crcTested":test_crc}
+    result={"ok":True,"definition":defname,"uf":sources[0]["uf"],"rowDimension":{"id":rowoption["id"],"label":rowoption["label"],"field":rowfield},"column":coloption["id"] if coloption else None,"metrics":[{"id":m["id"],"label":m["label"]} for m in metric_details],"metric":metric_details[0]["label"] if len(metrics)==1 else f"{len(metrics)} incrementos","records":records,"processedRecords":processed,"excludedUnclassified":excluded_unclassified,"total":total,"totalsByMetric":[scaled_text(value,detail["decimals"]) for value,detail in zip(totals,metric_details)],"columnTotals":column_totals,"municipalityApplied":usemun,"municipalitySkipped":municipality_skipped,"municipalityCode":municipality or None,"municipalityName":municipality_name or None,"municipalityField":munfield if usemun else None,"appliedFilters":sum(len(state["include"])+len(state["exclude"]) for state in filters.values())+(1 if column_value else 0)+len(payload.get("sigtapFilters") or {}),"columns":display_columns,"columnDimensions":[{"id":item["id"],"label":item["label"],"field":item["field"]} for item in column_options],"filterOptions":result_filter_options,"availableColumns":[{"id":item["id"],"label":item["label"],"field":item["field"]} for item in cols],"additionalColumns":additional_ids,"rows":result_rows,"totalCategories":len(raw_rows),"truncated":len(raw_rows)>5000,"files":[x["source"].name for x in sources],"unclassifiedMode":unclassified_mode,"suppressRows":suppress_rows,"suppressColumns":suppress_columns,"crcTested":test_crc}
+    if sigtap_by_file: result["sigtapSources"]=[status for _,status in sigtap_by_file.values()]
     if save_records:
         if progress: progress(97,"Salvando os registros selecionados")
         token=secrets.token_hex(16)

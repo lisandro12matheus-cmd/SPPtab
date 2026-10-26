@@ -36,6 +36,8 @@
   let pendingDraftColumnValue = '';
   let resultTabulationPayload = null;
   let resultExtraFilters = [];
+  const sigtapWidget = window.SPPtabSigtapWidget($('#tabularSigtap'), request, () => selected?.year && selected?.month ? `${selected.year}${String(selected.month).padStart(2, '0')}` : '');
+  $('#tabularSigtap').addEventListener('change', () => saveTabulationDraft());
 
   function updateTabLocationTag() {
     let saved = null;
@@ -584,6 +586,7 @@
       saveRecords: $('#saveRecords').checked,
       unclassified: document.querySelector('input[name="unclassified"]:checked')?.value || 'ignore',
       municipalityFilter: $('#municipalityFilter').checked,
+      sigtapFilters: sigtapWidget.getFilters(),
     };
   }
 
@@ -647,6 +650,7 @@
 
     const municipalityAvailable = Boolean(schema.municipalityField && currentLocationSelection());
     $('#municipalityFilter').checked = Boolean(options.municipalityFilter && municipalityAvailable);
+    sigtapWidget.setFilters(options.sigtapFilters);
     activeFilters = (Array.isArray(draft.filters) ? draft.filters : []).flatMap((filter) => {
       const definition = schema.selectionOptions.find((item) => item.id === filter.option);
       if (!definition || !String(filter.value ?? '')) return [];
@@ -769,6 +773,7 @@
       if (unclassified) unclassified.checked = true;
       const municipalityAvailable = Boolean(schema.municipalityField && currentLocationSelection());
       $('#municipalityFilter').checked = Boolean(options.municipalityFilter && municipalityAvailable);
+      sigtapWidget.setFilters(options.sigtapFilters);
       updateMetricRules();
       updateRunButton();
       try { localStorage.removeItem(PENDING_PRESET_KEY); } catch (_) {}
@@ -1137,6 +1142,8 @@
 
   async function applySchema(data, fromBrowserCache = false) {
     schema = data;
+    sigtapWidget.setEnabled(schema.fields.some((field) => ['PA_PROC_ID', 'PROC_REA', 'SP_ATOPROF'].includes(field.name)));
+    sigtapWidget.refresh();
     if (schema.dbfIdentity && selected) {
       Object.assign(selected, {
         dbf_path: schema.dbfIdentity.path,
@@ -1431,6 +1438,7 @@
         saveRecords: $('#saveRecords').checked,
         unclassified: document.querySelector('input[name="unclassified"]:checked')?.value || 'ignore',
         additionalColumns: [],
+        sigtapFilters: sigtapWidget.getFilters(),
       };
       const job = await request(resultTabulationPayload);
 

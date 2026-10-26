@@ -31,7 +31,12 @@
   const ACTIVE_FILE_KEY = 'spptab-active-file-v1';
   const stateNames = {AC:'Acre',AL:'Alagoas',AP:'Amapá',AM:'Amazonas',BA:'Bahia',CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',MA:'Maranhão',MT:'Mato Grosso',MS:'Mato Grosso do Sul',MG:'Minas Gerais',PA:'Pará',PB:'Paraíba',PR:'Paraná',PE:'Pernambuco',PI:'Piauí',RJ:'Rio de Janeiro',RN:'Rio Grande do Norte',RS:'Rio Grande do Sul',RO:'Rondônia',RR:'Roraima',SC:'Santa Catarina',SP:'São Paulo',SE:'Sergipe',TO:'Tocantins'};
   const LOCATION_KEY = 'spptab-location-v1';
+  const fileEntry = new URLSearchParams(window.location.search).get('etapa') === 'arquivos';
   let location = {uf:'', municipalityCode:'', municipalityName:''};
+  const appShell = document.querySelector('.app-shell');
+  function updateSidebarVisibility() {
+    appShell.classList.toggle('state-not-selected', !location.uf);
+  }
   let municipalityRequest = 0;
   let currentFiles = [];
   let busy = false;
@@ -163,6 +168,11 @@
     emptyCopy.textContent = copy;
   }
 
+  function setLookupLoading(title, copy) {
+    setEmpty(title, copy);
+    results.setAttribute('aria-busy', 'true');
+  }
+
   function showNotice(message, kind = 'info') {
     notice.className = `notice ${kind}`;
     notice.textContent = message;
@@ -283,6 +293,7 @@
     setSelectedMapState(uf);
     advanceButton.disabled = !uf;
     location = {uf, municipalityCode:'', municipalityName:''};
+    updateSidebarVisibility();
     try { localStorage.removeItem(LOCATION_KEY); } catch (_) {}
     updateLocationSummary();
     clearNotice();
@@ -325,8 +336,10 @@
     setSelectedMapState(saved.uf);
     advanceButton.disabled = false;
     location = {uf:saved.uf, municipalityCode:'', municipalityName:'Todo o estado'};
+    updateSidebarVisibility();
     updateLocationSummary();
     scheduleCompetencyPrefetch();
+    if (fileEntry) showFilesStep();
     await loadMunicipalities(saved.uf, saved.municipalityCode || 'all');
   }
 
@@ -335,12 +348,15 @@
     locationStep.hidden = true;
     filesStep.hidden = false;
     pageIntro.hidden = true;
+    document.querySelector('#pageBreadcrumb').textContent = 'Busca de arquivos';
+    document.querySelector('[data-nav="home"]').classList.remove('active');
+    document.querySelector('[data-nav="files"]').classList.add('active');
     document.querySelector('#progressLocation').classList.remove('active');
     document.querySelector('#progressLocation').classList.add('complete');
     document.querySelector('#progressLocation').removeAttribute('aria-current');
     document.querySelector('#progressFiles').classList.add('active');
     document.querySelector('#progressFiles').setAttribute('aria-current', 'step');
-    document.querySelector('#pageStepLabel').textContent = 'etapa 1 de 3 · arquivos';
+    document.querySelector('#pageStepLabel').textContent = 'busca de arquivos';
     loadCompetencies();
     filesStep.scrollIntoView({behavior:'smooth', block:'start'});
   }
@@ -353,13 +369,22 @@
     filesStep.hidden = true;
     locationStep.hidden = false;
     pageIntro.hidden = false;
+    document.querySelector('#pageBreadcrumb').textContent = fileEntry ? 'Busca de arquivos' : 'Início';
     document.querySelector('#progressLocation').classList.remove('complete');
     document.querySelector('#progressLocation').classList.add('active');
     document.querySelector('#progressLocation').setAttribute('aria-current', 'step');
     document.querySelector('#progressFiles').classList.remove('active');
     document.querySelector('#progressFiles').removeAttribute('aria-current');
-    document.querySelector('#pageStepLabel').textContent = 'etapa 1 de 3';
+    document.querySelector('#pageStepLabel').textContent = 'escolha da localidade';
     locationStep.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  function showReadyReports() {
+    if (!location.uf || busy) return;
+    const target = new URL('tabulacoes-prontas.php', window.location.href);
+    target.searchParams.set('uf', location.uf);
+    if (location.municipalityCode) target.searchParams.set('municipio', location.municipalityCode);
+    window.location.assign(target.href);
   }
 
   function filterMunicipalityOptions() {
@@ -389,11 +414,7 @@
     month.disabled = true;
     month.innerHTML = '<option value="">Buscando períodos…</option>';
     const base = requestedSystem === 'sia' ? 'ambulatorial' : 'hospitalar';
-    setLoading([
-      {title:'Indo ao DATASUS', copy:`Abrindo a consulta da base ${base} de ${stateLabel()} para ${year.value}.`},
-      {title:'Consultando as competências', copy:'Verificando quais meses já foram publicados na fonte oficial.'},
-      {title:'A consulta ainda está ativa', copy:'Aguarde mais um pouco. Assim que o DATASUS responder, mostraremos os períodos disponíveis.'}
-    ]);
+    setLookupLoading('Consultando competências', `Verificando os meses disponíveis da base ${base} para ${stateLabel()} em ${year.value}.`);
     try {
       const data = await fetchCompetencies(context, requestedSystem, requestedYear, requestedUf);
       if (requestId !== competenciesRequest || requestedUf !== location.uf) return;
@@ -411,7 +432,7 @@
         month.disabled = false;
         const selected = data.months.includes(Number(preferredMonth)) ? Number(preferredMonth) : data.months[data.months.length - 1];
         month.value = String(selected).padStart(2, '0');
-        await searchFiles();
+        await searchFiles({quiet:true});
       }
     } catch (error) {
       if (requestId !== competenciesRequest || requestedUf !== location.uf) return;
@@ -590,7 +611,7 @@
     return true;
   }
 
-  async function searchFiles() {
+  async function searchFiles(options = {}) {
     if (!month.value) return;
     const requestId = ++filesRequest;
     const requestedUf = location.uf;
@@ -600,11 +621,15 @@
     clearNotice();
     searchButton.disabled = true;
     const period = `${monthNames[Number(requestedMonth) - 1]} de ${requestedYear}`;
-    setLoading([
-      {title:'Consultando o DATASUS', copy:`Localizando os arquivos de ${period} para ${stateLabel()}.`},
-      {title:'Conferindo os arquivos', copy:'Verificando o que está disponível e o que já foi salvo neste computador.'},
-      {title:'A consulta ainda está ativa', copy:'Aguarde mais um pouco. A lista aparecerá assim que o DATASUS responder.'}
-    ]);
+    if (options.quiet === true) {
+      setLookupLoading('Localizando arquivos', `Consultando os arquivos de ${period} para ${stateLabel()}.`);
+    } else {
+      setLoading([
+        {title:'Consultando o DATASUS', copy:`Localizando os arquivos de ${period} para ${stateLabel()}.`},
+        {title:'Conferindo os arquivos', copy:'Verificando o que está disponível e o que já foi salvo neste computador.'},
+        {title:'A consulta ainda está ativa', copy:'Aguarde mais um pouco. A lista aparecerá assim que o DATASUS responder.'}
+      ]);
+    }
     try {
       const data = await request({action:'files', system:requestedSystem, year:requestedYear, month:Number(requestedMonth), uf:requestedUf});
       if (requestId !== filesRequest || requestedUf !== location.uf) return;
@@ -697,7 +722,13 @@
   }
 
   ufSelect.addEventListener('change', handleUfChange);
-  advanceButton.addEventListener('click', showFilesStep);
+  if (fileEntry) {
+    advanceButton.innerHTML = 'Avançar para os arquivos <span aria-hidden="true">→</span>';
+    document.querySelector('#nextStepTitle').textContent = 'Arquivos';
+    document.querySelector('#nextStepHint').textContent = 'Base e competência';
+    document.querySelector('#pageBreadcrumb').textContent = 'Busca de arquivos';
+  }
+  advanceButton.addEventListener('click', fileEntry ? showFilesStep : showReadyReports);
   changeStateButton.addEventListener('click', showLocationStep);
   municipalitySelect.addEventListener('change', handleMunicipalityChange);
   document.querySelector('#municipalitySearch').addEventListener('input', filterMunicipalityOptions);

@@ -1,0 +1,9 @@
+.sigtap-widget{margin:14px 0;padding:15px;border:1px solid #dce8f2;border-radius:10px;background:#f9fbff}
+.sigtap-widget .section-label{margin:0 0 11px}
+.sigtap-widget-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sigtap-widget-controls select,.sigtap-widget-controls input{min-width:170px;max-width:280px;height:36px;padding:0 9px;border:1px solid #d8e4ef;border-radius:7px;background:#fff;color:#28465e;font-size:11px}
+.sigtap-widget-controls input{flex:1}
+.sigtap-widget-controls button{height:36px}
+.sigtap-widget-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.sigtap-widget-chips button{padding:6px 9px;border:1px solid #c8dcf6;border-radius:20px;background:#eaf3ff;color:#2463a6;font-size:10px;cursor:pointer}
+.sigtap-widget-status{display:block;margin-top:8px;color:#7b8ea3;font-size:10px}

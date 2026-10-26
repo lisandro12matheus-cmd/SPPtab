@@ -51,7 +51,8 @@ $action = $payload['action'] ?? '';
 $tabulationActions = ['catalog', 'delete_file', 'schema', 'preset_list', 'preset_save', 'preset_get', 'preset_delete', 'column_values', 'category_values', 'predefined_filter_options', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status'];
 $dataActions = ['competencies', 'files', 'download', 'municipalities'];
 $preferenceActions = ['report_defaults_get', 'report_defaults_save', 'report_defaults_delete'];
-if (!in_array($action, [...$dataActions, ...$tabulationActions, ...$preferenceActions], true)) {
+$sigtapActions = ['sigtap_catalog', 'sigtap_zip_prepare', 'sigtap_search', 'sigtap_column_values', 'sigtap_options', 'sigtap_detail', 'sigtap_aggregates', 'sigtap_compare'];
+if (!in_array($action, [...$dataActions, ...$tabulationActions, ...$preferenceActions, ...$sigtapActions], true)) {
     respond(['ok' => false, 'error' => 'Ação não reconhecida.'], 400);
 }
 
@@ -123,7 +124,9 @@ if (in_array($action, $preferenceActions, true)) {
     }
 }
 
-if (in_array($action, $tabulationActions, true)) {
+if (in_array($action, $sigtapActions, true)) {
+    $payload['action'] = $action;
+} elseif (in_array($action, $tabulationActions, true)) {
     $payload['action'] = $action;
 } elseif ($action === 'municipalities') {
     $uf = strtoupper((string) ($payload['uf'] ?? ''));
@@ -172,7 +175,7 @@ if ($binary === '') {
 if ($binary === '' || !is_file($binary)) {
     respond(['ok' => false, 'error' => 'O Python do SPPtab não foi configurado. Informe o caminho confiável em TABWIN2_PYTHON ou no arquivo local uploads/.config/python-path.txt.'], 503);
 }
-$engine = in_array($action, $tabulationActions, true) ? 'tabulation.py' : 'datasus.py';
+$engine = in_array($action, $sigtapActions, true) ? 'sigtap.py' : (in_array($action, $tabulationActions, true) ? 'tabulation.py' : 'datasus.py');
 $script = __DIR__ . DIRECTORY_SEPARATOR . 'engine' . DIRECTORY_SEPARATOR . $engine;
 $stdoutPath = tempnam(sys_get_temp_dir(), 'spptab-out-');
 $stderrPath = tempnam(sys_get_temp_dir(), 'spptab-err-');

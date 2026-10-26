@@ -3,6 +3,11 @@
 
   const $ = (id) => document.getElementById(id);
   const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+  const sigtapWidget = window.SPPtabSigtapWidget($('reportSigtap'), api, () => {
+    const year = Number($('reportYear').value);
+    const month = [...$('reportMonth').selectedOptions].map(option => Number(option.value)).find(value => value >= 1 && value <= 12);
+    return year && month ? `${year}${String(month).padStart(2, '0')}` : '';
+  });
   const yearSelect = $('reportYear');
   const monthSelect = $('reportMonth');
   const monthPicker = $('reportMonthPicker');
@@ -173,6 +178,7 @@
   const linkedMunicipality = params.get('municipio') || (params.get('relatorio') === 'sia-pa-belem' ? '150140' : '');
   const linkedFilters = { municipalityCode:linkedMunicipality };
   for (const definition of Object.values(filterDefinitions)) linkedFilters[definition.field] = params.getAll(definition.queryKey);
+  linkedFilters.sigtapFilters = Object.fromEntries(['group','subgroup','form','complexity','financing','modality','registration','cbo','cid','service_class','habilitation','sex'].flatMap(key => params.get(`sg_${key}`) ? [[key,params.get(`sg_${key}`)]] : []));
 
   function normalizeSelectedValues(value) {
     const values = Array.isArray(value) ? value : value == null || value === '' ? [] : [value];
@@ -211,6 +217,7 @@
   function filtersFromParams(searchParams) {
     const preferred = { municipalityCode:searchParams.get('municipio') || (searchParams.get('relatorio') === 'sia-pa-belem' ? '150140' : '') };
     for (const definition of Object.values(filterDefinitions)) preferred[definition.field] = searchParams.getAll(definition.queryKey);
+    preferred.sigtapFilters = Object.fromEntries(['group','subgroup','form','complexity','financing','modality','registration','cbo','cid','service_class','habilitation','sex'].flatMap(key => searchParams.get(`sg_${key}`) ? [[key,searchParams.get(`sg_${key}`)]] : []));
     return preferred;
   }
 
@@ -326,7 +333,7 @@
     return true;
   }
   function selectedFilters() {
-    const filters = { uf:selectedUf(), municipalityCode:municipalitySelect.value || '', municipalityName:municipalitySelect.value ? selectedOptionText(municipalitySelect, '') : '' };
+    const filters = { uf:selectedUf(), municipalityCode:municipalitySelect.value || '', municipalityName:municipalitySelect.value ? selectedOptionText(municipalitySelect, '') : '', sigtapFilters:sigtapWidget.getFilters() };
     for (const definition of Object.values(filterDefinitions)) {
       filters[definition.field] = [];
       filters[definition.nameField] = [];
@@ -342,6 +349,7 @@
     }
     return filters;
   }
+  $('reportSigtap').addEventListener('change', updateScopeDescription);
 
   async function loadReportDefaults(reportId = activeReport.id) {
     if (reportDefaults.has(reportId)) return reportDefaults.get(reportId);
@@ -363,7 +371,7 @@
     const selected = selectedFilters();
     const filters = {};
     for (const definition of Object.values(filterDefinitions)) filters[definition.field] = selected[definition.field];
-    return { uf:selected.uf, municipalityCode:selected.municipalityCode, activeFilterTypes:[...activeFilterTypes], filters };
+    return { uf:selected.uf, municipalityCode:selected.municipalityCode, activeFilterTypes:[...activeFilterTypes], filters, sigtapFilters:selected.sigtapFilters };
   }
 
   function setupPreference() {
@@ -375,7 +383,7 @@
       uf:stateNames[saved.uf] ? saved.uf : selectedUf(),
       municipalityCode:String(saved.municipalityCode || ''),
       activeFilterTypes:(Array.isArray(saved.activeFilterTypes) ? saved.activeFilterTypes : []).filter((type) => filterDefinitions[type]),
-      filters
+      filters, sigtapFilters:saved.sigtapFilters || {}
     };
   }
 
@@ -417,6 +425,7 @@
     const saved = setupPreference();
     setUfOptions(saved?.uf || fallbackUf);
     activeFilterTypes = saved?.activeFilterTypes || [];
+    sigtapWidget.setFilters(saved?.sigtapFilters || {});
     return saved ? { municipalityCode:saved.municipalityCode, ...saved.filters } : (activeReport.defaultMunicipalityCode ? { municipalityCode:activeReport.defaultMunicipalityCode } : {});
   }
 
@@ -482,7 +491,7 @@
     if (!setupDialog.open) setupDialog.showModal();
     $('setupDefaultStatus').textContent = '';
     $('saveSetupDefault').disabled = true;
-    try { await prepareReportControls(preferred); }
+    try { await prepareReportControls(preferred); sigtapWidget.setFilters(preferred.sigtapFilters || {}); sigtapWidget.refresh(); }
     finally {
       $('saveSetupDefault').disabled = false;
       updateSetupDefaultControls();
@@ -1392,7 +1401,7 @@
 
   function resultKey(view, cnes, aih = '', months = activeMonths) {
     const filters = selectedFilters();
-    return JSON.stringify([activeReport.id, activeYear, [...months], filters.uf, filters.municipalityCode, ...Object.values(filterDefinitions).map((definition) => filters[definition.field]), view, cnes || '', aih || '']);
+    return JSON.stringify([activeReport.id, activeYear, [...months], filters.uf, filters.municipalityCode, ...Object.values(filterDefinitions).map((definition) => filters[definition.field]), filters.sigtapFilters, view, cnes || '', aih || '']);
   }
 
   function cachedResult(view, cnes, aih = '', months = activeMonths) {
@@ -1402,6 +1411,10 @@
   function routeUrl(view, cnes = '', aih = '', months = activeMonths) {
     const next = new URL(location.href);
     const filters = selectedFilters();
+    for (const key of ['group','subgroup','form','complexity','financing','modality','registration','cbo','cid','service_class','habilitation','sex']) {
+      next.searchParams.delete(`sg_${key}`);
+      if (filters.sigtapFilters[key]) next.searchParams.set(`sg_${key}`,filters.sigtapFilters[key]);
+    }
     next.searchParams.set('relatorio', activeReport.id);
     next.searchParams.set('ano', String(activeYear));
     next.searchParams.delete('mes');
@@ -1773,6 +1786,7 @@
       await loadReportDefaults(reportId);
       if (activeReport.id !== reportId) return;
       const preferred = applySetupPreference(preferredUf);
+      if (params.has('municipio')) preferred.municipalityCode = linkedMunicipality;
       await openReportSetup(preferred);
     };
     reportCard.addEventListener('click', activate);

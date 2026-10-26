@@ -141,7 +141,7 @@ if (-not $SkipSelfTests) {
     $vendorPath = Join-Path $AppFiles 'engine\vendor'
     $enginePath = Join-Path $AppFiles 'engine'
     $dataPathSmoke = Join-Path $BuildRoot 'data-path-selftest'
-    $pythonSmoke = "import os, sys, ftplib, json, zipfile; os.environ['TABWIN2_DATA_DIR']=r'$dataPathSmoke'; sys.path.insert(0, r'$vendorPath'); sys.path.insert(0, r'$enginePath'); import dbfread, dbctodbf, datasus, official_source, storage_lock, tabulation; assert datasus.library_folder('sia', 2026, 7) == 'uploads/SIA/2026/07'; print('python-ok')"
+    $pythonSmoke = "import os, sys, ftplib, json, zipfile; os.environ['TABWIN2_DATA_DIR']=r'$dataPathSmoke'; sys.path.insert(0, r'$vendorPath'); sys.path.insert(0, r'$enginePath'); import dbfread, dbctodbf, datasus, official_source, storage_lock, sigtap, tabulation; assert datasus.library_folder('sia', 2026, 7) == 'uploads/SIA/2026/07'; print('python-ok')"
     $pythonTest = & $embeddedPython -c $pythonSmoke
     if ($LASTEXITCODE -ne 0 -or $pythonTest -notmatch 'python-ok') { throw 'O Python portátil ou as bibliotecas DBF não passaram pela verificação.' }
 }
@@ -176,7 +176,7 @@ try {
 finally {
     $archive.Dispose()
 }
-$requiredEntries = @('SPPtab.exe', 'VERSION.txt', 'runtime/php/php.exe', 'runtime/php/php.ini', 'runtime/python/python.exe', 'app/api.php', 'app/security.php', 'app/engine/storage_lock.py', 'app/bases.php', 'app/tabular.php', 'app/pacotes.php', 'app/minhas-tabulacoes.php', 'app/tabulacoes-prontas.php', 'app/assets/presets.css', 'app/assets/saved-tabulations.js', 'app/assets/tabulations-nav.js', 'app/assets/predefined-report.css', 'app/assets/predefined-report.js', 'app/assets/compact-headings.css', 'app/packaging/router.php')
+$requiredEntries = @('SPPtab.exe', 'VERSION.txt', 'runtime/php/php.exe', 'runtime/php/php.ini', 'runtime/python/python.exe', 'app/api.php', 'app/security.php', 'app/engine/storage_lock.py', 'app/engine/sigtap.py', 'app/bases.php', 'app/tabular.php', 'app/pacotes.php', 'app/minhas-tabulacoes.php', 'app/tabulacoes-prontas.php', 'app/sigtap.php', 'app/sigtap-zip.php', 'app/assets/presets.css', 'app/assets/saved-tabulations.js', 'app/assets/tabulations-nav.js', 'app/assets/predefined-report.css', 'app/assets/predefined-report.js', 'app/assets/sigtap.css', 'app/assets/sigtap.js', 'app/assets/sigtap-filter-widget.css', 'app/assets/sigtap-filter-widget.js', 'app/assets/compact-headings.css', 'app/packaging/router.php')
 $archiveCheck = [IO.Compression.ZipFile]::OpenRead($PayloadZip)
 try {
     $actualEntries = @($archiveCheck.Entries | ForEach-Object { $_.FullName })
@@ -204,7 +204,7 @@ finally {
 $portableCheck = [IO.Compression.ZipFile]::OpenRead($PortableOutput)
 try {
     $portableEntries = @($portableCheck.Entries | ForEach-Object { $_.FullName })
-    foreach ($entry in @('SPPtab/SPPtab.exe', 'SPPtab/VERSION.txt', 'SPPtab/runtime/php/php.exe', 'SPPtab/runtime/python/python.exe', 'SPPtab/app/index.php', 'SPPtab/app/security.php', 'SPPtab/app/engine/storage_lock.py', 'SPPtab/app/bases.php', 'SPPtab/app/tabular.php', 'SPPtab/app/pacotes.php', 'SPPtab/app/minhas-tabulacoes.php', 'SPPtab/app/tabulacoes-prontas.php', 'SPPtab/app/assets/app.css', 'SPPtab/app/assets/presets.css', 'SPPtab/app/assets/saved-tabulations.js', 'SPPtab/app/assets/tabulations-nav.js', 'SPPtab/app/assets/predefined-report.css', 'SPPtab/app/assets/predefined-report.js', 'SPPtab/app/assets/compact-headings.css', 'SPPtab/LEIA-ME.txt')) {
+    foreach ($entry in @('SPPtab/SPPtab.exe', 'SPPtab/VERSION.txt', 'SPPtab/runtime/php/php.exe', 'SPPtab/runtime/python/python.exe', 'SPPtab/app/index.php', 'SPPtab/app/security.php', 'SPPtab/app/engine/storage_lock.py', 'SPPtab/app/engine/sigtap.py', 'SPPtab/app/bases.php', 'SPPtab/app/tabular.php', 'SPPtab/app/pacotes.php', 'SPPtab/app/minhas-tabulacoes.php', 'SPPtab/app/tabulacoes-prontas.php', 'SPPtab/app/sigtap.php', 'SPPtab/app/sigtap-zip.php', 'SPPtab/app/assets/app.css', 'SPPtab/app/assets/presets.css', 'SPPtab/app/assets/saved-tabulations.js', 'SPPtab/app/assets/tabulations-nav.js', 'SPPtab/app/assets/predefined-report.css', 'SPPtab/app/assets/predefined-report.js', 'SPPtab/app/assets/sigtap.css', 'SPPtab/app/assets/sigtap.js', 'SPPtab/app/assets/sigtap-filter-widget.css', 'SPPtab/app/assets/sigtap-filter-widget.js', 'SPPtab/app/assets/compact-headings.css', 'SPPtab/LEIA-ME.txt')) {
         if ($portableEntries -notcontains $entry) { throw "A pasta portátil não contém o componente obrigatório: $entry" }
     }
 }

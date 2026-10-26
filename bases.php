@@ -10,7 +10,15 @@
     <aside class="sidebar">
       <a class="brand" href="./" aria-label="SPPtab, início"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span><span><strong>SPPtab</strong><small>saúde em dados</small></span></a>
       <div class="nav-label">ESPAÇO DE TRABALHO</div>
-      <nav aria-label="Navegação principal"><a class="nav-item" href="index.php"><span class="nav-icon">⌕</span>Buscar arquivos</a><a class="nav-item active" href="bases.php" aria-current="page"><span class="nav-icon">▦</span>Minhas bases</a><a class="nav-item" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a><a class="nav-item" href="tabulacoes-prontas.php"><span class="nav-icon">▧</span>Tabulações prontas</a><a class="nav-item" id="savedTabulationsNav" href="minhas-tabulacoes.php" hidden><span class="nav-icon">▧</span>Minhas Tabulações</a></nav>
+      <nav aria-label="Navegação principal">
+        <a class="nav-item" data-nav="home" href="index.php"><span class="nav-icon">⌂</span>Início · mapa</a>
+        <a class="nav-item" data-nav="ready" href="tabulacoes-prontas.php"><span class="nav-icon">▧</span>Tabulações prontas</a>
+        <a class="nav-item" data-nav="files" href="index.php?etapa=arquivos"><span class="nav-icon">⌕</span>Buscar arquivos</a>
+        <a class="nav-item active" data-nav="bases" href="bases.php" aria-current="page"><span class="nav-icon">▦</span>Minhas bases</a>
+        <a class="nav-item" data-nav="tabular" href="tabular.php"><span class="nav-icon">▤</span>Tabular dados</a>
+        <a class="nav-item" data-nav="sigtap" href="sigtap.php"><span class="nav-icon">▦</span>Explorar SIGTAP</a>
+        <a class="nav-item" data-nav="saved" href="minhas-tabulacoes.php" id="savedTabulationsNav" hidden><span class="nav-icon">▧</span>Minhas Tabulações</a>
+      </nav>
       <div class="sidebar-foot"><span class="source-dot"></span><div><strong>Biblioteca local</strong><small>Arquivos deste computador</small></div><span class="sidebar-version">v<?= htmlspecialchars(tabwin2_app_version(), ENT_QUOTES, 'UTF-8') ?></span></div>
     </aside>
     <main class="main-content bases-main">

@@ -201,6 +201,23 @@ function tabwin2_api_guard(int $maxBytes = 1048576): string
 function tabwin2_validate_api_payload(array $payload): void
 {
     $action = $payload['action'] ?? '';
+    if (is_string($action) && str_starts_with($action, 'sigtap_')) {
+        foreach (['competence', 'before', 'after'] as $key) {
+            if (!isset($payload[$key])) continue;
+            if (!is_string($payload[$key]) || !preg_match('/\A20\d{4}\z/D', $payload[$key]) || (int) substr($payload[$key], 4, 2) < 1 || (int) substr($payload[$key], 4, 2) > 12) {
+                http_response_code(400);
+                throw new RuntimeException('Competência SIGTAP inválida.');
+            }
+        }
+        if ($action !== 'sigtap_catalog' && $action !== 'sigtap_compare' && !isset($payload['competence'])) {
+            http_response_code(400);
+            throw new RuntimeException('Escolha uma competência SIGTAP.');
+        }
+        if (isset($payload['filters']) && (!is_array($payload['filters']) || count($payload['filters']) > 20)) {
+            http_response_code(400);
+            throw new RuntimeException('Filtros SIGTAP inválidos.');
+        }
+    }
     $pathActions = ['schema', 'delete_file', 'preset_list', 'preset_save', 'preset_get', 'preset_delete', 'convert_start'];
     if (in_array($action, $pathActions, true) && (!isset($payload['path']) || !is_string($payload['path']) || $payload['path'] === '' || strlen($payload['path']) > 600)) {
         http_response_code(400);

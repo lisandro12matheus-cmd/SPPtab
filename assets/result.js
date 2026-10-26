@@ -724,6 +724,19 @@
     if (data.municipalityApplied) parts.push(`atendimento em ${data.municipalityName || 'município selecionado'}`);
     if (data.municipalitySkipped) parts.push('filtro municipal indisponível nesta base; resultado considera todos os registros da base');
     if (data.excludedUnclassified) parts.push(`${fmt(data.excludedUnclassified)} não classificados ignorados`);
+    if (data.sigtapSources?.length) {
+      const months = [...new Set(data.sigtapSources.map(item => `${item.competence.slice(4,6)}/${item.competence.slice(0,4)}`))];
+      parts.push(`SIGTAP da${months.length === 1 ? '' : 's'} competência${months.length === 1 ? '' : 's'} ${months.join(', ')}`);
+      const warnings = data.sigtapSources.map(item => item.warning).filter(Boolean);
+      if (warnings.length) parts.push('fonte oficial indisponível; usado o último SIGTAP local válido');
+      const unmatched = data.sigtapSources.filter(item => item.unmatched);
+      if (unmatched.length) {
+        const missing = unmatched.filter(item => item.unmatched.count);
+        parts.push(missing.length
+          ? `Sem correspondência no SIGTAP: ${missing.map(item => `${item.unmatchedSource || 'base'} (${item.unmatched.count} códigos: ${item.unmatched.codes.join(', ')}${item.unmatched.truncated ? '…' : ''})`).join('; ')}`
+          : 'Todos os códigos de procedimento têm correspondência no SIGTAP');
+      }
+    }
     $('#resultSummary').textContent = parts.join(' · ');
 
     const badges = $('#resultBadges');

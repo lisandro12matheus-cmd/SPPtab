@@ -3,6 +3,11 @@
 
   const splash = document.getElementById('launchSplash');
   if (!splash) return;
+  if (document.documentElement.classList.contains('skip-launch-splash')) {
+    splash.remove();
+    return;
+  }
+  try { sessionStorage.setItem('spptab-launch-shown', '1'); } catch (_) {}
 
   const message = document.getElementById('launchMessage');
   const messages = ['Carregando recursos', 'Ajustando caminhos', 'Preparando seus dados', 'Quase pronto'];
