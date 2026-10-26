@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>Tabulações prontas · SPPtab</title>
-      <link rel="stylesheet" href="assets/app.css?v=15"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=23"><link rel="stylesheet" href="assets/compact-headings.css?v=1"><link rel="stylesheet" href="assets/sigtap-filter-widget.css?v=1">
+      <link rel="stylesheet" href="assets/app.css?v=15"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=24"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
 </head>
 <body>
   <div class="app-shell">
@@ -26,7 +26,7 @@
       <section class="intro predefined-report-intro"><div class="eyebrow"><span class="eyebrow-line"></span> <span id="predefinedIntroLabel">RELATÓRIOS PRÉ-DEFINIDOS</span></div><h1 id="predefinedIntroTitle">Tabulações prontas para consultar.</h1><p id="predefinedIntroDescription">Escolha um relatório e informe a competência. Novas tabulações serão adicionadas a esta área.</p></section>
 
       <section class="predefined-catalog" id="predefinedCatalog" aria-labelledby="catalogTitle">
-        <div class="catalog-heading"><div><h2 id="catalogTitle">Disponíveis</h2><p>Relatórios preparados para abrir direto na análise.</p></div><span class="catalog-count">5 tabulações</span></div>
+        <div class="catalog-heading"><div><h2 id="catalogTitle">Disponíveis</h2><p>Relatórios preparados para abrir direto na análise.</p></div><span class="catalog-count">6 tabulações</span></div>
         <div class="predefined-card-grid">
           <article class="predefined-card" data-report="sia-pa-producao" role="button" tabindex="0" aria-label="Abrir tabulação: Produção ambulatorial por estabelecimento">
             <div class="predefined-card-top"><span class="predefined-card-icon" aria-hidden="true"><span class="tile-motif"><i></i><i></i><i></i><i></i><i></i></span></span><span class="predefined-card-status"><i></i> Disponível</span></div>
@@ -57,6 +57,12 @@
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">SIH/SUS <span>·</span> OCUPAÇÃO DE LEITOS</div><h3>Ocupação de leitos por estabelecimento</h3><p>Leitos SUS do CNES, AIHs processadas e rejeitadas, diárias, ocupação e produção profissional por AIH.</p></div>
             <div class="predefined-card-tags"><span>UF e município</span><span>Por competência</span><span>AIH · CNES · SP</span></div>
             <div class="predefined-card-footer"><span>Leitos · diárias · AIHs</span><span class="button button-primary" aria-hidden="true">Abrir tabulação <span>→</span></span></div>
+          </article>
+          <article class="predefined-card" data-report="sih-rd-fluxo" role="button" tabindex="0" aria-label="Abrir tabulação: Fluxo de internações por origem e destino">
+            <div class="predefined-card-top"><span class="predefined-card-icon" aria-hidden="true"><span class="tile-motif"><i></i><i></i><i></i><i></i><i></i></span></span><span class="predefined-card-status"><i></i> Disponível</span></div>
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">SIH/SUS <span>·</span> FLUXO DE INTERNAÇÕES</div><h3>Origem e destino das internações</h3><p>Veja de quais municípios vêm as AIHs e em quais hospitais e municípios de internação elas são registradas.</p></div>
+            <div class="predefined-card-tags"><span>Município de residência</span><span>Município e hospital de destino</span><span>AIHs · valores</span></div>
+            <div class="predefined-card-footer"><span>Origem → destino</span><span class="button button-primary" aria-hidden="true">Abrir tabulação <span>→</span></span></div>
           </article>
         </div>
         <p class="catalog-footnote"><span aria-hidden="true">▦</span> Mais relatórios prontos serão incluídos aqui.</p>
@@ -95,11 +101,10 @@
       <div class="setup-dialog-header"><span class="report-mark" aria-hidden="true"><span class="tile-motif"><i></i><i></i><i></i><i></i><i></i></span></span><div><div class="eyebrow"><span class="eyebrow-line"></span> RECORTE DA CONSULTA</div><h2 id="reportSetupTitle">Produção ambulatorial por estabelecimento</h2><p id="reportSetupDescription">Escolha a origem e a competência. Os filtros adicionais são opcionais.</p></div><button class="setup-dialog-close" id="closeReportSetup" type="button" aria-label="Fechar">×</button></div>
       <div class="setup-section"><div class="setup-section-heading"><strong>Local e período</strong><span>A UF define qual arquivo estadual será consultado.</span></div><div class="setup-primary-grid"><label class="field"><span>ESTADO (UF)</span><select id="reportUf" aria-label="Estado de origem dos dados"></select></label><label class="field"><span id="reportMunicipalityLabel">MUNICÍPIO <small>opcional</small></span><select id="reportMunicipality"><option value="">Todos os municípios</option></select></label><label class="field"><span>ANO</span><select id="reportYear" disabled><option value="">Carregando…</option></select></label><div class="field setup-competency-field"><span id="reportMonthLabel">COMPETÊNCIA <small>uma por vez; várias se já baixadas</small></span><select class="setup-month-source" id="reportMonth" multiple hidden aria-hidden="true" tabindex="-1"><option value="">Consultando DATASUS…</option></select><div class="setup-competency-picker" id="reportMonthPicker"><button class="setup-competency-trigger" id="reportMonthTrigger" type="button" aria-expanded="false" aria-controls="reportMonthMenu" aria-labelledby="reportMonthLabel reportMonthTriggerText" disabled><span id="reportMonthTriggerText">Consultando DATASUS…</span><span class="setup-competency-chevron" aria-hidden="true"></span></button><div class="setup-competency-menu" id="reportMonthMenu" role="group" aria-label="Selecionar competências" hidden><div class="setup-competency-menu-head"><span id="reportMonthCount">Nenhuma competência selecionada</span><div><button type="button" id="clearReportMonths">Limpar</button></div></div><div class="setup-competency-options" id="reportMonthOptions"></div></div></div><small class="setup-competency-help">Vários meses só com bases já baixadas. Uma competência pode ser buscada no DATASUS ao abrir.</small></div></div></div>
       <div class="setup-section setup-optional-section"><div class="setup-section-heading"><strong>Filtros adicionais <span>opcionais</span></strong><span>Adicione apenas os critérios que deseja aplicar.</span></div><label class="field setup-add-filter-field"><span>ADICIONAR UM FILTRO</span><select id="addReportFilter"><option value="">Adicionar filtro opcional…</option></select></label><div class="setup-filter-rows" id="reportAdditionalFilters"></div><p class="report-filter-note" id="reportFilterNote">O município e os demais filtros valem para toda a consulta. Use Ctrl no Windows ou Command no Mac para marcar várias categorias no mesmo filtro. Sem seleção, todas são consideradas; filtros diferentes são combinados.</p></div>
-      <div class="sigtap-widget" id="reportSigtap"></div>
       <div class="report-availability setup-availability" id="reportAvailability" role="status">Localizando competências disponíveis…</div>
       <div class="setup-dialog-footer"><div class="setup-default-actions"><button type="button" id="saveSetupDefault">Salvar filtros como padrão</button><button type="button" id="clearSetupDefault" hidden>Remover padrão</button><span id="setupDefaultStatus" role="status"></span></div><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/sigtap-filter-widget.js?v=2" defer></script><script src="assets/predefined-report.js?v=38" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=39" defer></script>
 </body>
 </html>

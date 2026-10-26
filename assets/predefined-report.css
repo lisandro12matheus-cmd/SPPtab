@@ -290,3 +290,14 @@
 .report-table-pagination button:disabled{opacity:.45;cursor:default}
 @media(max-width:600px){.report-table-pagination{flex-wrap:wrap}.report-table-pagination label{margin-left:0}.report-table-pagination>div{margin-left:auto}.report-column-filter-menu{max-height:calc(100vh - 20px)}}
 @media(max-width:760px){.report-table-toolbar-side{width:100%;justify-content:space-between;flex-wrap:wrap}.report-table-hint{text-align:left}.setup-default-actions{flex-basis:100%}.setup-dialog-footer{justify-content:flex-end}}
+.report-result.is-flow-report .report-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+.report-result.is-flow-report .report-table{min-width:1390px}
+.report-result.is-flow-report .report-table th:nth-child(1){min-width:225px}
+.report-result.is-flow-report .report-table th:nth-child(2){min-width:130px}
+.report-result.is-flow-report .report-table th:nth-child(3){min-width:225px}
+.report-result.is-flow-report .report-table th:nth-child(4){min-width:290px}
+.report-result.is-flow-report .report-table th:nth-child(5){min-width:210px}
+.report-result.is-flow-report .report-table th:nth-child(6),.report-result.is-flow-report .report-table th:nth-child(7){min-width:145px}
+.report-result.is-flow-report .report-table th:nth-child(8){min-width:120px}
+.report-result.is-flow-report .report-table td:nth-child(1),.report-result.is-flow-report .report-table td:nth-child(2),.report-result.is-flow-report .report-table td:nth-child(3),.report-result.is-flow-report .report-table td:nth-child(4),.report-result.is-flow-report .report-table td:nth-child(5){text-align:left;white-space:normal}
+@media(max-width:760px){.report-result.is-flow-report .report-kpis{grid-template-columns:1fr 1fr}.report-result.is-flow-report .report-kpi:last-child{grid-column:auto}}

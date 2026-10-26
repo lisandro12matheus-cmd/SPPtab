@@ -1263,6 +1263,8 @@ def predefined_filter_options(payload: dict[str,Any]):
         return predefined_sih_filter_options(payload)
     if payload.get("report")=="sih-rd-rejeicoes":
         return predefined_sih_filter_options(payload)
+    if payload.get("report")=="sih-rd-fluxo":
+        return predefined_sih_filter_options(payload)
     if payload.get("report")=="sih-rd-ocupacao":
         return predefined_sih_occupancy_filter_options(payload)
     if payload.get("report")=="sih-sp-profissionais":
@@ -1833,6 +1835,161 @@ def predefined_sih_rd_production(payload: dict[str,Any], progress=None):
     _attach_sigtap_source(result,sigtap_source)
     if progress: progress(97,"Finalizando totais e descrições oficiais")
     cache_write(target,result,max_bytes=25_000_000,keep=30)
+    return result
+
+def predefined_sih_admission_flow(payload: dict[str,Any], progress=None):
+    """Aggregate processed SIH/RD admissions by residence, destination and hospital."""
+    if progress: progress(2,"Conferindo a base de AIHs processadas")
+    source=safe_file(payload.get("path",""))
+    relative=source.relative_to(UPLOADS).as_posix()
+    system,kind,filename_match=meta(source)
+    uf=str(payload.get("uf") or "PA").strip().upper()
+    if uf not in PREDEFINED_UF_CODES:
+        raise ValueError("Selecione uma unidade da Federação válida.")
+    if system!="SIH" or kind!="RD" or filename_match.group("uf").upper()!=uf:
+        raise ValueError(f"Selecione um arquivo de AIH reduzida (RD) de {uf}.")
+    dbf=safe_dbf(str(payload.get("dbfPath") or converted_relative(relative)),relative)
+    municipality=str(payload.get("municipalityCode") or "").strip()
+    if municipality and (not municipality.isdigit() or len(municipality)!=6 or municipality[:2]!=PREDEFINED_UF_CODES[uf]):
+        raise ValueError("O município de internação selecionado não pertence à unidade da Federação escolhida.")
+
+    total_records,_,_,fieldinfo=dbf_layout(dbf)
+    archive=UPLOADS/"DEFINICOES"/"originais"/"TAB_SIH.zip"
+    _,definition=archive_def("SIH","RD")
+    if definition is None:
+        raise RuntimeError("A definição oficial de AIH reduzida não está disponível.")
+    options=_report_definition_options(definition)
+    def exact_option(field,relation):
+        return next((item for item in options if item.get("field")==field and item.get("relation","").lower()==relation.lower()),None)
+    cnes_relation=f"TCNES{uf}.DBF"
+    cnes_option=next((item for item in options if item.get("field")=="CNES" and PurePosixPath(item.get("relation","").replace("\\","/")).name.lower()==cnes_relation.lower()),None)
+    residence_option=exact_option("MUNIC_RES","CNV/br_municip.cnv")
+    destination_option=exact_option("MUNIC_MOV","CNV/br_municip.cnv")
+    if not cnes_option or not residence_option or not destination_option:
+        raise RuntimeError("A definição oficial do SIH não contém as referências de município de residência, município de internação e CNES necessárias ao fluxo.")
+
+    selected_filter_codes={}
+    selected_filter_names={}
+    for spec in PREDEFINED_SIH_FILTER_SPECS:
+        raw_values=payload.get(spec["field"]) or []
+        if not raw_values: continue
+        option=exact_option(spec["field"],spec["relation"])
+        if not option:
+            raise ValueError(f"O filtro {spec['label'].lower()} não existe na definição oficial desta base.")
+        mapping=relation_mapping("SIH",option)
+        codes=_report_expand_filter_values(raw_values,spec,mapping)
+        if codes:
+            selected_filter_codes[spec["field"]]=codes
+            selected_filter_names[spec["key"]]=sorted({_report_label(cnv_label(mapping,code)) for code in codes if cnv_label(mapping,code)})
+
+    required={"CNES","N_AIH","MUNIC_RES","MUNIC_MOV","VAL_TOT",*selected_filter_codes}
+    missing=sorted(required-fieldinfo.keys())
+    if missing:
+        raise ValueError("Esta competência não contém os campos necessários ao fluxo de internações: "+", ".join(missing))
+
+    if progress: progress(6,"Carregando nomes de estabelecimentos e municípios")
+    cnes_labels=_report_relation_index(relation_mapping("SIH",cnes_option),7)
+    municipality_mapping=relation_mapping("SIH",residence_option)
+    municipality_labels=_report_relation_index(municipality_mapping,6)
+    filters=[]
+    if municipality: filters.append(("MUNIC_MOV",municipality))
+    filters.extend(selected_filter_codes.items())
+    filter_summary=[]
+    for spec in PREDEFINED_SIH_FILTER_SPECS:
+        names=selected_filter_names.get(spec["key"],[])
+        if names:
+            value=", ".join(names[:3])+(f" e mais {len(names)-3}" if len(names)>3 else "")
+            filter_summary.append({"label":spec["label"],"value":value})
+    municipality_name=str(payload.get("municipalityName") or "").strip()[:80] if municipality else "Todos os municípios"
+    identity={"report":"sih-rd-admission-flow-v1","source":cache_file_identity(source),"dbf":cache_file_identity(dbf),"definition":cache_file_identity(archive),"uf":uf,"municipality":municipality,"filters":selected_filter_codes}
+    target=cache_target("predefined-reports",identity)
+    cached=cache_read(target)
+    if isinstance(cached,dict) and cached.get("ok") is True:
+        if progress: progress(98,"Abrindo o fluxo salvo neste computador")
+        return cached
+
+    decimals=int(fieldinfo["VAL_TOT"]["decimals"])
+    names=["CNES","N_AIH","MUNIC_RES","MUNIC_MOV","VAL_TOT",*selected_filter_codes]
+    names=list(dict.fromkeys(names))
+    positions={name:index for index,name in enumerate(names)}
+    flow=defaultdict(lambda:{"count":0,"value":0})
+    seen_aihs=set()
+    processed=[0]
+    scope=municipality_name if municipality else PREDEFINED_UF_NAMES[uf]
+    def scan_progress(done,_total):
+        if progress and total_records:
+            percent=min(94,10+int(84*done/total_records))
+            progress(percent,f"Lendo AIHs processadas · {done:,} de {total_records:,} · {scope}".replace(",","."))
+    for _,record in iter_dbf_fields(dbf,names,with_index=True,pre_filter=filters or None,processed_counter=processed,scan_callback=scan_progress if progress else None):
+        cnes=_report_code(record[positions["CNES"]],7)
+        aih=re.sub(r"\D","",str(record[positions["N_AIH"]] or ""))
+        residence=_report_code(record[positions["MUNIC_RES"]],6)
+        destination=_report_code(record[positions["MUNIC_MOV"]],6)
+        if not cnes or not aih or not destination or (municipality and destination!=municipality): continue
+        unique_key=(cnes,aih)
+        if unique_key in seen_aihs: continue
+        seen_aihs.add(unique_key)
+        key=(residence,destination,cnes)
+        row=flow[key]
+        row["count"]+=1
+        row["value"]+=scaled_integer(record[positions["VAL_TOT"]],decimals)
+
+    def city_name(code):
+        if not code: return "Município de residência não informado"
+        label=_report_label(cnv_label(municipality_mapping,code) or municipality_labels.get(code) or "")
+        label=re.sub(rf"^{re.escape(code)}\s*(?:[·–—:-]\s*)?","",label).strip()
+        if "IGNORADO" in label.upper() or "EXTERIOR" in label.upper(): return "Ignorado ou exterior"
+        if not label or label==code: return f"Município {code}"
+        return label
+    uf_by_code={code:state for state,code in PREDEFINED_UF_CODES.items()}
+    def flow_type(residence,destination):
+        label=city_name(residence).upper()
+        if not residence or residence in {"000000","999999"} or "IGNORADO" in label or "EXTERIOR" in label or "NÃO INFORMADO" in label:
+            return "Residência ignorada ou exterior",False
+        if residence==destination:
+            return "Do próprio município",False
+        origin_state=uf_by_code.get(residence[:2])
+        if residence[:2]==PREDEFINED_UF_CODES[uf]:
+            return f"De outro município · {uf}",True
+        if origin_state:
+            return f"De outro estado · {origin_state}",True
+        return "Origem não classificada",False
+
+    total_aihs=sum(item["count"] for item in flow.values())
+    total_value=sum(item["value"] for item in flow.values())
+    rows=[]
+    for (residence,destination,cnes),values in flow.items():
+        destination_label=city_name(destination)
+        origin_label=city_name(residence)
+        category,outside=flow_type(residence,destination)
+        share_tenths=(values["count"]*1000+total_aihs//2)//total_aihs if total_aihs else 0
+        rows.append({
+            "origin":origin_label,"originCode":residence or "","originState":uf_by_code.get(residence[:2],""),"originStateName":PREDEFINED_UF_NAMES.get(uf_by_code.get(residence[:2],""),""),
+            "destination":destination_label,"destinationCode":destination,"destinationState":uf_by_code.get(destination[:2],uf),
+            "establishment":_report_label(cnes_labels.get(cnes) or f"CNES {cnes}"),"cnes":cnes,
+            "flowType":category,"outsideDestination":outside,
+            "aihCount":str(values["count"]),"totalValue":scaled_text(values["value"],decimals),
+            "share":scaled_text(share_tenths,1),
+        })
+    rows.sort(key=lambda row:(-int(row["aihCount"]),row["origin"].casefold(),row["destination"].casefold(),row["establishment"].casefold()))
+    metrics=[{"id":"aihCount","label":"AIHs processadas","decimals":0},{"id":"totalValue","label":"Valor total AIH","decimals":decimals}]
+    columns=[
+        {"id":"origin","label":"Município de residência","kind":"primary","primaryField":"origin","secondaryField":"originCode","secondaryPrefix":"Código ","type":"text","sortField":"origin","filterFields":["origin","originCode","originState"]},
+        {"id":"originState","label":"UF de residência","field":"originStateName","type":"text","sortField":"originStateName"},
+        {"id":"destination","label":"Município da internação","kind":"primary","primaryField":"destination","secondaryField":"destinationCode","type":"text","sortField":"destination","filterFields":["destination","destinationCode","destinationState"]},
+        {"id":"establishment","label":"Estabelecimento de destino","kind":"primary","primaryField":"establishment","secondaryField":"cnes","secondaryPrefix":"CNES ","type":"text","sortField":"establishment","filterFields":["establishment","cnes"]},
+        {"id":"flowType","label":"Tipo de fluxo","field":"flowType","type":"text","sortField":"flowType"},
+        {"id":"aihCount","label":"AIHs","field":"aihCount","type":"number","metricId":"aihCount","decimals":0},
+        {"id":"totalValue","label":"Valor total das AIHs","field":"totalValue","type":"currency","metricId":"totalValue","decimals":decimals},
+        {"id":"share","label":"Participação","field":"share","type":"percent","decimals":1,"sortField":"share"},
+    ]
+    result={"ok":True,"report":"sih-rd-fluxo","view":"summary","flatTable":True,"file":source.name,"path":relative,"year":2000+int(filename_match.group("yy")),"month":int(filename_match.group("mm")),"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality or None,"filters":filter_summary,"columns":columns,"metrics":metrics,"totals":[scaled_text(total_aihs,0),scaled_text(total_value,decimals)],"records":total_aihs,"rows":rows,"notes":[
+        "Fonte: arquivo SIH/RD e definição oficial do TabWin. MUNIC_RES identifica o município informado como residência; MUNIC_MOV identifica o município de internação; os nomes dos hospitais vêm da relação oficial do CNES usada pelo SIH.",
+        "A unidade de contagem é a AIH processada, não a pessoa. Uma pessoa pode ter mais de uma AIH, e internações prolongadas podem aparecer em competências sucessivas.",
+        "O código de residência 000000 é descrito pela relação do DATASUS como 'ignorado ou exterior'; a base não permite separar esses dois casos.",
+    ],"cachedAt":time.time()}
+    cache_write(target,result,max_bytes=50_000_000,keep=30)
+    if progress: progress(97,"Concluindo o fluxo de internações")
     return result
 
 def predefined_sih_rd_rejections(payload: dict[str,Any], progress=None):
@@ -3303,6 +3460,8 @@ def tabulate(payload, progress=None):
         return predefined_sih_rd_production(payload,progress)
     if payload.get("predefinedReport")=="sih-rd-rejeicoes":
         return predefined_sih_rd_rejections(payload,progress)
+    if payload.get("predefinedReport")=="sih-rd-fluxo":
+        return predefined_sih_admission_flow(payload,progress)
     if payload.get("predefinedReport")=="sih-rd-ocupacao":
         return predefined_sih_bed_occupancy(payload,progress)
     if payload.get("predefinedReport")=="sih-sp-profissionais":

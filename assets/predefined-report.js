@@ -3,11 +3,6 @@
 
   const $ = (id) => document.getElementById(id);
   const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
-  const sigtapWidget = window.SPPtabSigtapWidget($('reportSigtap'), api, () => {
-    const year = Number($('reportYear').value);
-    const month = [...$('reportMonth').selectedOptions].map(option => Number(option.value)).find(value => value >= 1 && value <= 12);
-    return year && month ? `${year}${String(month).padStart(2, '0')}` : '';
-  });
   const yearSelect = $('reportYear');
   const monthSelect = $('reportMonth');
   const monthPicker = $('reportMonthPicker');
@@ -162,6 +157,19 @@
       countMetric:'acts', countLabel:'ATOS REGISTRADOS', valueMetric:'value', valueLabel:'VALOR DOS SERVIÇOS',
       summaryTitle:'Serviços profissionais por AIH', detailTitlePrefix:'Serviços profissionais', detailCountLabel:'LANÇAMENTOS PROFISSIONAIS',
       filters:sihSpFilterDefinitions, tableSearchSummary:'Buscar AIH, hospital, procedimento, CNS ou profissional', tableSearchDetail:'Buscar CNS ou procedimento'
+    },
+    'sih-rd-fluxo': {
+      id:'sih-rd-fluxo', system:'sih', systemCode:'SIH', kind:'RD', systemLabel:'SIH/SUS', sourceLabel:'fluxo de internações',
+      tableMode:'flat', countMetric:'aihCount', countLabel:'AIHs processadas', valueMetric:'totalValue', valueLabel:'VALOR TOTAL DAS AIHs',
+      workspaceTitle:'Fluxo de internações · SIH/SUS', introLabel:'FLUXO DE INTERNAÇÕES · SIH/SUS', introTitle:'Origem e destino das internações.',
+      introDescription:'Cruze o município de residência com o hospital e o município onde a internação foi registrada.',
+      setupTitle:'Fluxo de internações por origem e destino', setupDescription:'Escolha a UF, o município de internação e a competência. Os filtros adicionais são opcionais.',
+      emptyMessage:'Escolha a UF e a competência. O município de internação, o gestor da produção, o financiamento, a complexidade e os demais filtros são opcionais.',
+      municipalityLabel:'MUNICÍPIO DE INTERNAÇÃO · DESTINO',
+      filterNote:'A origem vem do município de residência (MUNIC_RES) e o destino do município da internação (MUNIC_MOV), ambos no SIH/RD. O hospital vem do CNES informado no arquivo. Filtros adicionais são aplicados às AIHs processadas; use Ctrl ou Command para selecionar várias categorias.',
+      methodTitle:'Como interpretar o fluxo:', methodText:' a tabela conta AIHs processadas e não pessoas únicas. Uma mesma pessoa pode gerar mais de uma AIH; em consultas com várias competências, internações prolongadas também podem aparecer em meses diferentes. AIHs rejeitadas não são tratadas como internações confirmadas.',
+      summaryTitle:'Fluxo de internações por origem e destino', tableSearchSummary:'Buscar município de origem, hospital ou destino',
+      filters:sihFilterDefinitions
     }
   };
   const params = new URLSearchParams(location.search);
@@ -178,7 +186,6 @@
   const linkedMunicipality = params.get('municipio') || (params.get('relatorio') === 'sia-pa-belem' ? '150140' : '');
   const linkedFilters = { municipalityCode:linkedMunicipality };
   for (const definition of Object.values(filterDefinitions)) linkedFilters[definition.field] = params.getAll(definition.queryKey);
-  linkedFilters.sigtapFilters = Object.fromEntries(['group','subgroup','form','complexity','financing','modality','registration','cbo','cid','service_class','habilitation','sex'].flatMap(key => params.get(`sg_${key}`) ? [[key,params.get(`sg_${key}`)]] : []));
 
   function normalizeSelectedValues(value) {
     const values = Array.isArray(value) ? value : value == null || value === '' ? [] : [value];
@@ -217,7 +224,6 @@
   function filtersFromParams(searchParams) {
     const preferred = { municipalityCode:searchParams.get('municipio') || (searchParams.get('relatorio') === 'sia-pa-belem' ? '150140' : '') };
     for (const definition of Object.values(filterDefinitions)) preferred[definition.field] = searchParams.getAll(definition.queryKey);
-    preferred.sigtapFilters = Object.fromEntries(['group','subgroup','form','complexity','financing','modality','registration','cbo','cid','service_class','habilitation','sex'].flatMap(key => searchParams.get(`sg_${key}`) ? [[key,searchParams.get(`sg_${key}`)]] : []));
     return preferred;
   }
 
@@ -333,7 +339,7 @@
     return true;
   }
   function selectedFilters() {
-    const filters = { uf:selectedUf(), municipalityCode:municipalitySelect.value || '', municipalityName:municipalitySelect.value ? selectedOptionText(municipalitySelect, '') : '', sigtapFilters:sigtapWidget.getFilters() };
+    const filters = { uf:selectedUf(), municipalityCode:municipalitySelect.value || '', municipalityName:municipalitySelect.value ? selectedOptionText(municipalitySelect, '') : '' };
     for (const definition of Object.values(filterDefinitions)) {
       filters[definition.field] = [];
       filters[definition.nameField] = [];
@@ -349,7 +355,6 @@
     }
     return filters;
   }
-  $('reportSigtap').addEventListener('change', updateScopeDescription);
 
   async function loadReportDefaults(reportId = activeReport.id) {
     if (reportDefaults.has(reportId)) return reportDefaults.get(reportId);
@@ -371,7 +376,7 @@
     const selected = selectedFilters();
     const filters = {};
     for (const definition of Object.values(filterDefinitions)) filters[definition.field] = selected[definition.field];
-    return { uf:selected.uf, municipalityCode:selected.municipalityCode, activeFilterTypes:[...activeFilterTypes], filters, sigtapFilters:selected.sigtapFilters };
+    return { uf:selected.uf, municipalityCode:selected.municipalityCode, activeFilterTypes:[...activeFilterTypes], filters };
   }
 
   function setupPreference() {
@@ -383,7 +388,7 @@
       uf:stateNames[saved.uf] ? saved.uf : selectedUf(),
       municipalityCode:String(saved.municipalityCode || ''),
       activeFilterTypes:(Array.isArray(saved.activeFilterTypes) ? saved.activeFilterTypes : []).filter((type) => filterDefinitions[type]),
-      filters, sigtapFilters:saved.sigtapFilters || {}
+      filters
     };
   }
 
@@ -425,7 +430,6 @@
     const saved = setupPreference();
     setUfOptions(saved?.uf || fallbackUf);
     activeFilterTypes = saved?.activeFilterTypes || [];
-    sigtapWidget.setFilters(saved?.sigtapFilters || {});
     return saved ? { municipalityCode:saved.municipalityCode, ...saved.filters } : (activeReport.defaultMunicipalityCode ? { municipalityCode:activeReport.defaultMunicipalityCode } : {});
   }
 
@@ -491,7 +495,7 @@
     if (!setupDialog.open) setupDialog.showModal();
     $('setupDefaultStatus').textContent = '';
     $('saveSetupDefault').disabled = true;
-    try { await prepareReportControls(preferred); sigtapWidget.setFilters(preferred.sigtapFilters || {}); sigtapWidget.refresh(); }
+    try { await prepareReportControls(preferred); }
     finally {
       $('saveSetupDefault').disabled = false;
       updateSetupDefaultControls();
@@ -965,6 +969,15 @@
     let cards;
     if (activeResult.kpis) {
       cards = activeResult.kpis.map((item) => [item.label, item.value]);
+    } else if (activeReport.id === 'sih-rd-fluxo') {
+      const outside = rows.reduce((sum, row) => sum + (row.outsideDestination ? Number(row.aihCount) || 0 : 0), 0);
+      const origins = new Set(rows.filter((row) => row.flowType !== 'Residência ignorada ou exterior').map((row) => String(row.originCode || '')).filter(Boolean)).size;
+      cards = [
+        ['AIHs processadas', qtyIndex >= 0 ? formatScaled(totals[qtyIndex], metrics[qtyIndex].decimals) : '—'],
+        ['AIHs de fora do município', formatNumber(outside)],
+        ['Municípios de residência', formatNumber(origins)],
+        ['Valor total das AIHs', valueIndex >= 0 ? `R$ ${formatScaled(totals[valueIndex], metrics[valueIndex].decimals)}` : '—']
+      ];
     } else if (activeReport.tableMode === 'flat') {
       const aihCount = new Set(rows.map((row) => String(row.aih || '')).filter(Boolean)).size;
       cards = [
@@ -1081,6 +1094,7 @@
   function renderTable() {
     if (!activeResult) return;
     resultPanel.classList.toggle('is-flat-report', activeReport.tableMode === 'flat');
+    resultPanel.classList.toggle('is-flow-report', activeReport.id === 'sih-rd-fluxo');
     resultPanel.classList.toggle('is-bed-occupancy-report', activeReport.tableMode === 'occupancy');
     resultPanel.classList.toggle('is-sia-detail-report', activeReport.id === 'sia-pa-producao' && activeView === 'detail');
     const rows = visibleRows();
@@ -1121,7 +1135,7 @@
     }
 
     $('reportCount').textContent = formatNumber(rows.length);
-    const itemLabel = activeReport.tableMode === 'flat' ? 'lançamentos' : activeReport.tableMode === 'occupancy' ? (activeView === 'summary' ? 'estabelecimentos' : activeView === 'detail' ? 'AIHs' : 'serviços profissionais') : activeView === 'summary' ? 'estabelecimentos' : (activeReport.system === 'sih' ? 'combinações de procedimento' : 'procedimentos');
+    const itemLabel = activeReport.id === 'sih-rd-fluxo' ? 'rotas de origem e destino' : activeReport.tableMode === 'flat' ? 'lançamentos' : activeReport.tableMode === 'occupancy' ? (activeView === 'summary' ? 'estabelecimentos' : activeView === 'detail' ? 'AIHs' : 'serviços profissionais') : activeView === 'summary' ? 'estabelecimentos' : (activeReport.system === 'sih' ? 'combinações de procedimento' : 'procedimentos');
     $('reportTableHint').textContent = `${formatNumber(rows.length)} de ${formatNumber(allRows.length)} ${itemLabel} · página ${formatNumber(tablePage)} de ${formatNumber(pageCount)} · filtre ou ordene pelos cabeçalhos`;
     renderTablePagination(rows.length, pageCount);
     const locationParts = [activeResult.municipality || 'Todos os municípios', activeResult.state || stateNames[activeResult.uf] || activeResult.uf];
@@ -1401,7 +1415,7 @@
 
   function resultKey(view, cnes, aih = '', months = activeMonths) {
     const filters = selectedFilters();
-    return JSON.stringify([activeReport.id, activeYear, [...months], filters.uf, filters.municipalityCode, ...Object.values(filterDefinitions).map((definition) => filters[definition.field]), filters.sigtapFilters, view, cnes || '', aih || '']);
+    return JSON.stringify([activeReport.id, activeYear, [...months], filters.uf, filters.municipalityCode, ...Object.values(filterDefinitions).map((definition) => filters[definition.field]), view, cnes || '', aih || '']);
   }
 
   function cachedResult(view, cnes, aih = '', months = activeMonths) {
@@ -1411,10 +1425,7 @@
   function routeUrl(view, cnes = '', aih = '', months = activeMonths) {
     const next = new URL(location.href);
     const filters = selectedFilters();
-    for (const key of ['group','subgroup','form','complexity','financing','modality','registration','cbo','cid','service_class','habilitation','sex']) {
-      next.searchParams.delete(`sg_${key}`);
-      if (filters.sigtapFilters[key]) next.searchParams.set(`sg_${key}`,filters.sigtapFilters[key]);
-    }
+    for (const key of ['group','subgroup','form','complexity','financing','modality','registration','cbo','cid','service_class','habilitation','sex']) next.searchParams.delete(`sg_${key}`);
     next.searchParams.set('relatorio', activeReport.id);
     next.searchParams.set('ano', String(activeYear));
     next.searchParams.delete('mes');

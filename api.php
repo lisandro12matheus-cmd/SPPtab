@@ -66,7 +66,7 @@ try {
 if (in_array($action, $preferenceActions, true)) {
     $report = (string) ($payload['report'] ?? '');
     $isCustomTable = preg_match('/^custom-[a-f0-9]{32}$/D', $report) === 1;
-    if (!$isCustomTable && !in_array($report, ['sia-pa-producao', 'sih-rd-producao', 'sih-rd-rejeicoes', 'sih-rd-ocupacao', 'sih-sp-profissionais'], true)) {
+    if (!$isCustomTable && !in_array($report, ['sia-pa-producao', 'sih-rd-producao', 'sih-rd-rejeicoes', 'sih-rd-ocupacao', 'sih-sp-profissionais', 'sih-rd-fluxo'], true)) {
         respond(['ok' => false, 'error' => 'Relatório inválido.'], 400);
     }
     $scope = (string) ($payload['scope'] ?? '');
