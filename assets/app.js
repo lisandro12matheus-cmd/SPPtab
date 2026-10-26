@@ -34,9 +34,6 @@
   const fileEntry = new URLSearchParams(window.location.search).get('etapa') === 'arquivos';
   let location = {uf:'', municipalityCode:'', municipalityName:''};
   const appShell = document.querySelector('.app-shell');
-  function updateSidebarVisibility() {
-    appShell.classList.toggle('state-not-selected', !location.uf);
-  }
   let municipalityRequest = 0;
   let currentFiles = [];
   let busy = false;
@@ -293,7 +290,6 @@
     setSelectedMapState(uf);
     advanceButton.disabled = !uf;
     location = {uf, municipalityCode:'', municipalityName:''};
-    updateSidebarVisibility();
     try { localStorage.removeItem(LOCATION_KEY); } catch (_) {}
     updateLocationSummary();
     clearNotice();
@@ -336,7 +332,6 @@
     setSelectedMapState(saved.uf);
     advanceButton.disabled = false;
     location = {uf:saved.uf, municipalityCode:'', municipalityName:'Todo o estado'};
-    updateSidebarVisibility();
     updateLocationSummary();
     scheduleCompetencyPrefetch();
     if (fileEntry) showFilesStep();
@@ -345,6 +340,7 @@
 
   function showFilesStep() {
     if (!location.uf || !location.municipalityName || busy) return;
+    appShell.classList.remove('map-entry');
     locationStep.hidden = true;
     filesStep.hidden = false;
     pageIntro.hidden = true;
@@ -363,6 +359,7 @@
 
   function showLocationStep() {
     if (busy) return;
+    appShell.classList.add('map-entry');
     competenciesRequest += 1;
     filesRequest += 1;
     stopLoading();

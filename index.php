@@ -10,7 +10,7 @@ tabwin2_page_security();
   <meta name="theme-color" content="#f4f7f8">
   <meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>SPPtab · DATASUS</title>
-  <link rel="stylesheet" href="assets/app.css?v=16">
+  <link rel="stylesheet" href="assets/app.css?v=17">
   <link rel="stylesheet" href="assets/file-selection.css?v=1">
   <link rel="stylesheet" href="assets/brand.css?v=1">
   <link rel="stylesheet" href="assets/launch.css?v=3">
@@ -27,7 +27,7 @@ tabwin2_page_security();
     </div>
     <p class="launch-splash__message" id="launchMessage">Carregando recursos</p>
   </div>
-  <div class="app-shell state-not-selected">
+  <div class="app-shell map-entry">
     <aside class="sidebar">
       <a class="brand" href="./" aria-label="SPPtab, início">
         <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span>
@@ -117,7 +117,7 @@ tabwin2_page_security();
       <footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> <span id="pageStepLabel">escolha da localidade</span></span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer>
     </main>
   </div>
-  <script src="assets/app.js?v=23" defer></script>
+  <script src="assets/app.js?v=24" defer></script>
   <script src="assets/tabulations-nav.js?v=1" defer></script>
   <script src="assets/launch-splash.js?v=3" defer></script>
 </body>
