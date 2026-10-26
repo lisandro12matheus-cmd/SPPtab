@@ -42,6 +42,8 @@
   let activeView = 'summary';
   let activeCnes = '';
   let activeAih = '';
+  let activeOriginCode = '';
+  let activeDestinationCode = '';
   let activeYear = 0;
   let activeMonth = 0;
   let activeMonths = [];
@@ -168,7 +170,7 @@
       municipalityLabel:'MUNICÍPIO DE INTERNAÇÃO · DESTINO',
       filterNote:'A origem vem do município de residência (MUNIC_RES) e o destino do município da internação (MUNIC_MOV), ambos no SIH/RD. O hospital vem do CNES informado no arquivo. Filtros adicionais são aplicados às AIHs processadas; use Ctrl ou Command para selecionar várias categorias.',
       methodTitle:'Como interpretar o fluxo:', methodText:' a tabela conta AIHs processadas e não pessoas únicas. Uma mesma pessoa pode gerar mais de uma AIH; em consultas com várias competências, internações prolongadas também podem aparecer em meses diferentes. AIHs rejeitadas não são tratadas como internações confirmadas.',
-      summaryTitle:'Fluxo de internações por origem e destino', tableSearchSummary:'Buscar município de origem, hospital ou destino',
+      summaryTitle:'Fluxo de internações por origem e destino', tableSearchSummary:'Buscar município de origem, hospital ou destino', tableSearchDetail:'Buscar AIH, procedimento ou saída',
       filters:sihFilterDefinitions
     }
   };
@@ -181,6 +183,8 @@
   const linkedMonths = [...new Set(params.getAll('mes').map(Number).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b);
   const linkedCnes = (params.get('cnes') || '').replace(/\D/g, '').slice(0, 7);
   const linkedAih = (params.get('aih') || '').replace(/\D/g, '').slice(0, 13);
+  const linkedOriginCode = (params.get('origem') || '').replace(/\D/g, '').slice(0, 6);
+  const linkedDestinationCode = (params.get('destino') || '').replace(/\D/g, '').slice(0, 6);
   const linkedReport = Object.prototype.hasOwnProperty.call(reportConfigurations, linkedReportId) || params.get('relatorio') === 'sia-pa-belem';
   const linkedUf = String(params.get('uf') || 'PA').toUpperCase();
   const linkedMunicipality = params.get('municipio') || (params.get('relatorio') === 'sia-pa-belem' ? '150140' : '');
@@ -1008,6 +1012,7 @@
       button.dataset.month = String(row._competenceMonth || activeMonth || '');
       button.dataset.year = String(row._competenceYear || activeYear || '');
       if (column.actionType === 'services') { button.dataset.aih = row.aih; button.dataset.cnes = row.cnes || activeCnes; button.dataset.action = 'services'; button.textContent = 'Serviços →'; }
+      else if (column.actionType === 'flow-detail') { button.dataset.cnes = row.cnes || ''; button.dataset.originCode = row.originCode || ''; button.dataset.destinationCode = row.destinationCode || ''; button.dataset.action = 'flow-detail'; button.textContent = column.actionLabel || 'Detalhar →'; }
       else { button.dataset.cnes = row.code || row.cnes; button.dataset.action = 'detail'; button.textContent = column.actionLabel || 'Detalhar →'; }
       action.append(button); return action;
     }
@@ -1095,6 +1100,7 @@
     if (!activeResult) return;
     resultPanel.classList.toggle('is-flat-report', activeReport.tableMode === 'flat');
     resultPanel.classList.toggle('is-flow-report', activeReport.id === 'sih-rd-fluxo');
+    resultPanel.classList.toggle('is-flow-detail', activeReport.id === 'sih-rd-fluxo' && activeView === 'detail');
     resultPanel.classList.toggle('is-bed-occupancy-report', activeReport.tableMode === 'occupancy');
     resultPanel.classList.toggle('is-sia-detail-report', activeReport.id === 'sia-pa-producao' && activeView === 'detail');
     const rows = visibleRows();
@@ -1135,7 +1141,7 @@
     }
 
     $('reportCount').textContent = formatNumber(rows.length);
-    const itemLabel = activeReport.id === 'sih-rd-fluxo' ? 'rotas de origem e destino' : activeReport.tableMode === 'flat' ? 'lançamentos' : activeReport.tableMode === 'occupancy' ? (activeView === 'summary' ? 'estabelecimentos' : activeView === 'detail' ? 'AIHs' : 'serviços profissionais') : activeView === 'summary' ? 'estabelecimentos' : (activeReport.system === 'sih' ? 'combinações de procedimento' : 'procedimentos');
+    const itemLabel = activeReport.id === 'sih-rd-fluxo' ? (activeView === 'detail' ? 'AIHs da rota' : 'rotas de origem e destino') : activeReport.tableMode === 'flat' ? 'lançamentos' : activeReport.tableMode === 'occupancy' ? (activeView === 'summary' ? 'estabelecimentos' : activeView === 'detail' ? 'AIHs' : 'serviços profissionais') : activeView === 'summary' ? 'estabelecimentos' : (activeReport.system === 'sih' ? 'combinações de procedimento' : 'procedimentos');
     $('reportTableHint').textContent = `${formatNumber(rows.length)} de ${formatNumber(allRows.length)} ${itemLabel} · página ${formatNumber(tablePage)} de ${formatNumber(pageCount)} · filtre ou ordene pelos cabeçalhos`;
     renderTablePagination(rows.length, pageCount);
     const locationParts = [activeResult.municipality || 'Todos os municípios', activeResult.state || stateNames[activeResult.uf] || activeResult.uf];
@@ -1145,16 +1151,17 @@
     ];
     for (const filter of appliedFilters) if (filter?.label && filter?.value) locationParts.push(`${filter.label}: ${filter.value}`);
     const fileSummary = activeMonths.length > 1 ? `${formatNumber(activeMonths.length)} competências consultadas` : activeResult.file || '';
+    if (activeReport.id === 'sih-rd-fluxo' && activeView === 'detail' && activeResult.detailSubtitle) locationParts.push(activeResult.detailSubtitle);
     $('reportSubtitle').textContent = `${formatCompetencies(activeMonths, activeYear)} · ${locationParts.join(' · ')} · ${fileSummary}`;
-    $('reportTitle').textContent = activeReport.tableMode === 'flat' || activeView === 'summary' ? activeReport.summaryTitle : activeView === 'services' ? `Serviços profissionais · AIH ${activeAih}` : `${activeReport.detailTitlePrefix} · ${activeResult.establishmentName || `CNES ${activeCnes}`}`;
+    $('reportTitle').textContent = activeReport.id === 'sih-rd-fluxo' && activeView === 'detail' ? (activeResult.detailTitle || 'AIHs da rota') : activeReport.tableMode === 'flat' || activeView === 'summary' ? activeReport.summaryTitle : activeView === 'services' ? `Serviços profissionais · AIH ${activeAih}` : `${activeReport.detailTitlePrefix} · ${activeResult.establishmentName || `CNES ${activeCnes}`}`;
     $('reportSearch').placeholder = activeView === 'summary' ? activeReport.tableSearchSummary : activeView === 'services' ? 'Buscar profissional, procedimento ou CNS' : activeReport.tableSearchDetail;
     renderKpis(rows, totals, metrics);
     const notes = $('reportNotes'); notes.replaceChildren();
     for (const note of activeResult.notes || []) {
       const line = document.createElement('p'); line.textContent = note; notes.append(line);
     }
-    $('backToSummary').hidden = activeReport.tableMode === 'flat' || activeView === 'summary';
-    $('backToSummary').textContent = activeView === 'services' ? '← AIH' : '← Estabelecimentos';
+    $('backToSummary').hidden = (activeReport.tableMode === 'flat' && activeReport.id !== 'sih-rd-fluxo') || activeView === 'summary';
+    $('backToSummary').textContent = activeView === 'services' ? '← AIH' : activeReport.id === 'sih-rd-fluxo' ? '← Fluxo' : '← Estabelecimentos';
     resultPanel.hidden = false;
     empty.hidden = true;
     updateTableDefaultControls();
@@ -1415,7 +1422,8 @@
 
   function resultKey(view, cnes, aih = '', months = activeMonths) {
     const filters = selectedFilters();
-    return JSON.stringify([activeReport.id, activeYear, [...months], filters.uf, filters.municipalityCode, ...Object.values(filterDefinitions).map((definition) => filters[definition.field]), view, cnes || '', aih || '']);
+    const route = activeReport.id === 'sih-rd-fluxo' && view === 'detail' ? [activeOriginCode, activeDestinationCode] : [];
+    return JSON.stringify([activeReport.id, activeYear, [...months], filters.uf, filters.municipalityCode, ...Object.values(filterDefinitions).map((definition) => filters[definition.field]), view, cnes || '', aih || '', ...route]);
   }
 
   function cachedResult(view, cnes, aih = '', months = activeMonths) {
@@ -1438,7 +1446,14 @@
     }
     if (view !== 'summary' && cnes) next.searchParams.set('cnes', cnes); else next.searchParams.delete('cnes');
     if (view === 'services' && aih) next.searchParams.set('aih', aih); else next.searchParams.delete('aih');
-    history.pushState({ view, cnes, aih }, '', next);
+    if (activeReport.id === 'sih-rd-fluxo' && view === 'detail' && activeOriginCode && activeDestinationCode) {
+      next.searchParams.set('origem', activeOriginCode);
+      next.searchParams.set('destino', activeDestinationCode);
+    } else {
+      next.searchParams.delete('origem');
+      next.searchParams.delete('destino');
+    }
+    history.pushState({ view, cnes, aih, originCode:activeOriginCode, destinationCode:activeDestinationCode }, '', next);
   }
 
   function reportKindsForView(view) {
@@ -1664,7 +1679,7 @@
       sourcePaths.professionalPath = filesByKind.SP.path;
       sourcePaths.professionalDbfPath = dbfPaths.SP;
     }
-    let job = await api({ action:'tabulate_start', path:file.path, dbfPath, ...sourcePaths, predefinedReport:activeReport.id, predefinedView:view, ...filters, ...((view === 'detail' || view === 'services') ? { establishmentCode:cnes } : {}), ...(view === 'services' ? { aih } : {}) });
+    let job = await api({ action:'tabulate_start', path:file.path, dbfPath, ...sourcePaths, predefinedReport:activeReport.id, predefinedView:view, ...filters, ...((view === 'detail' || view === 'services') ? { establishmentCode:cnes } : {}), ...(view === 'services' ? { aih } : {}), ...(activeReport.id === 'sih-rd-fluxo' && view === 'detail' ? { originMunicipalityCode:activeOriginCode, destinationMunicipalityCode:activeDestinationCode } : {}) });
     if (job.done && job.result) return stampMonthlyResult(job.result, year, month);
     if (!job.job_id) throw new Error('O SPPtab não retornou uma tarefa de tabulação válida.');
     const tabulationJobId = job.job_id;
@@ -1681,7 +1696,7 @@
     }
   }
 
-  async function runReport(view = 'summary', cnes = '', updateUrl = true, aih = '', monthList = null) {
+  async function runReport(view = 'summary', cnes = '', updateUrl = true, aih = '', monthList = null, route = null) {
     const year = Number(yearSelect.value) || activeYear;
     let requestedMonths = [...new Set((monthList == null ? (view === 'services' ? [activeMonth] : (reportMonths.length ? reportMonths : selectedMonths())) : monthList).map(Number).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b);
     if (!year || !requestedMonths.length) return;
@@ -1691,6 +1706,8 @@
     if (view === 'summary') reportMonths = [...requestedMonths];
     const filters = selectedFilters();
     activeYear = year; activeMonths = requestedMonths; activeMonth = requestedMonths.at(-1); activeView = view; activeCnes = cnes; activeAih = aih;
+    activeOriginCode = activeReport.id === 'sih-rd-fluxo' && view === 'detail' ? String(route?.originCode || '').replace(/\D/g, '').slice(0, 6) : '';
+    activeDestinationCode = activeReport.id === 'sih-rd-fluxo' && view === 'detail' ? String(route?.destinationCode || '').replace(/\D/g, '').slice(0, 6) : '';
     resetTableViewState();
     $('reportSearch').value = '';
     showNotice('');
@@ -1907,6 +1924,7 @@
     const button = event.target.closest('.report-detail-button');
     if (!button?.dataset.cnes) return;
     if (button.dataset.action === 'services' && button.dataset.aih) runReport('services', button.dataset.cnes, true, button.dataset.aih, [Number(button.dataset.month) || activeMonth]);
+    else if (button.dataset.action === 'flow-detail') runReport('detail', button.dataset.cnes, true, '', reportMonths, { originCode:button.dataset.originCode, destinationCode:button.dataset.destinationCode });
     else runReport('detail', button.dataset.cnes, true, '', reportMonths);
   });
   $('backToSummary').addEventListener('click', () => {
@@ -1919,7 +1937,7 @@
     }
     const cached = cachedResult('summary', '', '', reportMonths);
     if (cached) {
-      activeMonths = [...reportMonths]; activeMonth = activeMonths.at(-1) || activeMonth; routeUrl('summary', '', '', activeMonths); activeView = 'summary'; activeCnes = ''; activeAih = ''; activeResult = cached; allRows = cached.rows || []; $('reportSearch').value = ''; resetTableViewState(); restoreTableDefaults(); renderTable();
+      activeMonths = [...reportMonths]; activeMonth = activeMonths.at(-1) || activeMonth; activeOriginCode = ''; activeDestinationCode = ''; routeUrl('summary', '', '', activeMonths); activeView = 'summary'; activeCnes = ''; activeAih = ''; activeResult = cached; allRows = cached.rows || []; $('reportSearch').value = ''; resetTableViewState(); restoreTableDefaults(); renderTable();
     } else runReport('summary', '', true, '', reportMonths);
   });
   window.addEventListener('popstate', async () => {
@@ -1928,6 +1946,8 @@
     const months = [...new Set(current.getAll('mes').map(Number).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b);
     const cnes = (current.get('cnes') || '').replace(/\D/g, '').slice(0, 7);
     const aih = (current.get('aih') || '').replace(/\D/g, '').slice(0, 13);
+    const originCode = (current.get('origem') || '').replace(/\D/g, '').slice(0, 6);
+    const destinationCode = (current.get('destino') || '').replace(/\D/g, '').slice(0, 6);
     const requestedId = current.get('relatorio') === 'sia-pa-belem' ? 'sia-pa-producao' : (current.get('relatorio') || 'sia-pa-producao');
     activateReport(reportConfigurations[requestedId] ? requestedId : 'sia-pa-producao');
     await loadReportDefaults(activeReport.id);
@@ -1950,7 +1970,7 @@
     const availableMonths = [...monthSelect.options].map((option) => Number(option.value)).filter((month) => month >= 1 && month <= 12);
     setMonthOptions([...new Set([...availableMonths, ...months])], months);
     reportMonths = [...months];
-    await runReport(aih ? 'services' : cnes ? 'detail' : 'summary', cnes, false, aih, months);
+    await runReport(aih ? 'services' : cnes ? 'detail' : 'summary', cnes, false, aih, months, { originCode, destinationCode });
   });
 
   async function init() {
@@ -1974,7 +1994,7 @@
         const availableMonths = [...monthSelect.options].map((option) => Number(option.value)).filter((month) => month >= 1 && month <= 12);
         setMonthOptions([...new Set([...availableMonths, ...linkedMonths])], linkedMonths);
         reportMonths = [...linkedMonths];
-        await runReport(linkedAih ? 'services' : linkedCnes ? 'detail' : 'summary', linkedCnes, false, linkedAih, linkedMonths);
+        await runReport(linkedAih ? 'services' : linkedCnes ? 'detail' : 'summary', linkedCnes, false, linkedAih, linkedMonths, { originCode:linkedOriginCode, destinationCode:linkedDestinationCode });
       } catch (error) {
         showReportFailure(error);
       }

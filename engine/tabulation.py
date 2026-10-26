@@ -1843,6 +1843,9 @@ def predefined_sih_admission_flow(payload: dict[str,Any], progress=None):
     source=safe_file(payload.get("path",""))
     relative=source.relative_to(UPLOADS).as_posix()
     system,kind,filename_match=meta(source)
+    view=str(payload.get("predefinedView") or "summary")
+    if view not in {"summary","detail"}:
+        raise ValueError("A visualização solicitada não existe.")
     uf=str(payload.get("uf") or "PA").strip().upper()
     if uf not in PREDEFINED_UF_CODES:
         raise ValueError("Selecione uma unidade da Federação válida.")
@@ -1852,6 +1855,20 @@ def predefined_sih_admission_flow(payload: dict[str,Any], progress=None):
     municipality=str(payload.get("municipalityCode") or "").strip()
     if municipality and (not municipality.isdigit() or len(municipality)!=6 or municipality[:2]!=PREDEFINED_UF_CODES[uf]):
         raise ValueError("O município de internação selecionado não pertence à unidade da Federação escolhida.")
+    origin_code=destination_code=establishment=""
+    if view=="detail":
+        origin_raw=re.sub(r"\D","",str(payload.get("originMunicipalityCode") or ""))
+        destination_raw=re.sub(r"\D","",str(payload.get("destinationMunicipalityCode") or ""))
+        establishment_raw=re.sub(r"\D","",str(payload.get("establishmentCode") or ""))
+        if len(origin_raw)!=6 or len(destination_raw)!=6 or not 1<=len(establishment_raw)<=7:
+            raise ValueError("A origem, o destino e o estabelecimento desta rota precisam ser informados para detalhar.")
+        origin_code=origin_raw
+        destination_code=destination_raw
+        establishment=establishment_raw.zfill(7)
+        if destination_code[:2]!=PREDEFINED_UF_CODES[uf]:
+            raise ValueError("O município de destino não pertence à unidade da Federação escolhida.")
+        if municipality and municipality!=destination_code:
+            raise ValueError("O destino desta rota não corresponde ao município selecionado.")
 
     total_records,_,_,fieldinfo=dbf_layout(dbf)
     archive=UPLOADS/"DEFINICOES"/"originais"/"TAB_SIH.zip"
@@ -1887,10 +1904,29 @@ def predefined_sih_admission_flow(payload: dict[str,Any], progress=None):
     if missing:
         raise ValueError("Esta competência não contém os campos necessários ao fluxo de internações: "+", ".join(missing))
 
+    detail_fields={"DT_INTER","DT_SAIDA","PROC_REA"}
+    if view=="detail":
+        missing_detail=sorted(detail_fields-fieldinfo.keys())
+        if missing_detail:
+            raise ValueError("Esta competência não contém os campos necessários ao detalhamento da AIH: "+", ".join(missing_detail))
+
     if progress: progress(6,"Carregando nomes de estabelecimentos e municípios")
     cnes_labels=_report_relation_index(relation_mapping("SIH",cnes_option),7)
     municipality_mapping=relation_mapping("SIH",residence_option)
     municipality_labels=_report_relation_index(municipality_mapping,6)
+    procedure_labels={}
+    specialty_labels={}
+    exit_labels={}
+    mortality_labels={}
+    if view=="detail":
+        procedure_option=exact_option("PROC_REA","DBF/TB_SIGTAW.DBF")
+        specialty_option=exact_option("ESPEC","CNV/LEITOS.CNV")
+        exit_option=exact_option("COBRANCA","CNV/SAIDAPERM.CNV")
+        mortality_option=exact_option("MORTE","CNV/MORTES.CNV")
+        procedure_labels=_report_relation_index(relation_mapping("SIH",procedure_option),10) if procedure_option else {}
+        specialty_labels=relation_mapping("SIH",specialty_option) if specialty_option else {}
+        exit_labels=relation_mapping("SIH",exit_option) if exit_option else {}
+        mortality_labels=relation_mapping("SIH",mortality_option) if mortality_option else {}
     filters=[]
     if municipality: filters.append(("MUNIC_MOV",municipality))
     filters.extend(selected_filter_codes.items())
@@ -1901,12 +1937,94 @@ def predefined_sih_admission_flow(payload: dict[str,Any], progress=None):
             value=", ".join(names[:3])+(f" e mais {len(names)-3}" if len(names)>3 else "")
             filter_summary.append({"label":spec["label"],"value":value})
     municipality_name=str(payload.get("municipalityName") or "").strip()[:80] if municipality else "Todos os municípios"
-    identity={"report":"sih-rd-admission-flow-v1","source":cache_file_identity(source),"dbf":cache_file_identity(dbf),"definition":cache_file_identity(archive),"uf":uf,"municipality":municipality,"filters":selected_filter_codes}
+    def city_name(code):
+        if not code: return "Município de residência não informado"
+        label=_report_label(cnv_label(municipality_mapping,code) or municipality_labels.get(code) or "")
+        label=re.sub(rf"^{re.escape(code)}\s*(?:[·–—:-]\s*)?","",label).strip()
+        if "IGNORADO" in label.upper() or "EXTERIOR" in label.upper(): return "Ignorado ou exterior"
+        if not label or label==code: return f"Município {code}"
+        return label
+    identity={"report":"sih-rd-admission-flow-v2","source":cache_file_identity(source),"dbf":cache_file_identity(dbf),"definition":cache_file_identity(archive),"view":view,"uf":uf,"municipality":municipality,"filters":selected_filter_codes,"origin":origin_code,"destination":destination_code,"establishment":establishment}
     target=cache_target("predefined-reports",identity)
     cached=cache_read(target)
     if isinstance(cached,dict) and cached.get("ok") is True:
         if progress: progress(98,"Abrindo o fluxo salvo neste computador")
         return cached
+
+    if view=="detail":
+        if progress: progress(8,"Localizando as AIHs desta rota")
+        detail_names=["CNES","N_AIH","MUNIC_RES","MUNIC_MOV","DT_INTER","DT_SAIDA","PROC_REA","VAL_TOT",*selected_filter_codes]
+        for optional_field in ("DIAS_PERM","ESPEC","COBRANCA","MORTE"):
+            if optional_field in fieldinfo: detail_names.append(optional_field)
+        detail_names=list(dict.fromkeys(detail_names))
+        positions={name:index for index,name in enumerate(detail_names)}
+        detail_filters=[("MUNIC_RES",origin_code),("MUNIC_MOV",destination_code),("CNES",establishment)]
+        detail_filters.extend((field,codes) for field,codes in selected_filter_codes.items())
+        unique={}
+        processed=[0]
+        def detail_progress(done,_total):
+            if progress and total_records:
+                percent=min(94,10+int(84*done/total_records))
+                progress(percent,f"Lendo AIHs da rota · {done:,} de {total_records:,}".replace(",","."))
+        for _,record in iter_dbf_fields(dbf,detail_names,with_index=True,pre_filter=detail_filters,processed_counter=processed,scan_callback=detail_progress if progress else None):
+            aih=re.sub(r"\D","",str(record[positions["N_AIH"]] or ""))
+            cnes=_report_code(record[positions["CNES"]],7)
+            if not aih or cnes!=establishment: continue
+            key=(cnes,aih)
+            if key in unique: continue
+            admission_raw=record[positions["DT_INTER"]]
+            discharge_raw=record[positions["DT_SAIDA"]]
+            admission_date=_sih_calendar_date(admission_raw)
+            discharge_date=_sih_calendar_date(discharge_raw)
+            admission_label=admission_date.strftime("%d/%m/%Y") if admission_date else ""
+            discharge_label=discharge_date.strftime("%d/%m/%Y") if discharge_date else ""
+            procedure_code=_report_code(record[positions["PROC_REA"]],10)
+            specialty_code=_report_code(record[positions["ESPEC"]],2) if "ESPEC" in positions else ""
+            exit_code=str(record[positions["COBRANCA"]] or "").strip() if "COBRANCA" in positions else ""
+            death_code=str(record[positions["MORTE"]] or "").strip() if "MORTE" in positions else ""
+            unique[key]={
+                "aih":aih,"admission":admission_label,"discharge":discharge_label,
+                "rawAdmission":admission_date.isoformat() if admission_date else "","rawDischarge":discharge_date.isoformat() if discharge_date else "",
+                "procedureCode":procedure_code,
+                "procedureName":_report_label(procedure_labels.get(procedure_code) or "Procedimento sem descrição na referência oficial"),
+                "specialtyCode":specialty_code,
+                "specialty":_report_label(cnv_label(specialty_labels,specialty_code) or "Tipo de leito não informado") if specialty_code else "Tipo de leito não informado",
+                "stayDays":_sih_record_number(record,positions,"DIAS_PERM",fieldinfo) if "DIAS_PERM" in positions else None,
+                "exitCode":exit_code,
+                "exitReason":_report_label(cnv_label(exit_labels,exit_code) or f"Código {exit_code}") if exit_code else "Motivo não informado",
+                "deathCode":death_code,
+                "deathStatus":_report_label(cnv_label(mortality_labels,death_code) or ("Com óbito" if death_code=="1" else "Sem óbito")) if death_code else "Não informado",
+                "totalValue":scaled_text(scaled_integer(record[positions["VAL_TOT"]],int(fieldinfo["VAL_TOT"]["decimals"])),int(fieldinfo["VAL_TOT"]["decimals"])),
+            }
+        rows=list(unique.values())
+        rows.sort(key=lambda row:(row["rawAdmission"],row["aih"]))
+        value_decimals=int(fieldinfo["VAL_TOT"]["decimals"])
+        value_total=sum(scaled_integer(row["totalValue"],value_decimals) for row in rows)
+        stay_total=sum(float(row["stayDays"] or 0) for row in rows if row["stayDays"] is not None)
+        exits=sum(1 for row in rows if row["discharge"])
+        deaths=sum(1 for row in rows if row["deathCode"]=="1")
+        columns=[
+            {"id":"aih","label":"AIH","kind":"primary","primaryField":"aih","filterFields":["aih"],"sortField":"aih","type":"text"},
+            {"id":"admission","label":"ENTRADA","field":"admission","type":"text","sortField":"rawAdmission"},
+            {"id":"discharge","label":"SAÍDA","field":"discharge","type":"text","sortField":"rawDischarge"},
+            {"id":"exitReason","label":"MOTIVO DA SAÍDA","field":"exitReason","type":"text","sortField":"exitReason","filterFields":["exitReason","exitCode"]},
+            {"id":"procedure","label":"PROCEDIMENTO PRINCIPAL · SIGTAP","kind":"primary","primaryField":"procedureName","secondaryField":"procedureCode","sortField":"procedureName","filterFields":["procedureName","procedureCode"],"type":"text"},
+            {"id":"specialty","label":"TIPO DE LEITO","field":"specialty","type":"text","sortField":"specialty","filterFields":["specialty","specialtyCode"]},
+            {"id":"stayDays","label":"PERMANÊNCIA (DIAS)","field":"stayDays","type":"number","metricId":"stayDays","decimals":0},
+            {"id":"deathStatus","label":"ÓBITO REGISTRADO","field":"deathStatus","type":"text","sortField":"deathStatus"},
+            {"id":"totalValue","label":"VALOR DA AIH","field":"totalValue","type":"currency","metricId":"totalValue","decimals":value_decimals},
+        ]
+        destination_name=city_name(destination_code)
+        origin_name=city_name(origin_code)
+        hospital_name=_report_label(cnes_labels.get(establishment) or f"CNES {establishment}")
+        result={"ok":True,"report":"sih-rd-fluxo","view":"detail","file":source.name,"path":relative,"year":2000+int(filename_match.group("yy")),"month":int(filename_match.group("mm")),"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality or None,"originCode":origin_code,"origin":origin_name,"destinationCode":destination_code,"destination":destination_name,"establishmentCode":establishment,"establishmentName":hospital_name,"detailTitle":f"AIHs · {origin_name} → {destination_name}","detailSubtitle":hospital_name,"filters":filter_summary,"columns":columns,"metrics":[{"id":"stayDays","label":"Permanência (dias)","decimals":0},{"id":"totalValue","label":"Valor total das AIHs","decimals":value_decimals}],"totals":[scaled_text(int(stay_total),0),scaled_text(value_total,value_decimals)],"kpis":[{"label":"AIHs da rota","value":{"value":len(rows)}},{"label":"Saídas registradas","value":{"value":exits}},{"label":"Óbitos registrados","value":{"value":deaths}},{"label":"Permanência acumulada","value":{"value":stay_total,"decimals":0,"suffix":" dias"}}],"records":len(rows),"rows":rows,"notes":[
+            "Cada linha representa uma AIH processada no SIH/RD para esta origem, destino e estabelecimento. O número da AIH identifica o registro administrativo; não identifica uma pessoa nesta tela.",
+            "A saída e seu motivo vêm dos campos DT_SAIDA e COBRANCA da base. AIHs sem data ou motivo informado permanecem visíveis como não informadas.",
+            "O procedimento é o realizado (PROC_REA), descrito pela referência oficial associada ao SIH. A permanência e o valor são os registrados na AIH.",
+        ],"cachedAt":time.time()}
+        cache_write(target,result,max_bytes=50_000_000,keep=30)
+        if progress: progress(97,"Concluindo o detalhamento das AIHs")
+        return result
 
     decimals=int(fieldinfo["VAL_TOT"]["decimals"])
     names=["CNES","N_AIH","MUNIC_RES","MUNIC_MOV","VAL_TOT",*selected_filter_codes]
@@ -1934,13 +2052,6 @@ def predefined_sih_admission_flow(payload: dict[str,Any], progress=None):
         row["count"]+=1
         row["value"]+=scaled_integer(record[positions["VAL_TOT"]],decimals)
 
-    def city_name(code):
-        if not code: return "Município de residência não informado"
-        label=_report_label(cnv_label(municipality_mapping,code) or municipality_labels.get(code) or "")
-        label=re.sub(rf"^{re.escape(code)}\s*(?:[·–—:-]\s*)?","",label).strip()
-        if "IGNORADO" in label.upper() or "EXTERIOR" in label.upper(): return "Ignorado ou exterior"
-        if not label or label==code: return f"Município {code}"
-        return label
     uf_by_code={code:state for state,code in PREDEFINED_UF_CODES.items()}
     def flow_type(residence,destination):
         label=city_name(residence).upper()
@@ -1982,6 +2093,7 @@ def predefined_sih_admission_flow(payload: dict[str,Any], progress=None):
         {"id":"aihCount","label":"AIHs","field":"aihCount","type":"number","metricId":"aihCount","decimals":0},
         {"id":"totalValue","label":"Valor total das AIHs","field":"totalValue","type":"currency","metricId":"totalValue","decimals":decimals},
         {"id":"share","label":"Participação","field":"share","type":"percent","decimals":1,"sortField":"share"},
+        {"id":"action","label":"Detalhamento","kind":"action","actionType":"flow-detail","actionLabel":"Detalhar →"},
     ]
     result={"ok":True,"report":"sih-rd-fluxo","view":"summary","flatTable":True,"file":source.name,"path":relative,"year":2000+int(filename_match.group("yy")),"month":int(filename_match.group("mm")),"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality or None,"filters":filter_summary,"columns":columns,"metrics":metrics,"totals":[scaled_text(total_aihs,0),scaled_text(total_value,decimals)],"records":total_aihs,"rows":rows,"notes":[
         "Fonte: arquivo SIH/RD e definição oficial do TabWin. MUNIC_RES identifica o município informado como residência; MUNIC_MOV identifica o município de internação; os nomes dos hospitais vêm da relação oficial do CNES usada pelo SIH.",
@@ -2687,7 +2799,7 @@ def predefined_sih_sp_professionals(payload: dict[str,Any], progress=None):
     sigtap_filter,sigtap_source=_sigtap_procedure_filter(payload,2000+int(filename_match.group("yy")),int(filename_match.group("mm")),fieldinfo,"SP_ATOPROF",dbf)
     source_identity=cache_file_identity(source); dbf_identity=cache_file_identity(dbf)
     archive=UPLOADS/"DEFINICOES"/"originais"/"TAB_SIH.zip"
-    identity={"report":"sih-sp-profissionais-v6","source":source_identity,"dbf":dbf_identity,"definition":cache_file_identity(archive),"uf":uf,"municipality":municipality,"filters":selected_filter_codes,"sigtap":payload.get("sigtapFilters"),"sigtapVersion":sigtap_source.get("sha256") if sigtap_source else None,"sigtapAuditVersion":1}
+    identity={"report":"sih-sp-profissionais-v7","source":source_identity,"dbf":dbf_identity,"definition":cache_file_identity(archive),"uf":uf,"municipality":municipality,"filters":selected_filter_codes,"sigtap":payload.get("sigtapFilters"),"sigtapVersion":sigtap_source.get("sha256") if sigtap_source else None,"sigtapAuditVersion":1}
     target=cache_target("predefined-reports",identity)
     cached=cache_read(target)
     if isinstance(cached,dict) and cached.get("ok") is True and time.time()-float(cached.get("cachedAt",0) or 0)<7*86400:
@@ -2851,7 +2963,8 @@ def predefined_sih_sp_professionals(payload: dict[str,Any], progress=None):
         {"id":"aih","label":"AIH / período","field":"aih","primaryField":"aih","secondaryField":"period","type":"text","sortField":"aih"},
         {"id":"establishment","label":"Estabelecimento","field":"establishment","primaryField":"establishment","secondaryField":"cnes","secondaryPrefix":"CNES ","type":"text","sortField":"establishment"},
         {"id":"procedure","label":"Procedimento do ato","field":"procedureCode","primaryField":"procedureCode","secondaryField":"procedureName","type":"text","sortField":"procedureCode"},
-        {"id":"professional","label":"Profissional executor · CNS","field":"professionalName","primaryField":"professionalName","secondaryField":"cns","secondaryPrefix":"CNS ","tertiaryField":"cboName","tertiaryPrefix":"CBO ","tertiaryCodeField":"cbo","type":"text","sortField":"professionalName"},
+        {"id":"professional","label":"Profissional executor · CNS","field":"professionalName","primaryField":"professionalName","secondaryField":"cns","secondaryPrefix":"CNS ","type":"text","sortField":"professionalName"},
+        {"id":"cbo","label":"CBO do profissional","field":"cboName","primaryField":"cboName","secondaryField":"cbo","secondaryPrefix":"CBO ","type":"text","sortField":"cboName"},
         {"id":"acts","label":"Atos","field":"acts","type":"number","metricId":"acts","decimals":act_decimals},
         {"id":"value","label":"Valor do ato","field":"value","type":"currency","metricId":"value","decimals":value_decimals},
     ]
@@ -3368,7 +3481,7 @@ def _predefined_sih_occupancy_services(payload: dict[str,Any], uf: str, progress
     professional_codes={_report_code(code,1) for code in professional_codes}
     professional_codes.discard("")
     archive=UPLOADS/"DEFINICOES"/"originais"/"TAB_SIH.zip"
-    result_cache=cache_target("predefined-reports",{"report":"sih-bed-services-v1","source":cache_file_identity(sp["source"]),"dbf":cache_file_identity(sp["dbf"]),"definition":cache_file_identity(archive),"uf":uf,"cnes":establishment,"aih":aih})
+    result_cache=cache_target("predefined-reports",{"report":"sih-bed-services-v2","source":cache_file_identity(sp["source"]),"dbf":cache_file_identity(sp["dbf"]),"definition":cache_file_identity(archive),"uf":uf,"cnes":establishment,"aih":aih})
     cached_result=cache_read(result_cache)
     if isinstance(cached_result,dict) and cached_result.get("ok") is True and time.time()-float(cached_result.get("cachedAt",0) or 0)<7*86400:
         if progress: progress(98,"Abrindo os serviços profissionais salvos neste computador")
@@ -3438,7 +3551,8 @@ def _predefined_sih_occupancy_services(payload: dict[str,Any], uf: str, progress
     columns=[
         {"id":"aih","label":"AIH / período","field":"aih","primaryField":"aih","secondaryField":"period","filterFields":["aih","period"],"sortField":"aih","type":"text"},
         {"id":"establishment","label":"Estabelecimento","field":"establishment","primaryField":"establishment","secondaryField":"cnes","secondaryPrefix":"CNES ","filterFields":["establishment","cnes"],"sortField":"establishment","type":"text"},
-        {"id":"professional","label":"Profissional executor · CNS","field":"professionalName","primaryField":"professionalName","secondaryField":"cns","secondaryPrefix":"CNS ","tertiaryField":"cboName","tertiaryCodeField":"cbo","tertiaryPrefix":"CBO ","sortField":"professionalName","type":"text"},
+        {"id":"professional","label":"Profissional executor · CNS","field":"professionalName","primaryField":"professionalName","secondaryField":"cns","secondaryPrefix":"CNS ","sortField":"professionalName","type":"text"},
+        {"id":"cbo","label":"CBO do profissional","field":"cboName","primaryField":"cboName","secondaryField":"cbo","secondaryPrefix":"CBO ","sortField":"cboName","type":"text"},
         {"id":"procedure","label":"Procedimento do ato","field":"procedureCode","primaryField":"procedureCode","secondaryField":"procedureName","sortField":"procedureCode","type":"text"},
         {"id":"acts","label":"Atos","field":"acts","type":"number","decimals":act_decimals,"totalField":"acts"},
         {"id":"value","label":"Valor do ato","field":"value","type":"currency","decimals":value_decimals,"totalField":"value"},
