@@ -3,11 +3,13 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>Minhas Tabulações · SPPtab</title>
-  <link rel="stylesheet" href="assets/app.css?v=15"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/tabular-refine.css?v=18"><link rel="stylesheet" href="assets/presets.css?v=3"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
+  <link rel="stylesheet" href="assets/app.css?v=19"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/tabular-refine.css?v=18"><link rel="stylesheet" href="assets/presets.css?v=3"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
+  <script src="assets/sidebar.js?v=1" defer></script>
 </head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar">
+    <aside class="sidebar" id="spptabSidebar">
+      <button class="sidebar-toggle" type="button" aria-controls="spptabSidebar" aria-expanded="true" aria-label="Recolher menu" title="Recolher menu"><span class="sidebar-toggle-icon" aria-hidden="true">‹</span></button>
       <a class="brand" href="./" aria-label="SPPtab, início"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span><span><strong>SPPtab</strong><small>saúde em dados</small></span></a>
       <div class="nav-label">ESPAÇO DE TRABALHO</div>
 <nav aria-label="Navegação principal">

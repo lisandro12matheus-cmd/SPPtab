@@ -10,12 +10,13 @@ tabwin2_page_security();
   <meta name="theme-color" content="#f4f7f8">
   <meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>SPPtab · DATASUS</title>
-  <link rel="stylesheet" href="assets/app.css?v=17">
+  <link rel="stylesheet" href="assets/app.css?v=19">
   <link rel="stylesheet" href="assets/file-selection.css?v=1">
   <link rel="stylesheet" href="assets/brand.css?v=1">
   <link rel="stylesheet" href="assets/launch.css?v=3">
   <link rel="stylesheet" href="assets/search-loading.css?v=3">
   <link rel="stylesheet" href="assets/compact-headings.css?v=1">
+  <script src="assets/sidebar.js?v=1" defer></script>
   <script src="assets/launch-gate.js?v=1"></script>
 </head>
 <body>
@@ -28,7 +29,8 @@ tabwin2_page_security();
     <p class="launch-splash__message" id="launchMessage">Carregando recursos</p>
   </div>
   <div class="app-shell map-entry">
-    <aside class="sidebar">
+    <aside class="sidebar" id="spptabSidebar">
+      <button class="sidebar-toggle" type="button" aria-controls="spptabSidebar" aria-expanded="true" aria-label="Recolher menu" title="Recolher menu"><span class="sidebar-toggle-icon" aria-hidden="true">‹</span></button>
       <a class="brand" href="./" aria-label="SPPtab, início">
         <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span>
         <span><strong>SPPtab</strong><small>saúde em dados</small></span>

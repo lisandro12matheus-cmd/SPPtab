@@ -103,3 +103,47 @@
 .file-action-heading,.file-action-cell{text-align:right;white-space:nowrap}.file-action-link{display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:0 10px;border:1px solid #dbe7f8;border-radius:7px;background:#f5f9ff;color:#356fbd;font:600 9px 'DM Sans',sans-serif;text-decoration:none;cursor:pointer;transition:background .15s ease,border-color .15s ease}.file-action-link:hover:not(:disabled){background:#eaf2ff;border-color:#c4d9f5}.file-action-link:disabled{opacity:.65;cursor:wait}.file-table{min-width:760px}
 .sidebar-version{margin-left:auto;align-self:flex-end;padding-bottom:2px;color:#9aa6aa;font-size:9px;letter-spacing:.2px;white-space:nowrap}
 @media(max-width:760px){.sidebar-version{display:none}}
+
+/* Sidebar recolhível, com preferência mantida entre as telas do SPPtab. */
+.sidebar{position:sticky;top:0;height:100vh;align-self:flex-start;overflow-y:auto;z-index:10;transition:width .2s ease,flex-basis .2s ease,padding .2s ease}
+.sidebar-toggle{position:absolute;top:27px;right:13px;width:30px;height:30px;padding:0;border:1px solid #e5ecee;border-radius:8px;background:#fff;color:#63767b;display:grid;place-items:center;cursor:pointer;transition:background .15s ease,border-color .15s ease,color .15s ease}
+.sidebar-toggle:hover{background:#f4f8f8;border-color:#d5e1e3;color:#31545c}
+.sidebar-toggle:focus-visible{outline:3px solid #bdd6ff;outline-offset:2px}
+.sidebar-toggle-icon{display:block;font:400 23px/1 'DM Sans',sans-serif;transform:translateY(-1px);transition:transform .2s ease}
+@media(min-width:761px){
+.app-shell.sidebar-collapsed>.sidebar{width:72px;flex:0 0 72px;padding:18px 9px 20px}
+.app-shell.sidebar-collapsed>.sidebar .sidebar-toggle{position:static;align-self:center;margin:0 auto 16px}
+.app-shell.sidebar-collapsed>.sidebar .sidebar-toggle-icon{transform:translateY(-1px) rotate(180deg)}
+.app-shell.sidebar-collapsed>.sidebar .brand{justify-content:center;padding:0 0 31px}
+.app-shell.sidebar-collapsed>.sidebar .brand>span:last-child,.app-shell.sidebar-collapsed>.sidebar .nav-label,.app-shell.sidebar-collapsed>.sidebar .sidebar-foot>div,.app-shell.sidebar-collapsed>.sidebar .sidebar-version{display:none}
+.app-shell.sidebar-collapsed>.sidebar nav .nav-item{font-size:0;justify-content:center;padding:0}
+.app-shell.sidebar-collapsed>.sidebar nav .nav-icon{font-size:20px}
+.app-shell.sidebar-collapsed>.sidebar .sidebar-foot{justify-content:center;padding:15px 0 3px}
+}
+.sidebar nav .nav-item:focus-visible{outline:3px solid #bdd6ff;outline-offset:1px}
+.sidebar-backdrop{display:none}
+@media(max-width:760px){
+  .sidebar-toggle{position:static;align-self:center;margin:0 auto 14px}
+  .app-shell.sidebar-mobile-expanded>.sidebar{position:fixed;inset:0 auto 0 0;width:min(82vw,260px);height:100dvh;flex:0 0 min(82vw,260px);padding:20px 17px;overflow-y:auto;box-shadow:14px 0 36px rgba(24,45,54,.14);z-index:1001}
+  .app-shell.sidebar-mobile-expanded>.sidebar .sidebar-toggle{position:absolute;top:20px;right:12px;margin:0}
+  .app-shell.sidebar-mobile-expanded>.sidebar .sidebar-toggle-icon{transform:translateY(-1px) rotate(180deg)}
+  .app-shell.sidebar-mobile-expanded>.sidebar .brand{justify-content:flex-start;padding:0 12px 34px}
+  .app-shell.sidebar-mobile-expanded>.sidebar .brand>span:last-child,.app-shell.sidebar-mobile-expanded>.sidebar .nav-label,.app-shell.sidebar-mobile-expanded>.sidebar .sidebar-foot>div{display:block}
+  .app-shell.sidebar-mobile-expanded>.sidebar nav .nav-item{font-size:12.5px;justify-content:flex-start;padding:0 12px}
+  .app-shell.sidebar-mobile-expanded>.sidebar nav .nav-icon{font-size:20px}
+  .app-shell.sidebar-mobile-expanded>.sidebar .sidebar-foot{justify-content:flex-start;padding:15px 4px}
+  .app-shell.sidebar-mobile-expanded>.sidebar .sidebar-version{display:inline-flex}
+  .sidebar-backdrop:not([hidden]){display:block;position:fixed;inset:0;z-index:1000;border:0;padding:0;background:rgba(18,37,46,.28);cursor:pointer}
+}
+@media(prefers-reduced-motion:reduce){.sidebar,.sidebar-toggle,.sidebar-toggle-icon{transition:none}}
+
+/* Fundo escuro e difuso para destacar o mapa sem perder a leitura dos estados. */
+.location-step-screen .map-panel{background:radial-gradient(ellipse at 52% 48%,rgba(58,104,172,.28),rgba(29,52,82,.18) 44%,transparent 74%),linear-gradient(145deg,#101d30 0%,#192d48 54%,#111f33 100%);border-color:#2a4262}
+.location-step-screen .map-panel:after{content:"";position:absolute;z-index:0;inset:12% 15% 16%;pointer-events:none;background:radial-gradient(ellipse,rgba(87,145,231,.3) 0%,rgba(54,99,164,.12) 45%,transparent 74%);filter:blur(42px);opacity:.9}
+.location-step-screen .location-panel-heading,.location-step-screen .map-frame,.location-step-screen .map-caption{position:relative;z-index:1}
+.location-step-screen .location-step{color:#a9bdd8}
+.location-step-screen .location-panel-heading h3{color:#f0f5fc}
+.location-step-screen .map-credit{background:rgba(17,32,52,.78);border-color:rgba(184,207,238,.2);color:#c4d3e8}
+.location-step-screen .map-caption{border-color:rgba(196,214,239,.16);color:#b1c2da}
+.location-step-screen .map-key{color:#d4dfef}
+.location-step-screen .map-placeholder{color:#bdcbe0}
