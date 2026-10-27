@@ -1,0 +1,89 @@
+/* A quiet, full-screen first step: the map sets the context and the controls stay obvious. */
+.location-entry-header{display:none}
+.app-shell.map-entry{min-height:100vh;min-height:100svh;background:#0b1425}
+.app-shell.map-entry>.location-main{display:flex;flex-direction:column;min-height:100vh;min-height:100svh;width:100%;max-width:1920px;margin:0 auto;padding:0 clamp(20px,4.6vw,84px) clamp(16px,2vw,28px);color:#eef4ff}
+.app-shell.map-entry>.location-main>.topbar,
+.app-shell.map-entry .location-main>.intro,
+.app-shell.map-entry .location-main>.search-progress{display:none}
+.app-shell.map-entry .location-entry-header{display:flex;flex:none;height:78px;align-items:center;justify-content:flex-end;gap:16px}
+.location-entry-status{display:inline-flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid rgba(181,203,235,.2);border-radius:999px;background:rgba(255,255,255,.045);color:#bdcbe0;font-size:10px;font-weight:650;letter-spacing:.035em}
+.location-entry-status i{width:7px;height:7px;border-radius:50%;background:#65c6a4;box-shadow:0 0 0 4px rgba(101,198,164,.12)}
+.app-shell.map-entry .location-step-screen{display:flex;flex:1;min-height:0;margin:0;align-items:stretch}
+.app-shell.map-entry .location-step-screen .location-picker{display:grid;flex:1;min-height:0;width:100%;max-width:1760px;margin:0 auto;padding:0;grid-template-columns:minmax(0,1.34fr) minmax(360px,.72fr);gap:clamp(16px,2vw,34px);border:0;border-radius:0;background:transparent;box-shadow:none}
+.app-shell.map-entry .location-step-screen .map-panel{min-height:0;height:auto;padding:clamp(19px,2.2vw,32px);border:1px solid #293d60;border-radius:24px;background:radial-gradient(ellipse at 51% 49%,rgba(72,119,191,.29),rgba(35,64,105,.16) 44%,transparent 74%),linear-gradient(145deg,#101d30 0%,#192d48 54%,#111f33 100%);box-shadow:0 25px 70px rgba(1,7,17,.24)}
+.app-shell.map-entry .location-step-screen .map-panel:before{opacity:.52}
+.app-shell.map-entry .location-step-screen .map-panel:after{inset:10% 12% 14%;background:radial-gradient(ellipse,rgba(87,145,231,.26),rgba(54,99,164,.1) 46%,transparent 74%)}
+.app-shell.map-entry .location-step-screen .location-panel-heading{display:flex;align-items:center;gap:12px}
+.app-shell.map-entry .location-step-screen .location-step{margin-bottom:6px;color:#9db5d8;font-size:9px;letter-spacing:.15em}
+.app-shell.map-entry .location-step-screen .location-panel-heading h3{color:#f4f7fd;font-size:clamp(15px,1.2vw,19px);font-weight:650;letter-spacing:-.025em}
+.app-shell.map-entry .location-step-screen .map-credit{padding:7px 10px;border-color:rgba(184,207,238,.2);background:rgba(17,32,52,.78);color:#c4d3e8;font-size:9px}
+.app-shell.map-entry .location-step-screen .map-frame{flex:1;min-height:0;margin:8px 0 0}
+.app-shell.map-entry .location-step-screen .brazil-map-svg{width:min(100%,620px);max-height:min(67svh,660px);filter:drop-shadow(0 15px 26px rgba(1,9,23,.28))}
+.app-shell.map-entry .location-step-screen .brazil-map-svg [data-uf]{fill:#dce7f4;stroke:rgba(111,139,176,.68);stroke-width:1.05px;stroke-linecap:round;stroke-linejoin:round;paint-order:fill stroke;vector-effect:non-scaling-stroke}
+.app-shell.map-entry .location-step-screen .brazil-map-svg [data-uf]:hover,
+.app-shell.map-entry .location-step-screen .brazil-map-svg [data-uf]:focus{fill:#9ec4fa;filter:drop-shadow(0 3px 8px rgba(65,139,255,.38))}
+.app-shell.map-entry .location-step-screen .brazil-map-svg [data-uf].is-selected{fill:#3b8cff;filter:drop-shadow(0 2px 9px rgba(68,143,255,.4))}
+.app-shell.map-entry .location-step-screen .brazil-map-svg [data-uf].is-selected:hover,
+.app-shell.map-entry .location-step-screen .brazil-map-svg [data-uf].is-selected:focus{fill:#63a3ff}
+.app-shell.map-entry .location-step-screen .map-caption{padding-top:12px;border-top:1px solid rgba(196,214,239,.14);color:#b6c8e0;font-size:10px}
+.app-shell.map-entry .location-step-screen .map-key{color:#d5e1f1}
+.app-shell.map-entry .location-step-screen .map-key i{background:#448fff;box-shadow:0 0 0 3px rgba(68,143,255,.17)}
+.app-shell.map-entry .location-step-screen .location-controls{justify-content:center;gap:18px;padding:clamp(25px,3.2vw,48px);border:1px solid #e1e8f2;border-radius:24px;background:linear-gradient(160deg,#fff 0%,#f7f9fc 100%);box-shadow:0 25px 70px rgba(1,7,17,.22);color:#20324e}
+.app-shell.map-entry .location-copy-kicker{margin-bottom:13px}
+.app-shell.map-entry .location-kicker{margin:0;color:#3179d4;font-size:9px;letter-spacing:.16em}
+.app-shell.map-entry .location-copy h2{margin-bottom:10px;color:#13294b;font-size:clamp(29px,2.45vw,39px);font-weight:680;letter-spacing:-.055em;line-height:1.1}
+.app-shell.map-entry .location-intro{max-width:350px;margin:0;color:#687991;font-size:13px;line-height:1.65}
+.app-shell.map-entry .location-controls .field>span{margin-bottom:8px;color:#536782;font-size:9px;letter-spacing:.1em}
+.app-shell.map-entry .location-controls .field select,
+.app-shell.map-entry .location-controls .field input{height:50px;border-color:#d9e2ee;border-radius:10px;color:#233a5b;font-size:13px}
+.app-shell.map-entry .location-controls .field select:focus,
+.app-shell.map-entry .location-controls .field input:focus{border-color:#6ba0ec;box-shadow:0 0 0 4px #eaf2ff}
+.app-shell.map-entry .location-step-screen:not(.has-state) .municipality-picker,
+.app-shell.map-entry .location-step-screen:not(.has-state) .municipal-manager-setting,
+.app-shell.map-entry .location-step-screen:not(.has-state) .location-hint{display:none}
+.app-shell.map-entry .location-step-screen.has-state .municipality-picker,
+.app-shell.map-entry .location-step-screen.has-state .municipal-manager-setting,
+.app-shell.map-entry .location-step-screen.has-state .location-hint{animation:location-entry-reveal .22s ease both}
+.app-shell.map-entry .location-step-screen .municipality-picker{gap:8px}
+.app-shell.map-entry .location-step-screen .municipal-manager-setting{padding:12px;border-color:#e2e9f2;border-radius:10px;background:#fff}
+.app-shell.map-entry .location-step-screen .municipal-manager-setting strong{color:#344a68;font-size:11px}
+.app-shell.map-entry .location-step-screen .municipal-manager-setting small{color:#7888a0;font-size:10px}
+.app-shell.map-entry .location-step-screen .location-hint{min-height:0;padding:10px 12px;border-radius:9px;background:#edf4ff;color:#536c8d;font-size:10px;line-height:1.5}
+.app-shell.map-entry .location-step-screen .location-continue{height:54px;margin-top:2px;border-radius:10px;background:#2f78dc;box-shadow:0 9px 22px rgba(47,120,220,.21);font-size:12px}
+.app-shell.map-entry .location-step-screen .location-continue:hover:not(:disabled){background:#2469c8;box-shadow:0 12px 25px rgba(47,120,220,.28)}
+.app-shell.map-entry .location-step-screen .location-continue:disabled{box-shadow:none}
+@keyframes location-entry-reveal{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@media(max-height:760px) and (min-width:901px){
+  .app-shell.map-entry .location-entry-header{height:66px}
+  .app-shell.map-entry .location-step-screen .map-panel{padding:18px 22px 14px}
+  .app-shell.map-entry .location-step-screen .location-controls{gap:13px;padding:24px}
+  .app-shell.map-entry .location-step-screen .brazil-map-svg{max-height:58svh}
+}
+@media(max-width:900px){
+  .app-shell.map-entry>.location-main{padding-right:24px;padding-left:24px}
+  .app-shell.map-entry .location-step-screen .location-picker{grid-template-columns:minmax(0,1.1fr) minmax(310px,.9fr);gap:16px}
+  .app-shell.map-entry .location-step-screen .location-controls{padding:24px;gap:15px}
+}
+@media(max-width:760px){
+  .app-shell.map-entry>.location-main{min-height:100svh;padding:0 18px 20px}
+  .app-shell.map-entry .location-entry-header{height:70px}
+  .location-entry-status{padding:8px 10px;font-size:9px}
+  .app-shell.map-entry .location-step-screen{flex:none}
+  .app-shell.map-entry .location-step-screen .location-picker{grid-template-columns:1fr;gap:14px}
+  .app-shell.map-entry .location-step-screen .map-panel{min-height:0;height:clamp(340px,48svh,470px);padding:17px 16px 13px;border-radius:19px}
+  .app-shell.map-entry .location-step-screen .brazil-map-svg{max-height:37svh;width:min(100%,430px)}
+  .app-shell.map-entry .location-step-screen .location-controls{gap:14px;padding:22px;border-radius:19px}
+  .app-shell.map-entry .location-step-screen .location-copy h2{font-size:30px}
+  .app-shell.map-entry .location-step-screen .location-intro{max-width:none;font-size:12px}
+}
+@media(max-width:460px){
+  .app-shell.map-entry>.location-main{padding-right:12px;padding-left:12px}
+  .app-shell.map-entry .location-entry-header{height:62px}
+  .location-entry-status{gap:7px;padding:7px 8px;font-size:8px}
+  .app-shell.map-entry .location-step-screen .map-panel{height:39svh;min-height:300px;padding:14px 12px 11px;border-radius:16px}
+  .app-shell.map-entry .location-step-screen .location-panel-heading h3{font-size:14px}
+  .app-shell.map-entry .location-step-screen .map-panel-utility .tile-motif{display:none}
+  .app-shell.map-entry .location-step-screen .brazil-map-svg{max-height:29svh;max-width:100%}
+  .app-shell.map-entry .location-step-screen .location-controls{padding:18px}
+}
+@media(prefers-reduced-motion:reduce){.app-shell.map-entry .location-step-screen.has-state .municipality-picker,.app-shell.map-entry .location-step-screen.has-state .municipal-manager-setting,.app-shell.map-entry .location-step-screen.has-state .location-hint{animation:none}}

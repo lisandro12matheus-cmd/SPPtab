@@ -16,6 +16,7 @@ tabwin2_page_security();
   <link rel="stylesheet" href="assets/launch.css?v=4">
   <link rel="stylesheet" href="assets/search-loading.css?v=3">
   <link rel="stylesheet" href="assets/compact-headings.css?v=1">
+  <link rel="stylesheet" href="assets/location-entry.css?v=1">
   <script src="assets/sidebar.js?v=1" defer></script>
   <script src="assets/launch-gate.js?v=1"></script>
 </head>
@@ -53,6 +54,9 @@ tabwin2_page_security();
     </aside>
 
     <main class="main-content location-main" id="busca">
+      <div class="location-entry-header">
+        <span class="location-entry-status"><i aria-hidden="true"></i> 27 estados · dados públicos</span>
+      </div>
       <header class="topbar"><div class="breadcrumb">Dados públicos <span>/</span> <strong id="pageBreadcrumb">Início</strong></div><div class="top-tag" id="locationTag"><span></span><b>Escolha a UF</b></div></header>
       <section class="intro" id="pageIntro">
         <div class="eyebrow"><span class="eyebrow-line"></span> DADOS PÚBLICOS DE SAÚDE</div>
@@ -74,7 +78,7 @@ tabwin2_page_security();
             <div class="map-caption"><span class="map-key"><i></i><span id="mapKeyText">Selecione uma UF</span></span><span id="mapTooltip" aria-live="polite">Passe o cursor ou use o teclado</span></div>
           </div>
           <div class="location-controls">
-            <div class="location-copy"><div class="location-copy-kicker"><span class="tile-motif" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span class="location-kicker">ETAPA 01 · LOCALIDADE</span></div><h2>Onde estão os dados?</h2><p class="location-intro">Os arquivos do DATASUS são estaduais. O recorte municipal é opcional e só se aplica a relatórios com campo compatível.</p></div>
+            <div class="location-copy"><div class="location-copy-kicker"><span class="location-kicker">COMECE POR AQUI</span></div><h2>Escolha seu estado</h2><p class="location-intro">Clique no mapa ou use a lista. Município é opcional.</p></div>
             <label class="field"><span>ESTADO / UNIDADE DA FEDERAÇÃO</span><select id="uf"><option value="">Selecione um estado…</option><option value="AC">Acre · AC</option><option value="AL">Alagoas · AL</option><option value="AP">Amapá · AP</option><option value="AM">Amazonas · AM</option><option value="BA">Bahia · BA</option><option value="CE">Ceará · CE</option><option value="DF">Distrito Federal · DF</option><option value="ES">Espírito Santo · ES</option><option value="GO">Goiás · GO</option><option value="MA">Maranhão · MA</option><option value="MT">Mato Grosso · MT</option><option value="MS">Mato Grosso do Sul · MS</option><option value="MG">Minas Gerais · MG</option><option value="PA">Pará · PA</option><option value="PB">Paraíba · PB</option><option value="PR">Paraná · PR</option><option value="PE">Pernambuco · PE</option><option value="PI">Piauí · PI</option><option value="RJ">Rio de Janeiro · RJ</option><option value="RN">Rio Grande do Norte · RN</option><option value="RS">Rio Grande do Sul · RS</option><option value="RO">Rondônia · RO</option><option value="RR">Roraima · RR</option><option value="SC">Santa Catarina · SC</option><option value="SP">São Paulo · SP</option><option value="SE">Sergipe · SE</option><option value="TO">Tocantins · TO</option></select></label>
             <div class="municipality-picker"><label class="field"><span>RECORTE MUNICIPAL · OPCIONAL</span><input id="municipalitySearch" type="search" aria-label="Localizar município" placeholder="Localizar município" autocomplete="off" disabled></label><label class="field municipality-select-field"><span class="sr-only">Selecionar município</span><select id="municipality" aria-label="Selecionar município para a tabulação" disabled><option value="">Escolha primeiro um estado…</option></select></label></div>
             <label class="municipal-manager-setting" for="municipalManager"><input id="municipalManager" type="checkbox" disabled><span><strong>Gestão municipal</strong><small>Aplicar o código deste município no filtro Gestor da produção.</small></span></label>
@@ -120,7 +124,7 @@ tabwin2_page_security();
       <footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> <span id="pageStepLabel">escolha da localidade</span></span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer>
     </main>
   </div>
-  <script src="assets/app.js?v=25" defer></script>
+  <script src="assets/app.js?v=26" defer></script>
   <script src="assets/tabulations-nav.js?v=1" defer></script>
   <script src="assets/launch-splash.js?v=3" defer></script>
 </body>

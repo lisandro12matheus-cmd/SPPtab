@@ -184,6 +184,7 @@
   }
 
   function setSelectedMapState(uf) {
+    locationStep.classList.toggle('has-state', Boolean(uf));
     document.querySelectorAll('#mapMount [data-uf]').forEach((path) => {
       const selected = path.dataset.uf === uf;
       path.classList.toggle('is-selected', selected);
