@@ -21,7 +21,7 @@ tabwin2_page_security();
 </head>
 <body>
   <div class="launch-splash" id="launchSplash" role="status" aria-live="polite">
-    <img class="launch-splash__logo" src="assets/spptab-logo.svg?v=1" alt="SPPtab">
+    <img class="launch-splash__logo" src="assets/spptab-wordmark.png?v=1" alt="SPPtab">
     <div class="launch-splash__loader" aria-hidden="true">
       <span class="launch-splash__tile"></span><span class="launch-splash__tile"></span><span class="launch-splash__tile"></span>
       <span class="launch-splash__tile"></span><span class="launch-splash__tile"></span>

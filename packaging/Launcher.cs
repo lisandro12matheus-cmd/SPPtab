@@ -587,19 +587,24 @@ internal static class LauncherProgram
             BackColor = Color.FromArgb(245, 248, 252);
 
             Panel header = new Panel { Left = 0, Top = 0, Width = 500, Height = 101, BackColor = Color.White };
-            PictureBox logo = new PictureBox { Left = 23, Top = 20, Width = 60, Height = 60, SizeMode = PictureBoxSizeMode.Zoom };
+            PictureBox logo = new PictureBox { Left = 20, Top = 0, Width = 340, Height = 100, SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.White };
             try
             {
-                using (Icon largeIcon = new Icon(Path.Combine(AppPath, "assets", "spptab-icon.ico"), new Size(64, 64)))
-                    logo.Image = largeIcon.ToBitmap();
+                using (Image wordmark = Image.FromFile(Path.Combine(AppPath, "assets", "spptab-wordmark.png")))
+                    logo.Image = (Image)wordmark.Clone();
             }
-            catch { logo.Image = appIcon.ToBitmap(); }
-            Label title = new Label { Left = 96, Top = 25, Width = 250, Height = 35, Text = "SPPtab", ForeColor = Color.FromArgb(16, 47, 72), Font = new Font("Segoe UI", 19F, FontStyle.Bold) };
-            Label tagline = new Label { Left = 98, Top = 61, Width = 250, Height = 20, Text = "SAÚDE EM DADOS", ForeColor = Color.FromArgb(111, 133, 153), Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
-            Label version = new Label { Left = 379, Top = 36, Width = 96, Height = 23, Text = "v" + CurrentVersion, TextAlign = ContentAlignment.MiddleRight, ForeColor = Color.FromArgb(77, 108, 137), Font = new Font("Segoe UI", 9F) };
+            catch
+            {
+                logo.Left = 23; logo.Top = 20; logo.Width = 60; logo.Height = 60;
+                try
+                {
+                    using (Icon largeIcon = new Icon(Path.Combine(AppPath, "assets", "spptab-icon.ico"), new Size(64, 64)))
+                        logo.Image = largeIcon.ToBitmap();
+                }
+                catch { logo.Image = appIcon.ToBitmap(); }
+            }
+            Label version = new Label { Left = 374, Top = 36, Width = 102, Height = 23, Text = "v" + CurrentVersion, TextAlign = ContentAlignment.MiddleRight, ForeColor = Color.FromArgb(77, 108, 137), Font = new Font("Segoe UI", 9F) };
             header.Controls.Add(logo);
-            header.Controls.Add(title);
-            header.Controls.Add(tagline);
             header.Controls.Add(version);
             Controls.Add(header);
             Controls.Add(new Panel { Left = 0, Top = 100, Width = 500, Height = 1, BackColor = Color.FromArgb(222, 232, 243) });
