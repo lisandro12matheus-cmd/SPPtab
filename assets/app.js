@@ -7,6 +7,7 @@
   const searchButton = document.querySelector('#searchButton');
   const ufSelect = document.querySelector('#uf');
   const municipalitySelect = document.querySelector('#municipality');
+  const municipalManagerCheckbox = document.querySelector('#municipalManager');
   const locationStep = document.querySelector('#locationStep');
   const filesStep = document.querySelector('#filesStep');
   const pageIntro = document.querySelector('#pageIntro');
@@ -32,7 +33,7 @@
   const stateNames = {AC:'Acre',AL:'Alagoas',AP:'Amapá',AM:'Amazonas',BA:'Bahia',CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',MA:'Maranhão',MT:'Mato Grosso',MS:'Mato Grosso do Sul',MG:'Minas Gerais',PA:'Pará',PB:'Paraíba',PR:'Paraná',PE:'Pernambuco',PI:'Piauí',RJ:'Rio de Janeiro',RN:'Rio Grande do Norte',RS:'Rio Grande do Sul',RO:'Rondônia',RR:'Roraima',SC:'Santa Catarina',SP:'São Paulo',SE:'Sergipe',TO:'Tocantins'};
   const LOCATION_KEY = 'spptab-location-v1';
   const fileEntry = new URLSearchParams(window.location.search).get('etapa') === 'arquivos';
-  let location = {uf:'', municipalityCode:'', municipalityName:''};
+  let location = {uf:'', municipalityCode:'', municipalityName:'', useMunicipalManager:false};
   const appShell = document.querySelector('.app-shell');
   let municipalityRequest = 0;
   let currentFiles = [];
@@ -210,9 +211,15 @@
     if (scope) scope.innerHTML = wholeState
       ? `Os arquivos listados são do estado de <strong>${escapeHtml(stateNames[location.uf])}</strong>. A tabulação considerará todos os municípios dessa UF.`
       : `Os arquivos listados são do estado de <strong>${escapeHtml(stateNames[location.uf])}</strong>. <strong>${escapeHtml(location.municipalityName)}</strong> poderá ser usado como filtro municipal quando o relatório oferecer campo compatível, usando o código IBGE <strong>${escapeHtml(location.municipalityCode)}</strong>.`;
+    if (scope && location.useMunicipalManager) scope.innerHTML += ` <strong>Gestão municipal:</strong> o código de ${escapeHtml(location.municipalityName)} também será aplicado como gestor da produção.`;
     if (hint) hint.textContent = wholeState
       ? `Arquivos de ${stateNames[location.uf]}; a tabulação incluirá todo o estado.`
       : `${location.municipalityName} poderá ser usado como filtro quando o relatório oferecer campo municipal compatível. Os DBCs continuam sendo arquivos estaduais.`;
+    if (hint && location.useMunicipalManager) hint.textContent += ` Gestão municipal selecionada: o código de ${location.municipalityName} será aplicado ao filtro Gestor da produção.`;
+  }
+
+  function persistLocation() {
+    try { localStorage.setItem(LOCATION_KEY, JSON.stringify(location)); } catch (_) {}
   }
 
   async function loadMap() {
@@ -289,7 +296,9 @@
     const uf = ufSelect.value;
     setSelectedMapState(uf);
     advanceButton.disabled = !uf;
-    location = {uf, municipalityCode:'', municipalityName:''};
+    municipalManagerCheckbox.checked = false;
+    municipalManagerCheckbox.disabled = true;
+    location = {uf, municipalityCode:'', municipalityName:'', useMunicipalManager:false};
     try { localStorage.removeItem(LOCATION_KEY); } catch (_) {}
     updateLocationSummary();
     clearNotice();
@@ -307,7 +316,7 @@
       return;
     }
     location.municipalityName = 'Todo o estado';
-    try { localStorage.setItem(LOCATION_KEY, JSON.stringify(location)); } catch (_) {}
+    persistLocation();
     updateLocationSummary();
     loadMunicipalities(uf, 'all');
     scheduleCompetencyPrefetch();
@@ -319,8 +328,11 @@
     if (!value) { value = 'all'; municipalitySelect.value = 'all'; }
     const option = municipalitySelect.selectedOptions[0];
     const municipalityName = value === 'all' ? 'Todo o estado' : option.textContent;
-    location = {uf:ufSelect.value, municipalityCode:value === 'all' ? '' : value, municipalityName};
-    try { localStorage.setItem(LOCATION_KEY, JSON.stringify(location)); } catch (_) {}
+    const hasMunicipality = value !== 'all' && /^\d{6}$/.test(value);
+    municipalManagerCheckbox.disabled = !hasMunicipality;
+    if (!hasMunicipality) municipalManagerCheckbox.checked = false;
+    location = {uf:ufSelect.value, municipalityCode:hasMunicipality ? value : '', municipalityName, useMunicipalManager:hasMunicipality && municipalManagerCheckbox.checked};
+    persistLocation();
     updateLocationSummary();
   }
 
@@ -331,7 +343,9 @@
     ufSelect.value = saved.uf;
     setSelectedMapState(saved.uf);
     advanceButton.disabled = false;
-    location = {uf:saved.uf, municipalityCode:'', municipalityName:'Todo o estado'};
+    municipalManagerCheckbox.checked = Boolean(saved.useMunicipalManager && /^\d{6}$/.test(String(saved.municipalityCode || '')));
+    municipalManagerCheckbox.disabled = true;
+    location = {uf:saved.uf, municipalityCode:'', municipalityName:'Todo o estado', useMunicipalManager:false};
     updateLocationSummary();
     scheduleCompetencyPrefetch();
     if (fileEntry) showFilesStep();
@@ -381,6 +395,7 @@
     const target = new URL('tabulacoes-prontas.php', window.location.href);
     target.searchParams.set('uf', location.uf);
     if (location.municipalityCode) target.searchParams.set('municipio', location.municipalityCode);
+    if (location.useMunicipalManager && location.municipalityCode) target.searchParams.set('gestor', location.municipalityCode);
     window.location.assign(target.href);
   }
 
@@ -728,6 +743,11 @@
   advanceButton.addEventListener('click', fileEntry ? showFilesStep : showReadyReports);
   changeStateButton.addEventListener('click', showLocationStep);
   municipalitySelect.addEventListener('change', handleMunicipalityChange);
+  municipalManagerCheckbox.addEventListener('change', () => {
+    location.useMunicipalManager = Boolean(municipalitySelect.value && municipalitySelect.value !== 'all' && municipalManagerCheckbox.checked);
+    persistLocation();
+    updateLocationSummary();
+  });
   document.querySelector('#municipalitySearch').addEventListener('input', filterMunicipalityOptions);
   system.addEventListener('change', () => loadCompetencies());
   year.addEventListener('change', () => loadCompetencies());

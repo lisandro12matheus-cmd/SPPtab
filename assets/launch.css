@@ -13,3 +13,11 @@
 .launch-splash__message.is-changing{opacity:.35;transform:translateY(3px)}
 @keyframes spp-tile-pulse{0%,100%{transform:translateY(0) scale(.84);opacity:.54}45%{transform:translateY(-4px) scale(1);opacity:1}}
 @media(prefers-reduced-motion:reduce){.launch-splash,.launch-splash__tile,.launch-splash__message{transition:none;animation:none}.launch-splash__tile{opacity:1;transform:none}.launch-splash__message.is-changing{opacity:1;transform:none}}
+.municipal-manager-setting{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border:1px solid #dfe8f1;border-radius:10px;background:#fff;cursor:pointer;transition:border-color .15s ease,background .15s ease}
+.municipal-manager-setting input{width:16px;height:16px;flex:none;margin:1px 0 0;accent-color:#2f78dc}
+.municipal-manager-setting input:checked+span strong{color:#285f9d}
+.municipal-manager-setting input:disabled+span{opacity:.68}
+.municipal-manager-setting input:focus-visible{outline:3px solid #edf4ff;outline-offset:2px}
+.municipal-manager-setting strong,.municipal-manager-setting small{display:block}
+.municipal-manager-setting strong{color:#304b5b;font-size:10px;font-weight:700}
+.municipal-manager-setting small{margin-top:3px;color:#718498;font-size:9px;line-height:1.45}

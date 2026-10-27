@@ -186,10 +186,23 @@
   const linkedOriginCode = (params.get('origem') || '').replace(/\D/g, '').slice(0, 6);
   const linkedDestinationCode = (params.get('destino') || '').replace(/\D/g, '').slice(0, 6);
   const linkedReport = Object.prototype.hasOwnProperty.call(reportConfigurations, linkedReportId) || params.get('relatorio') === 'sia-pa-belem';
-  const linkedUf = String(params.get('uf') || 'PA').toUpperCase();
-  const linkedMunicipality = params.get('municipio') || (params.get('relatorio') === 'sia-pa-belem' ? '150140' : '');
+  let savedGlobalLocation = null;
+  try { savedGlobalLocation = JSON.parse(window.localStorage.getItem('spptab-location-v1') || 'null'); } catch (_) {}
+  const savedGlobalUf = stateNames[String(savedGlobalLocation?.uf || '').toUpperCase()] ? String(savedGlobalLocation.uf).toUpperCase() : '';
+  const savedGlobalMunicipality = /^\d{6}$/.test(String(savedGlobalLocation?.municipalityCode || '')) ? String(savedGlobalLocation.municipalityCode) : '';
+  const linkedUf = String(params.get('uf') || savedGlobalUf || 'PA').toUpperCase();
+  const linkedMunicipality = params.has('municipio') ? (params.get('municipio') || '')
+    : params.get('relatorio') === 'sia-pa-belem' ? '150140'
+      : !params.has('uf') && savedGlobalUf === linkedUf ? savedGlobalMunicipality : '';
+  const linkedManagerValues = params.getAll('gestor').map((value) => String(value || '').trim()).filter((value) => /^\d{6}$/.test(value)).slice(0, 100);
+  const linkedManagerCode = linkedManagerValues[0] || (savedGlobalLocation?.useMunicipalManager && savedGlobalUf === linkedUf && savedGlobalMunicipality === linkedMunicipality ? savedGlobalMunicipality : '');
   const linkedFilters = { municipalityCode:linkedMunicipality };
-  for (const definition of Object.values(filterDefinitions)) linkedFilters[definition.field] = params.getAll(definition.queryKey);
+  for (const [type, definition] of Object.entries(filterDefinitions)) {
+    const values = type === 'manager'
+      ? (linkedManagerValues.length ? linkedManagerValues : linkedManagerCode ? [linkedManagerCode] : [])
+      : params.getAll(definition.queryKey);
+    linkedFilters[definition.field] = values;
+  }
 
   function normalizeSelectedValues(value) {
     const values = Array.isArray(value) ? value : value == null || value === '' ? [] : [value];
@@ -749,11 +762,19 @@
       caption.textContent = 'CATEGORIAS · CTRL/⌘ + CLIQUE PARA VÁRIAS';
       const select = document.createElement('select');
       select.multiple = true;
-      const categories = categoriesForFilter(type);
+      const categories = categoriesForFilter(type).slice();
+      const preferredValues = normalizeSelectedValues(preferred[definition.field]);
+      if (type === 'manager' && linkedManagerCode && preferredValues.includes(linkedManagerCode) && !categories.some((item) => String(item.value) === linkedManagerCode)) {
+        const municipalityOption = [...municipalitySelect.options].find((option) => option.value === linkedManagerCode);
+        const municipalityName = municipalityOption?.textContent || savedGlobalLocation?.municipalityName || '';
+        const label = linkedManagerCode === linkedMunicipality
+          ? `${linkedManagerCode} · Gestão municipal${municipalityName ? ` · ${municipalityName}` : ''}`
+          : `${linkedManagerCode} · Gestor da produção`;
+        categories.push({ value:linkedManagerCode, label });
+      }
       select.size = Math.min(6, Math.max(2, categories.length));
       select.setAttribute('aria-label', `${definition.label}. Segure Ctrl no Windows ou Command no Mac para selecionar várias categorias.`);
       select.setAttribute('aria-describedby', 'reportFilterNote');
-      const preferredValues = normalizeSelectedValues(preferred[definition.field]);
       if (type === 'professionalCbo') {
         const search = document.createElement('input');
         search.className = 'setup-filter-search';
@@ -1003,6 +1024,43 @@
         : value;
       card.append(buildCell('span', label), buildCell('strong', formatted)); box.append(card);
     }
+    renderFlowInsight(rows);
+  }
+
+  function renderFlowInsight(rows) {
+    const panel = $('flowOriginInsight');
+    if (!panel) return;
+    const visible = activeReport.id === 'sih-rd-fluxo' && activeView === 'summary';
+    panel.hidden = !visible;
+    if (!visible) return;
+    const selectedMunicipality = String(activeResult?.municipalityCode || '').replace(/\D/g, '').slice(0, 6);
+    const focusCode = selectedMunicipality || (activeResult?.uf === 'PA' ? '150140' : '');
+    if (!focusCode) { panel.hidden = true; return; }
+    const focusName = selectedMunicipality
+      ? (activeResult?.municipality && activeResult.municipality !== 'Todos os municípios' ? activeResult.municipality : `Município ${selectedMunicipality}`)
+      : 'Belém';
+    let identifiedResidenceTotal = 0;
+    let focusResidenceCount = 0;
+    for (const row of rows) {
+      const count = Math.max(0, Number(row.aihCount) || 0);
+      if (!count) continue;
+      const residence = String(row.originCode || '').replace(/\D/g, '').slice(0, 6);
+      const flowType = String(row.flowType || '');
+      if (!/^\d{6}$/.test(residence) || residence === '000000' || residence === '999999' || flowType === 'Residência ignorada ou exterior' || flowType === 'Origem não classificada') continue;
+      identifiedResidenceTotal += count;
+      if (residence === focusCode) focusResidenceCount += count;
+    }
+    const otherMunicipalityCount = identifiedResidenceTotal - focusResidenceCount;
+    const share = (value) => `${formatNumber(identifiedResidenceTotal ? value * 100 / identifiedResidenceTotal : 0, 1)}%`;
+    $('flowOriginLabel').textContent = `Moradores de ${focusName}`;
+    $('flowOtherOriginLabel').textContent = 'Moradores de outros municípios';
+    $('flowOriginValue').textContent = share(focusResidenceCount);
+    $('flowOtherOriginValue').textContent = share(otherMunicipalityCount);
+    $('flowOriginCount').textContent = `MUNIC_RES · ${formatNumber(focusResidenceCount)} de ${formatNumber(identifiedResidenceTotal)} AIHs`;
+    $('flowOtherOriginCount').textContent = `MUNIC_RES · ${formatNumber(otherMunicipalityCount)} de ${formatNumber(identifiedResidenceTotal)} AIHs`;
+    $('flowInsightNote').textContent = identifiedResidenceTotal
+      ? (selectedMunicipality ? `Entre AIHs destinadas a ${focusName}, com residência identificada.` : 'Entre AIHs do recorte com município de residência identificado.')
+      : 'Nenhuma residência identificada neste recorte.';
   }
 
   function renderTableCell(row, column, firstColumn = false) {
@@ -1814,7 +1872,10 @@
       await loadReportDefaults(reportId);
       if (activeReport.id !== reportId) return;
       const preferred = applySetupPreference(preferredUf);
-      if (params.has('municipio')) preferred.municipalityCode = linkedMunicipality;
+      if (linkedMunicipality) preferred.municipalityCode = linkedMunicipality;
+      const managerDefinition = filterDefinitions.manager;
+      const preferredManagers = linkedManagerValues.length ? linkedManagerValues : linkedManagerCode ? [linkedManagerCode] : [];
+      if (preferredManagers.length && managerDefinition) preferred[managerDefinition.field] = preferredManagers;
       await openReportSetup(preferred);
     };
     reportCard.addEventListener('click', activate);
@@ -1976,7 +2037,7 @@
   async function init() {
     activateReport(activeReport.id);
     if (linkedReport || linkedYear || linkedCnes) await loadReportDefaults(activeReport.id);
-    const hasExplicitScope = params.has('uf') || params.has('municipio') || Object.values(filterDefinitions).some((definition) => params.has(definition.queryKey));
+    const hasExplicitScope = params.has('uf') || params.has('municipio') || params.has('gestor') || Boolean(linkedMunicipality || linkedManagerCode) || Object.values(filterDefinitions).some((definition) => params.has(definition.queryKey));
     const initialPreferred = linkedReport && !linkedYear && !linkedMonths.length && !hasExplicitScope ? applySetupPreference(linkedUf) : linkedFilters;
     if (hasExplicitScope || linkedYear || linkedMonths.length || !linkedReport) setUfOptions(linkedUf);
     setYears();
