@@ -30,7 +30,7 @@ internal sealed class InstallerForm : Form
 
     private InstallerForm()
     {
-        Text = "Iniciando SPPtab";
+        Text = "Iniciando TabulaSUS";
         Icon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -39,8 +39,8 @@ internal sealed class InstallerForm : Form
         ClientSize = new Size(510, 272);
         Font = new Font("Segoe UI", 9F);
 
-        Label title = new Label { Left = 28, Top = 22, Width = 450, Height = 32, Text = "SPPtab para Windows", Font = new Font("Segoe UI Semibold", 16F) };
-        detail = new Label { Left = 30, Top = 68, Width = 448, Height = 66, Text = "O aplicativo e seus componentes estão dentro deste executável. Vamos preparar o SPPtab automaticamente para esta conta do Windows." };
+        Label title = new Label { Left = 28, Top = 22, Width = 450, Height = 32, Text = "TabulaSUS para Windows", Font = new Font("Segoe UI Semibold", 16F) };
+        detail = new Label { Left = 30, Top = 68, Width = 448, Height = 66, Text = "O aplicativo e seus componentes estão dentro deste executável. Vamos preparar o TabulaSUS automaticamente para esta conta do Windows." };
         progress = new ProgressBar { Left = 30, Top = 153, Width = 448, Height = 20, Style = ProgressBarStyle.Continuous };
         status = new Label { Left = 30, Top = 182, Width = 448, Height = 22, Text = "Preparando o aplicativo…" };
         closeButton = new Button { Left = 360, Top = 216, Width = 118, Height = 34, Text = "Fechar", Visible = false };
@@ -51,7 +51,7 @@ internal sealed class InstallerForm : Form
 
     private void BeginInstall()
     {
-        status.Text = "Preparando os arquivos do SPPtab…";
+        status.Text = "Preparando os arquivos do TabulaSUS…";
         BackgroundWorker worker = new BackgroundWorker();
         worker.WorkerReportsProgress = true;
         worker.DoWork += delegate(object sender, DoWorkEventArgs e) { InstallPayload((BackgroundWorker)sender); };
@@ -64,15 +64,15 @@ internal sealed class InstallerForm : Form
         {
             if (e.Error != null)
             {
-                status.Text = "Não foi possível preparar o SPPtab.";
+                status.Text = "Não foi possível preparar o TabulaSUS.";
                 detail.Text = "Confira se há espaço livre no computador e tente executar este arquivo novamente.";
                 closeButton.Visible = true;
-                MessageBox.Show("Não foi possível preparar o SPPtab.\n\n" + e.Error.Message, "SPPtab", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Não foi possível preparar o TabulaSUS.\n\n" + e.Error.Message, "TabulaSUS", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             progress.Value = 100;
-            status.Text = "Abrindo o SPPtab…";
-            detail.Text = "O aplicativo está pronto. Esta janela fechará quando o SPPtab abrir no navegador.";
+            status.Text = "Abrindo o TabulaSUS…";
+            detail.Text = "O aplicativo está pronto. Esta janela fechará quando o TabulaSUS abrir no navegador.";
             try
             {
                 Process.Start(new ProcessStartInfo(Path.Combine(InstallDirectory, "SPPtab.exe")) { UseShellExecute = true });
@@ -80,10 +80,10 @@ internal sealed class InstallerForm : Form
             }
             catch (Exception ex)
             {
-                status.Text = "O SPPtab foi preparado, mas não abriu automaticamente.";
-                detail.Text = "Use o atalho do SPPtab criado na Área de Trabalho.\n" + ex.Message;
+                status.Text = "O TabulaSUS foi preparado, mas não abriu automaticamente.";
+                detail.Text = "Use o atalho do TabulaSUS criado na Área de Trabalho.\n" + ex.Message;
                 closeButton.Visible = true;
-                MessageBox.Show("O SPPtab foi preparado. Use o atalho criado na Área de Trabalho para abri-lo.\n\n" + ex.Message, "SPPtab", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("O TabulaSUS foi preparado. Use o atalho criado na Área de Trabalho para abri-lo.\n\n" + ex.Message, "TabulaSUS", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         };
         worker.RunWorkerAsync();
@@ -110,8 +110,8 @@ internal sealed class InstallerForm : Form
         Directory.CreateDirectory(startMenu);
         CreateShortcut(Path.Combine(startMenu, "SPPtab.lnk"));
         File.WriteAllText(Path.Combine(InstallDirectory, "LEIA-ME.txt"),
-            "SPPtab\r\n\r\n" +
-            "Use o atalho SPPtab. Confira as atualizações na janela inicial e clique em Abrir SPPtab para abrir o navegador.\r\n" +
+            "TabulaSUS\r\n\r\n" +
+            "Use o atalho TabulaSUS. Confira as atualizações na janela inicial e clique em Abrir TabulaSUS para abrir o navegador.\r\n" +
             "O app busca bases e definições oficiais pela internet. Arquivos e resultados ficam em %LOCALAPPDATA%\\SPPtab\\data.\r\n" +
             "O X recolhe a janela para a bandeja. Para desligar o serviço local, clique em Encerrar na janela ou no ícone perto do relógio.\r\n", System.Text.Encoding.UTF8);
         worker.ReportProgress(100, "Pronto.");
@@ -188,7 +188,7 @@ internal sealed class InstallerForm : Form
         Type shortcutType = shortcut.GetType();
         shortcutType.InvokeMember("TargetPath", BindingFlags.SetProperty, null, shortcut, new object[] { Path.Combine(InstallDirectory, "SPPtab.exe") });
         shortcutType.InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, shortcut, new object[] { InstallDirectory });
-        shortcutType.InvokeMember("Description", BindingFlags.SetProperty, null, shortcut, new object[] { "SPPtab — aplicativo de tabulação local" });
+        shortcutType.InvokeMember("Description", BindingFlags.SetProperty, null, shortcut, new object[] { "TabulaSUS — aplicativo de tabulação local" });
         shortcutType.InvokeMember("IconLocation", BindingFlags.SetProperty, null, shortcut, new object[] { Path.Combine(InstallDirectory, "SPPtab.exe") + ",0" });
         shortcutType.InvokeMember("Save", BindingFlags.InvokeMethod, null, shortcut, null);
     }

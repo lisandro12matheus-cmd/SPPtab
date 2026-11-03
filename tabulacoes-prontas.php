@@ -2,15 +2,15 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
-  <title>Tabulações prontas · SPPtab</title>
-      <link rel="stylesheet" href="assets/app.css?v=19"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=26"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
+  <title>Tabulações prontas · TabulaSUS</title>
+      <link rel="stylesheet" href="assets/app.css?v=19"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=29"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
   <script src="assets/sidebar.js?v=1" defer></script>
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar" id="spptabSidebar">
       <button class="sidebar-toggle" type="button" aria-controls="spptabSidebar" aria-expanded="true" aria-label="Recolher menu" title="Recolher menu"><span class="sidebar-toggle-icon" aria-hidden="true">‹</span></button>
-      <a class="brand" href="./" aria-label="SPPtab, início"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span><span><strong>SPPtab</strong><small>saúde em dados</small></span></a>
+      <a class="brand" href="./" aria-label="TabulaSUS, início"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span><span><strong>TabulaSUS</strong><small>saúde em dados</small></span></a>
       <div class="nav-label">ESPAÇO DE TRABALHO</div>
       <nav aria-label="Navegação principal">
         <a class="nav-item" data-nav="home" href="index.php"><span class="nav-icon">⌂</span>Início · mapa</a>
@@ -100,7 +100,7 @@
           <div class="report-notes" id="reportNotes"></div>
         </section>
       </section>
-      <footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> Catálogo de tabulações</span><span>Dados públicos · DATASUS</span></footer>
+      <footer class="page-footer"><span>TabulaSUS <span class="footer-separator">·</span> Catálogo de tabulações</span><span>Dados públicos · DATASUS</span></footer>
     </main>
   </div>
   <dialog class="report-setup-dialog" id="reportSetupDialog" aria-labelledby="reportSetupTitle">
@@ -112,6 +112,6 @@
       <div class="setup-dialog-footer"><div class="setup-default-actions"><button type="button" id="saveSetupDefault">Salvar filtros como padrão</button><button type="button" id="clearSetupDefault" hidden>Remover padrão</button><span id="setupDefaultStatus" role="status"></span></div><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=43" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=46" defer></script>
 </body>
 </html>

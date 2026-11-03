@@ -6,7 +6,7 @@ $AppRoot = Split-Path -Parent $PackagingRoot
 $WorkspaceRoot = Split-Path -Parent $AppRoot
 $VersionFile = Join-Path $PackagingRoot 'version.txt'
 $AppVersion = (Get-Content -LiteralPath $VersionFile -Raw).Trim()
-if ($AppVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'A versão do SPPtab deve seguir o formato X.Y.Z em packaging/version.txt.' }
+if ($AppVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'A versão do TabulaSUS deve seguir o formato X.Y.Z em packaging/version.txt.' }
 $BuildRoot = Join-Path $AppRoot '.build\portable'
 $RuntimeCache = Join-Path (Split-Path -Parent $BuildRoot) 'runtime-cache'
 $OutputRoot = Join-Path $AppRoot 'dist'
@@ -33,11 +33,11 @@ $SetupOutput = Join-Path $OutputRoot 'SPPtab-Setup.exe'
 $PortableOutput = Join-Path $OutputRoot 'SPPtab-Portable.zip'
 
 if (-not (Test-Path -LiteralPath $Compiler -PathType Leaf)) { throw 'O compilador C# do Windows não está disponível neste computador.' }
-if (-not (Test-Path -LiteralPath $AppIcon -PathType Leaf)) { throw 'O ícone do SPPtab não foi encontrado em assets\spptab-icon.ico.' }
+if (-not (Test-Path -LiteralPath $AppIcon -PathType Leaf)) { throw 'O ícone do TabulaSUS não foi encontrado em assets\spptab-icon.ico.' }
 
 $resolvedBuild = [IO.Path]::GetFullPath($BuildRoot)
 $resolvedApp = [IO.Path]::GetFullPath($AppRoot) + [IO.Path]::DirectorySeparatorChar
-if (-not $resolvedBuild.StartsWith($resolvedApp, [StringComparison]::OrdinalIgnoreCase)) { throw 'A pasta temporária de empacotamento saiu da pasta do SPPtab.' }
+if (-not $resolvedBuild.StartsWith($resolvedApp, [StringComparison]::OrdinalIgnoreCase)) { throw 'A pasta temporária de empacotamento saiu da pasta do TabulaSUS.' }
 if (Test-Path -LiteralPath $BuildRoot) { Remove-Item -LiteralPath $BuildRoot -Recurse -Force }
 New-Item -ItemType Directory -Path $AppPayload, $PhpPayload, $PythonPayload, $AppFiles, $OutputRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $RuntimeCache -Force | Out-Null
@@ -118,11 +118,11 @@ if (Test-Path -LiteralPath $pythonLicense) {
     Copy-Item -LiteralPath $pythonLicense -Destination (Join-Path $AppPayload 'PYTHON-LICENSE.txt') -Force
 }
 @'
-SPPtab — versão portátil para Windows 64 bits
+TabulaSUS — versão portátil para Windows 64 bits
 
-Extraia a pasta SPPtab para um local que você possa acessar, como Downloads ou Área de Trabalho. Depois, abra SPPtab.exe. Não precisa instalar PHP, Python nem servidor.
+Extraia a pasta TabulaSUS para um local que você possa acessar, como Downloads ou Área de Trabalho. Depois, abra SPPtab.exe. Não precisa instalar PHP, Python nem servidor.
 
-Uma janela com o T do SPPtab verifica atualizações antes de liberar a abertura. Clique em “Abrir SPPtab” para abrir o navegador padrão. O botão X recolhe a janela para a bandeja, mantendo o serviço local funcionando. Para desligar, use “Encerrar” na janela ou “Encerrar SPPtab” no menu do ícone perto do relógio.
+Uma janela com a marca TabulaSUS verifica atualizações antes de liberar a abertura. Clique em “Abrir TabulaSUS” para abrir o navegador padrão. O botão X recolhe a janela para a bandeja, mantendo o serviço local funcionando. Para desligar, use “Encerrar” na janela ou “Encerrar TabulaSUS” no menu do ícone perto do relógio.
 
 Em uma pasta nova, os arquivos baixados e convertidos ficam em data, ao lado de SPPtab.exe. Se você já usava outra versão, o app reaproveita a biblioteca existente. Se a pasta escolhida não permitir gravação, usa uma pasta local da sua conta. Para levar a biblioteca para outro computador, copie a pasta de dados indicada na etapa de conversão.
 
@@ -149,7 +149,7 @@ if (-not $SkipSelfTests) {
 $launcherExe = Join-Path $AppPayload 'SPPtab.exe'
 $launcherArgs = @('/nologo', '/target:winexe', '/platform:x64', '/optimize+', ('/out:' + $launcherExe), ('/win32icon:' + $AppIcon), '/reference:System.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll', '/reference:System.IO.Compression.dll', '/reference:System.IO.Compression.FileSystem.dll', $LauncherSource)
 & $Compiler @launcherArgs
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $launcherExe)) { throw 'Não foi possível compilar o iniciador do SPPtab.' }
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $launcherExe)) { throw 'Não foi possível compilar o iniciador do TabulaSUS.' }
 
 if (-not $SkipSelfTests) {
     & $launcherExe --self-test
@@ -176,7 +176,7 @@ try {
 finally {
     $archive.Dispose()
 }
-$requiredEntries = @('SPPtab.exe', 'VERSION.txt', 'runtime/php/php.exe', 'runtime/php/php.ini', 'runtime/python/python.exe', 'app/api.php', 'app/security.php', 'app/engine/storage_lock.py', 'app/engine/sigtap.py', 'app/bases.php', 'app/tabular.php', 'app/pacotes.php', 'app/minhas-tabulacoes.php', 'app/tabulacoes-prontas.php', 'app/sigtap.php', 'app/sigtap-zip.php', 'app/assets/app.css', 'app/assets/app.js', 'app/assets/launch.css', 'app/assets/location-entry.css', 'app/assets/sidebar.js', 'app/assets/spptab-wordmark.png', 'app/assets/presets.css', 'app/assets/saved-tabulations.js', 'app/assets/tabulations-nav.js', 'app/assets/predefined-report.css', 'app/assets/predefined-report.js', 'app/assets/sigtap.css', 'app/assets/sigtap.js', 'app/assets/sigtap-filter-widget.css', 'app/assets/sigtap-filter-widget.js', 'app/assets/compact-headings.css', 'app/packaging/router.php')
+$requiredEntries = @('SPPtab.exe', 'VERSION.txt', 'runtime/php/php.exe', 'runtime/php/php.ini', 'runtime/python/python.exe', 'app/api.php', 'app/security.php', 'app/engine/storage_lock.py', 'app/engine/sigtap.py', 'app/bases.php', 'app/tabular.php', 'app/pacotes.php', 'app/minhas-tabulacoes.php', 'app/tabulacoes-prontas.php', 'app/sigtap.php', 'app/sigtap-zip.php', 'app/assets/app.css', 'app/assets/app.js', 'app/assets/launch.css', 'app/assets/location-entry.css', 'app/assets/sidebar.js', 'app/assets/spptab-wordmark.png', 'app/assets/tabulasus-logo.png', 'app/assets/presets.css', 'app/assets/saved-tabulations.js', 'app/assets/tabulations-nav.js', 'app/assets/predefined-report.css', 'app/assets/predefined-report.js', 'app/assets/sigtap.css', 'app/assets/sigtap.js', 'app/assets/sigtap-filter-widget.css', 'app/assets/sigtap-filter-widget.js', 'app/assets/compact-headings.css', 'app/packaging/router.php')
 $archiveCheck = [IO.Compression.ZipFile]::OpenRead($PayloadZip)
 try {
     $actualEntries = @($archiveCheck.Entries | ForEach-Object { $_.FullName })
@@ -204,7 +204,7 @@ finally {
 $portableCheck = [IO.Compression.ZipFile]::OpenRead($PortableOutput)
 try {
     $portableEntries = @($portableCheck.Entries | ForEach-Object { $_.FullName })
-    foreach ($entry in @('SPPtab/SPPtab.exe', 'SPPtab/VERSION.txt', 'SPPtab/runtime/php/php.exe', 'SPPtab/runtime/python/python.exe', 'SPPtab/app/index.php', 'SPPtab/app/security.php', 'SPPtab/app/engine/storage_lock.py', 'SPPtab/app/engine/sigtap.py', 'SPPtab/app/bases.php', 'SPPtab/app/tabular.php', 'SPPtab/app/pacotes.php', 'SPPtab/app/minhas-tabulacoes.php', 'SPPtab/app/tabulacoes-prontas.php', 'SPPtab/app/sigtap.php', 'SPPtab/app/sigtap-zip.php', 'SPPtab/app/assets/app.css', 'SPPtab/app/assets/app.js', 'SPPtab/app/assets/launch.css', 'SPPtab/app/assets/location-entry.css', 'SPPtab/app/assets/sidebar.js', 'SPPtab/app/assets/spptab-wordmark.png', 'SPPtab/app/assets/presets.css', 'SPPtab/app/assets/saved-tabulations.js', 'SPPtab/app/assets/tabulations-nav.js', 'SPPtab/app/assets/predefined-report.css', 'SPPtab/app/assets/predefined-report.js', 'SPPtab/app/assets/sigtap.css', 'SPPtab/app/assets/sigtap.js', 'SPPtab/app/assets/sigtap-filter-widget.css', 'SPPtab/app/assets/sigtap-filter-widget.js', 'SPPtab/app/assets/compact-headings.css', 'SPPtab/LEIA-ME.txt')) {
+    foreach ($entry in @('SPPtab/SPPtab.exe', 'SPPtab/VERSION.txt', 'SPPtab/runtime/php/php.exe', 'SPPtab/runtime/python/python.exe', 'SPPtab/app/index.php', 'SPPtab/app/security.php', 'SPPtab/app/engine/storage_lock.py', 'SPPtab/app/engine/sigtap.py', 'SPPtab/app/bases.php', 'SPPtab/app/tabular.php', 'SPPtab/app/pacotes.php', 'SPPtab/app/minhas-tabulacoes.php', 'SPPtab/app/tabulacoes-prontas.php', 'SPPtab/app/sigtap.php', 'SPPtab/app/sigtap-zip.php', 'SPPtab/app/assets/app.css', 'SPPtab/app/assets/app.js', 'SPPtab/app/assets/launch.css', 'SPPtab/app/assets/location-entry.css', 'SPPtab/app/assets/sidebar.js', 'SPPtab/app/assets/spptab-wordmark.png', 'SPPtab/app/assets/tabulasus-logo.png', 'SPPtab/app/assets/presets.css', 'SPPtab/app/assets/saved-tabulations.js', 'SPPtab/app/assets/tabulations-nav.js', 'SPPtab/app/assets/predefined-report.css', 'SPPtab/app/assets/predefined-report.js', 'SPPtab/app/assets/sigtap.css', 'SPPtab/app/assets/sigtap.js', 'SPPtab/app/assets/sigtap-filter-widget.css', 'SPPtab/app/assets/sigtap-filter-widget.js', 'SPPtab/app/assets/compact-headings.css', 'SPPtab/LEIA-ME.txt')) {
         if ($portableEntries -notcontains $entry) { throw "A pasta portátil não contém o componente obrigatório: $entry" }
     }
 }
@@ -222,7 +222,7 @@ $installerArgs = @(
     $InstallerSource
 )
 & $Compiler @installerArgs
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $SetupOutput)) { throw 'Não foi possível gerar o instalador do SPPtab.' }
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $SetupOutput)) { throw 'Não foi possível gerar o instalador do TabulaSUS.' }
 
 if (-not $SkipSelfTests) {
     $installerTest = New-Object System.Diagnostics.Process

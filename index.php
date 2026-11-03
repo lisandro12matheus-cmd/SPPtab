@@ -9,7 +9,7 @@ tabwin2_page_security();
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f4f7f8">
   <meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
-  <title>SPPtab · DATASUS</title>
+  <title>TabulaSUS · DATASUS</title>
   <link rel="stylesheet" href="assets/app.css?v=19">
   <link rel="stylesheet" href="assets/file-selection.css?v=1">
   <link rel="stylesheet" href="assets/brand.css?v=1">
@@ -22,7 +22,7 @@ tabwin2_page_security();
 </head>
 <body>
   <div class="launch-splash" id="launchSplash" role="status" aria-live="polite">
-    <img class="launch-splash__logo" src="assets/spptab-wordmark.png?v=1" alt="SPPtab">
+    <img class="launch-splash__logo" src="assets/tabulasus-logo.png?v=1" alt="TabulaSUS">
     <div class="launch-splash__loader" aria-hidden="true">
       <span class="launch-splash__tile"></span><span class="launch-splash__tile"></span><span class="launch-splash__tile"></span>
       <span class="launch-splash__tile"></span><span class="launch-splash__tile"></span>
@@ -32,9 +32,9 @@ tabwin2_page_security();
   <div class="app-shell map-entry">
     <aside class="sidebar" id="spptabSidebar">
       <button class="sidebar-toggle" type="button" aria-controls="spptabSidebar" aria-expanded="true" aria-label="Recolher menu" title="Recolher menu"><span class="sidebar-toggle-icon" aria-hidden="true">‹</span></button>
-      <a class="brand" href="./" aria-label="SPPtab, início">
+      <a class="brand" href="./" aria-label="TabulaSUS, início">
         <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span>
-        <span><strong>SPPtab</strong><small>saúde em dados</small></span>
+        <span><strong>TabulaSUS</strong><small>saúde em dados</small></span>
       </a>
       <div class="nav-label">ESPAÇO DE TRABALHO</div>
       <nav aria-label="Navegação principal">
@@ -117,11 +117,11 @@ tabwin2_page_security();
           <div class="notice" id="notice" hidden role="status"></div>
         </div>
         <section class="library-card">
-          <div class="library-icon">▤</div><div class="library-copy"><strong>Uma biblioteca organizada, pronta para tabular</strong><p>Os arquivos ficam separados por sistema, ano, competência e tipo. Na próxima etapa, vamos cruzá-los com os arquivos de definição compatíveis com o TabWin.</p></div><div class="library-path"><span>ARQUIVOS LOCAIS</span><code>SPPtab / biblioteca</code></div>
+          <div class="library-icon">▤</div><div class="library-copy"><strong>Uma biblioteca organizada, pronta para tabular</strong><p>Os arquivos ficam separados por sistema, ano, competência e tipo. Na próxima etapa, vamos cruzá-los com os arquivos de definição compatíveis com o TabWin.</p></div><div class="library-path"><span>ARQUIVOS LOCAIS</span><code>TabulaSUS / biblioteca</code></div>
         </section>
       </section>
 
-      <footer class="page-footer"><span>SPPtab <span class="footer-separator">·</span> <span id="pageStepLabel">escolha da localidade</span></span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer>
+      <footer class="page-footer"><span>TabulaSUS <span class="footer-separator">·</span> <span id="pageStepLabel">escolha da localidade</span></span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer>
     </main>
   </div>
   <script src="assets/app.js?v=26" defer></script>

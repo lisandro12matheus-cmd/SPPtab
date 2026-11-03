@@ -445,7 +445,7 @@
 
   function applySetupPreference(fallbackUf = selectedUf()) {
     const saved = setupPreference();
-    setUfOptions(saved?.uf || fallbackUf);
+    setUfOptions(saved?.uf || activeReport.defaultUf || fallbackUf);
     activeFilterTypes = saved?.activeFilterTypes || [];
     return saved ? { municipalityCode:saved.municipalityCode, ...saved.filters } : (activeReport.defaultMunicipalityCode ? { municipalityCode:activeReport.defaultMunicipalityCode } : {});
   }
@@ -534,7 +534,7 @@
         body: JSON.stringify(payload)
       });
     } catch (_) {
-      throw new Error('Não foi possível falar com o SPPtab local. Confira se o aplicativo continua aberto.');
+      throw new Error('Não foi possível falar com o TabulaSUS local. Confira se o aplicativo continua aberto.');
     }
     const body = await response.text();
     let data;
@@ -1078,6 +1078,8 @@
     if (column.id === 'dimension:rejectionReason' || column.field === 'rejectionReason') cell.classList.add('report-rejection-reason-column');
     if (column.id === 'dimension:complexity') cell.classList.add('report-complexity-column');
     if (column.id === 'dimension:financing') cell.classList.add('report-financing-column');
+    if (column.id === 'dimension:origin') cell.classList.add('report-origin-type-column');
+    if (column.id === 'dimension:residence') cell.classList.add('report-residence-column');
     if (column.id === 'specialty') cell.classList.add('report-bed-specialty-column');
     if (column.id === 'procedure' && activeReport.tableMode === 'occupancy') cell.classList.add('report-bed-procedure-column');
     if (firstColumn || column.sticky) cell.classList.add('primary-cell');
@@ -1140,6 +1142,8 @@
       if (column.id === 'dimension:rejectionReason' || column.field === 'rejectionReason') th.classList.add('report-rejection-reason-column');
       if (column.id === 'dimension:complexity') th.classList.add('report-complexity-column');
       if (column.id === 'dimension:financing') th.classList.add('report-financing-column');
+      if (column.id === 'dimension:origin') th.classList.add('report-origin-type-column');
+      if (column.id === 'dimension:residence') th.classList.add('report-residence-column');
       if (column.id === 'specialty') th.classList.add('report-bed-specialty-column');
       if (column.id === 'procedure' && activeReport.tableMode === 'occupancy') th.classList.add('report-bed-procedure-column');
       if (column.sticky || columns[0] === column) th.classList.add('primary-cell');
@@ -1623,7 +1627,7 @@
     setLoader(true, 'Preparando a base para leitura', `${file.name} · verificando a cópia convertida neste computador.`, null, true);
     let conversion = await api({ action: 'convert_start', path: file.path });
     if (conversion.done && conversion.dbf_path) return conversion.dbf_path;
-    if (!conversion.job_id) throw new Error('O SPPtab não retornou uma tarefa de preparação válida.');
+    if (!conversion.job_id) throw new Error('O TabulaSUS não retornou uma tarefa de preparação válida.');
     const conversionJobId = conversion.job_id;
     while (true) {
       setLoader(true, conversion.stage || 'Preparando a base para leitura', conversion.message || `${file.name} · leitura em andamento.`, conversion.progress ?? 1);
@@ -1739,7 +1743,7 @@
     }
     let job = await api({ action:'tabulate_start', path:file.path, dbfPath, ...sourcePaths, predefinedReport:activeReport.id, predefinedView:view, ...filters, ...((view === 'detail' || view === 'services') ? { establishmentCode:cnes } : {}), ...(view === 'services' ? { aih } : {}), ...(activeReport.id === 'sih-rd-fluxo' && view === 'detail' ? { originMunicipalityCode:activeOriginCode, destinationMunicipalityCode:activeDestinationCode } : {}) });
     if (job.done && job.result) return stampMonthlyResult(job.result, year, month);
-    if (!job.job_id) throw new Error('O SPPtab não retornou uma tarefa de tabulação válida.');
+    if (!job.job_id) throw new Error('O TabulaSUS não retornou uma tarefa de tabulação válida.');
     const tabulationJobId = job.job_id;
     while (true) {
       const localProgress = Math.max(0, Math.min(100, Number(job.progress) || 1));
@@ -1838,7 +1842,7 @@
     const link = document.createElement('a');
     const scope = [activeResult.uf, activeResult.municipalityCode || 'UF'].filter(Boolean).join('-');
     const periodToken = activeMonths.length === 12 ? 'anual' : activeMonths.map((month) => String(month).padStart(2, '0')).join('-');
-    link.href = url; link.download = `SPPtab-${activeResult.report || activeReport.id}-${scope}-${activeYear}-${periodToken}.csv`;
+    link.href = url; link.download = `TabulaSUS-${activeResult.report || activeReport.id}-${scope}-${activeYear}-${periodToken}.csv`;
     document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url);
   }
 

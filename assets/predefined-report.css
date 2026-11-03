@@ -310,7 +310,7 @@
 .report-result.is-flow-report .report-table th:nth-child(8){min-width:120px}
 .report-result.is-flow-report .report-table td:nth-child(1),.report-result.is-flow-report .report-table td:nth-child(2),.report-result.is-flow-report .report-table td:nth-child(3),.report-result.is-flow-report .report-table td:nth-child(4),.report-result.is-flow-report .report-table td:nth-child(5){text-align:left;white-space:normal}
 @media(max-width:760px){.report-result.is-flow-report .report-kpis{grid-template-columns:1fr 1fr}.report-result.is-flow-report .report-kpi:last-child{grid-column:auto}}
-@media(max-width:760px){.flow-insight{grid-template-columns:1fr 1fr;gap:6px;padding:9px}.flow-insight-heading{grid-column:1/-1;padding:0 3px 3px}.flow-insight-stat:nth-of-type(2){border-left:0;padding-left:3px}.flow-insight-stat{padding-right:3px}}
+  @media(max-width:760px){.flow-insight{grid-template-columns:1fr 1fr;gap:6px;padding:9px}.flow-insight-heading{grid-column:1/-1;padding:0 3px 3px}.flow-insight-stat:nth-of-type(2){border-left:0;padding-left:3px}.flow-insight-stat{padding-right:3px}}
 @media(max-width:420px){.flow-insight-stat{grid-template-columns:minmax(0,1fr);gap:3px}.flow-insight-stat strong{grid-column:1;grid-row:auto;font-size:16px}.flow-insight-stat small{white-space:normal;line-height:1.35}}
 .report-result.is-flow-detail .report-table{min-width:1660px}
 .report-result.is-flow-detail .report-table th:nth-child(1){min-width:195px}

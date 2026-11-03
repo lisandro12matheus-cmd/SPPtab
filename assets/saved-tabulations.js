@@ -156,7 +156,7 @@
       if (currentRequest !== requestNumber) return;
       $('#presetLoading').hidden = true;
       setInfo(error.message, true);
-      renderEmpty('Não foi possível carregar as combinações', 'Confira se o serviço local do SPPtab está ativo e tente novamente.');
+      renderEmpty('Não foi possível carregar as combinações', 'Confira se o serviço local do TabulaSUS está ativo e tente novamente.');
       setNotice(error.message, true);
     }
   }
@@ -235,7 +235,7 @@
     } catch (error) {
       fileSelect.replaceChildren(new Option('Não foi possível abrir a biblioteca', ''));
       setInfo(error.message, true);
-      renderEmpty('Não foi possível consultar a biblioteca', 'Confira se o serviço local do SPPtab está ativo e tente novamente.');
+      renderEmpty('Não foi possível consultar a biblioteca', 'Confira se o serviço local do TabulaSUS está ativo e tente novamente.');
     }
   }
 

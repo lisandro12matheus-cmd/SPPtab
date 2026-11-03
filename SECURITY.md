@@ -1,4 +1,4 @@
-# Segurança do SPPtab
+# Segurança do TabulaSUS
 
 O aplicativo para Windows inicia um servidor PHP em `127.0.0.1` e expõe apenas as páginas e os recursos estáticos permitidos pelo roteador. A API exige POST com JSON, token da sessão, origem local e tamanho limitado. Caminhos de arquivos são resolvidos dentro da biblioteca local antes de leitura, conversão ou remoção.
 

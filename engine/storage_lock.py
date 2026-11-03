@@ -1,4 +1,4 @@
-"""Portable, reentrant cross-process locks for local SPPtab files."""
+"""Portable, reentrant cross-process locks for local TabulaSUS files."""
 from __future__ import annotations
 
 import errno
@@ -145,7 +145,7 @@ def interprocess_lock(path: Path, blocking: bool = True):
     """Lock a path across threads/processes, including reentrant same-thread calls.
 
     The atomic directory coordinates every current process. The legacy file
-    lock also waits for older SPPtab processes when the filesystem supports it.
+    lock also waits for older TabulaSUS processes when the filesystem supports it.
     Filesystems reporting EDEADLK can still use the directory lock safely.
     """
     path = Path(path)

@@ -53,8 +53,8 @@ internal static class LauncherProgram
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Não foi possível iniciar o SPPtab.\n\n" + ex.Message,
-                "SPPtab", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("Não foi possível iniciar o TabulaSUS.\n\n" + ex.Message,
+                "TabulaSUS", MessageBoxButtons.OK, MessageBoxIcon.Error);
             StopServer();
             return 1;
         }
@@ -178,16 +178,16 @@ internal static class LauncherProgram
             int parentId;
             if (!Int32.TryParse(args[3], out parentId)) throw new InvalidOperationException("Não foi possível identificar o iniciador atual.");
             string destinationRoot = Path.GetFullPath(args[4]).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (!File.Exists(archivePath) || !Directory.Exists(destinationRoot)) throw new InvalidOperationException("O pacote ou a pasta do SPPtab não está disponível.");
+            if (!File.Exists(archivePath) || !Directory.Exists(destinationRoot)) throw new InvalidOperationException("O pacote ou a pasta do TabulaSUS não está disponível.");
             if (new FileInfo(archivePath).Length > 1024L * 1024 * 1024) throw new InvalidOperationException("O pacote de atualização excede o tamanho permitido.");
-            if (!File.Exists(Path.Combine(destinationRoot, "SPPtab.exe"))) throw new InvalidOperationException("A pasta escolhida não parece conter uma instalação do SPPtab.");
+            if (!File.Exists(Path.Combine(destinationRoot, "SPPtab.exe"))) throw new InvalidOperationException("A pasta escolhida não parece conter uma instalação do TabulaSUS.");
             if (!Regex.IsMatch(expectedHash, "^[a-f0-9]{64}$") || !String.Equals(Sha256File(archivePath), expectedHash, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("A conferência de integridade do pacote falhou. O SPPtab não foi alterado.");
+                throw new InvalidOperationException("A conferência de integridade do pacote falhou. O TabulaSUS não foi alterado.");
 
             try
             {
                 using (Process parent = Process.GetProcessById(parentId))
-                    if (!parent.WaitForExit(120000)) throw new InvalidOperationException("O SPPtab ainda está encerrando. Tente atualizar novamente.");
+                    if (!parent.WaitForExit(120000)) throw new InvalidOperationException("O TabulaSUS ainda está encerrando. Tente atualizar novamente.");
             }
             catch (ArgumentException) { }
 
@@ -290,7 +290,7 @@ internal static class LauncherProgram
             for (int i = backedUpDirectories.Count - 1; i >= 0; i--)
                 try { Directory.Move(Path.Combine(backup, backedUpDirectories[i]), Path.Combine(args[4], backedUpDirectories[i])); } catch { }
             try { File.WriteAllText(log, "Falha ao atualizar: " + ex, Encoding.UTF8); } catch { }
-            MessageBox.Show("Não foi possível concluir a atualização. Seus dados foram preservados.\n\n" + ex.Message + "\n\nO SPPtab anterior será iniciado novamente.", "Atualização do SPPtab", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("Não foi possível concluir a atualização. Seus dados foram preservados.\n\n" + ex.Message + "\n\nO TabulaSUS anterior será iniciado novamente.", "Atualização do TabulaSUS", MessageBoxButtons.OK, MessageBoxIcon.Error);
             try
             {
                 string root = args.Length > 4 ? Path.GetFullPath(args[4]) : BaseDirectory;
@@ -341,7 +341,7 @@ internal static class LauncherProgram
     private static void StartServer(bool selfTest)
     {
         if (!File.Exists(PhpPath) || !File.Exists(PythonPath) || !File.Exists(Path.Combine(AppPath, "index.php")) || !File.Exists(Path.Combine(AppPath, "bases.php")) || !File.Exists(Path.Combine(AppPath, "tabular.php")))
-            throw new InvalidOperationException("A instalação está incompleta. Execute novamente o instalador do SPPtab.");
+            throw new InvalidOperationException("A instalação está incompleta. Execute novamente o instalador do TabulaSUS.");
 
         if (selfTest)
             dataDirectory = Path.Combine(Path.GetTempPath(), "TabWin2-selftest-" + Guid.NewGuid().ToString("N"));
@@ -574,7 +574,7 @@ internal static class LauncherProgram
         public LauncherForm(EventWaitHandle activationEvent)
         {
             this.activationEvent = activationEvent;
-            Text = "SPPtab";
+            Text = "TabulaSUS";
             appIcon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
             Icon = appIcon;
             FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -590,7 +590,7 @@ internal static class LauncherProgram
             PictureBox logo = new PictureBox { Left = 20, Top = 0, Width = 340, Height = 100, SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.White };
             try
             {
-                using (Image wordmark = Image.FromFile(Path.Combine(AppPath, "assets", "spptab-wordmark.png")))
+                using (Image wordmark = Image.FromFile(Path.Combine(AppPath, "assets", "tabulasus-logo.png")))
                     logo.Image = (Image)wordmark.Clone();
             }
             catch
@@ -610,7 +610,7 @@ internal static class LauncherProgram
             Controls.Add(new Panel { Left = 0, Top = 100, Width = 500, Height = 1, BackColor = Color.FromArgb(222, 232, 243) });
 
             statusDot = new Panel { Left = 25, Top = 131, Width = 8, Height = 8, BackColor = Color.FromArgb(51, 128, 229) };
-            status = new Label { Left = 43, Top = 119, Width = 430, Height = 28, Text = "Preparando o SPPtab…", ForeColor = Color.FromArgb(17, 48, 71), Font = new Font("Segoe UI", 11F, FontStyle.Bold) };
+            status = new Label { Left = 43, Top = 119, Width = 430, Height = 28, Text = "Preparando o TabulaSUS…", ForeColor = Color.FromArgb(17, 48, 71), Font = new Font("Segoe UI", 11F, FontStyle.Bold) };
             statusDetail = new Label { Left = 25, Top = 149, Width = 450, Height = 33, Text = "Iniciando seu espaço de trabalho neste computador.", ForeColor = Color.FromArgb(99, 120, 138) };
             Panel updatePanel = new Panel { Left = 24, Top = 190, Width = 452, Height = 62, BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
             updateStatus = new Label { Left = 13, Top = 10, Width = 314, Height = 42, Text = "Verificando se há uma versão mais recente…", ForeColor = Color.FromArgb(76, 102, 127) };
@@ -618,7 +618,7 @@ internal static class LauncherProgram
             update.FlatAppearance.BorderSize = 0;
             updatePanel.Controls.Add(updateStatus);
             updatePanel.Controls.Add(update);
-            open = new Button { Left = 24, Top = 267, Width = 289, Height = 42, Text = "Abrir SPPtab", Enabled = false, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(45, 112, 218), ForeColor = Color.White, Font = new Font("Segoe UI", 10F, FontStyle.Bold) };
+            open = new Button { Left = 24, Top = 267, Width = 289, Height = 42, Text = "Abrir TabulaSUS", Enabled = false, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(45, 112, 218), ForeColor = Color.White, Font = new Font("Segoe UI", 10F, FontStyle.Bold) };
             open.FlatAppearance.BorderSize = 0;
             close = new Button { Left = 326, Top = 267, Width = 150, Height = 42, Text = "Encerrar", FlatStyle = FlatStyle.Flat, BackColor = Color.White, ForeColor = Color.FromArgb(48, 76, 102) };
             close.FlatAppearance.BorderColor = Color.FromArgb(209, 223, 237);
@@ -629,15 +629,15 @@ internal static class LauncherProgram
             Controls.Add(statusDot); Controls.Add(status); Controls.Add(statusDetail); Controls.Add(updatePanel); Controls.Add(open); Controls.Add(close);
 
             ContextMenuStrip trayMenu = new ContextMenuStrip();
-            trayMenu.Items.Add("Abrir SPPtab no navegador", null, delegate { if (!open.Enabled) { RestoreLauncher(); return; } try { OpenApp(); } catch (Exception ex) { MessageBox.Show(ex.Message); } });
+            trayMenu.Items.Add("Abrir TabulaSUS no navegador", null, delegate { if (!open.Enabled) { RestoreLauncher(); return; } try { OpenApp(); } catch (Exception ex) { MessageBox.Show(ex.Message); } });
             trayMenu.Items.Add("Mostrar esta janela", null, delegate { RestoreLauncher(); });
             trayMenu.Items.Add("Verificar atualizações", null, delegate { CheckForUpdates(); RestoreLauncher(); });
             trayMenu.Items.Add(new ToolStripSeparator());
-            trayMenu.Items.Add("Encerrar SPPtab", null, delegate { allowExit = true; Close(); });
+            trayMenu.Items.Add("Encerrar TabulaSUS", null, delegate { allowExit = true; Close(); });
             trayIcon = new NotifyIcon
             {
                 Icon = appIcon,
-                Text = "SPPtab em execução",
+                Text = "TabulaSUS em execução",
                 ContextMenuStrip = trayMenu,
                 Visible = true
             };
@@ -653,8 +653,8 @@ internal static class LauncherProgram
                     Hide();
                     if (!trayNoticeShown)
                     {
-                        trayIcon.BalloonTipTitle = "SPPtab continua ativo";
-                        trayIcon.BalloonTipText = "O SPPtab continua ativo. Use o ícone perto do relógio para abrir ou encerrar.";
+                        trayIcon.BalloonTipTitle = "TabulaSUS continua ativo";
+                        trayIcon.BalloonTipText = "O TabulaSUS continua ativo. Use o ícone perto do relógio para abrir ou encerrar.";
                         trayIcon.ShowBalloonTip(3500);
                         trayNoticeShown = true;
                     }
@@ -716,7 +716,7 @@ internal static class LauncherProgram
                     {
                         startupFailed = true;
                         trayIcon.Visible = false;
-                        status.Text = "Não foi possível iniciar o SPPtab";
+                        status.Text = "Não foi possível iniciar o TabulaSUS";
                         statusDetail.Text = ex.Message;
                         statusDot.BackColor = Color.FromArgb(205, 69, 69);
                         close.Text = "Fechar";
@@ -757,10 +757,10 @@ internal static class LauncherProgram
                         {
                             availableTag = null;
                             availableVersion = null;
-                            status.Text = "SPPtab pronto para abrir";
-                            statusDetail.Text = "O navegador abrirá quando você clicar em Abrir SPPtab.";
+                            status.Text = "TabulaSUS pronto para abrir";
+                            statusDetail.Text = "O navegador abrirá quando você clicar em Abrir TabulaSUS.";
                             update.Visible = false;
-                            updateStatus.Text = "Versão atualizada. Você já pode abrir o SPPtab.";
+                            updateStatus.Text = "Versão atualizada. Você já pode abrir o TabulaSUS.";
                             updateStatus.ForeColor = Color.DimGray;
                             open.Enabled = true;
                         }
@@ -777,9 +777,9 @@ internal static class LauncherProgram
                             availableVersion = null;
                             update.Visible = false;
                             update.Enabled = false;
-                            status.Text = "SPPtab pronto para abrir";
+                            status.Text = "TabulaSUS pronto para abrir";
                             statusDetail.Text = "A verificação falhou; você pode usar a versão instalada.";
-                            updateStatus.Text = "Não foi possível verificar atualizações agora. Você ainda pode abrir o SPPtab.";
+                            updateStatus.Text = "Não foi possível verificar atualizações agora. Você ainda pode abrir o TabulaSUS.";
                             updateStatus.ForeColor = Color.DimGray;
                             open.Enabled = true;
                         });
@@ -861,7 +861,7 @@ internal static class LauncherProgram
                     Process.Start(helper);
                     BeginInvoke((MethodInvoker)delegate
                     {
-                        status.Text = "Atualização conferida. Reiniciando o SPPtab…";
+                        status.Text = "Atualização conferida. Reiniciando o TabulaSUS…";
                         allowExit = true;
                         Close();
                     });

@@ -1465,7 +1465,7 @@ def _attach_sigtap_source(result: dict[str,Any], status: dict[str,Any] | None):
 
 
 def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
-    """Monthly state-level SIA production, with optional municipal/profile filters."""
+    """Monthly state-level SIA production, with optional municipal and classification filters."""
     if progress: progress(2,"Conferindo a base ambulatorial")
     source=safe_file(payload.get("path",""))
     relative=source.relative_to(UPLOADS).as_posix()
@@ -1587,7 +1587,7 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
     if has_financing: names.append("PA_TPFIN")
     positions={name:index for index,name in enumerate(names)}
     decimals={name:int(fieldinfo[name]["decimals"]) for name in ("PA_QTDAPR","PA_QTDPRO","PA_VALAPR","PA_VALPRO")}
-    sums=defaultdict(lambda:[0,0,0,0,0,0,0,0])
+    sums=defaultdict(lambda:[0,0,0,0,0,0,0,0,0,0,0])
     processed=[0]
     scope=" · ".join(part for part in (municipality_name if municipality else PREDEFINED_UF_NAMES[uf],*(filter_name_summary(selected_filter_names[spec["key"]]) for spec in PREDEFINED_FILTER_SPECS if spec["key"] in selected_filter_names)) if part)
     def scan_progress(done,_total):
@@ -1608,7 +1608,10 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
         v_approved=scaled_integer(record[positions["PA_VALAPR"]],decimals["PA_VALAPR"])
         complexity_code=record[positions["PA_NIVCPL"]].strip() if has_complexity else ""
         financing_code=_report_code(record[positions["PA_TPFIN"]],2) if has_financing else ""
-        group_key=(code,complexity_code,financing_code) if view=="detail" else code
+        if view=="detail":
+            group_key=(code,complexity_code,financing_code)
+        else:
+            group_key=code
         row=sums[group_key]
         row[0]+=q_approved
         row[1]+=q_presented
@@ -1618,7 +1621,6 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
         row[5]+=max(0,v_presented-v_approved)
         row[6]+=int(q_presented>0 and q_approved==0)
         row[7]+=1
-
     metrics=[
         {"id":"qtd_aprovada","label":"Quantidade aprovada","decimals":decimals["PA_QTDAPR"]},
         {"id":"qtd_apresentada","label":"Quantidade apresentada","decimals":decimals["PA_QTDPRO"]},
@@ -1645,7 +1647,8 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
         label=establishment_label(code) if view=="summary" else _report_label(procedure_labels.get(code) or "Descrição indisponível na referência oficial")
         row={"code":code,"label":label,"values":[scaled_text(values[index],metric["decimals"]) for index,metric in zip(metric_indexes,metrics)],"records":values[7]}
         if view=="detail": row.update({"complexity":complexity_label,"financing":financing_label})
-        sortable_rows.append((-int(values[2]),label.casefold(),code,(complexity_label.casefold(),financing_label.casefold()),row))
+        sort_measure=values[2]
+        sortable_rows.append((-int(sort_measure),label.casefold(),code,(complexity_label.casefold(),financing_label.casefold()),row))
     sortable_rows.sort(key=lambda item:item[:4])
     rows=[item[4] for item in sortable_rows]
     total_values=[scaled_text(value,metric["decimals"]) for value,metric in zip(totals,metrics)]
@@ -3407,7 +3410,7 @@ def predefined_sih_bed_occupancy(payload: dict[str,Any], progress=None):
             "Ocupação registrada = diárias das AIHs processadas ÷ dias da competência ÷ leitos SUS do CNES. A consulta de leitos usa os dados atuais retornados pelo CNES, e não uma fotografia histórica da competência.",
             "Saldo potencial = leitos SUS menos a média diária processada e a média diária de permanência informada nas AIHs rejeitadas. Rejeições são uma possibilidade estimada, não uma internação confirmada.",
             "O tipo de leito em destaque é a categoria ESPEC da definição oficial SIH/TabWin com mais diárias processadas. UTI e UCI são campos separados no SIH; as AIHs abertas mostram as respectivas diárias.",
-            "A taxa de rejeição é calculada como AIHs no RJ ÷ (AIHs no RD + AIHs no RJ). As faixas de situação são referências visuais do SPPtab, não uma classificação oficial do CNES/SIH.",
+            "A taxa de rejeição é calculada como AIHs no RJ ÷ (AIHs no RD + AIHs no RJ). As faixas de situação são referências visuais do TabulaSUS, não uma classificação oficial do CNES/SIH.",
             *( [f"A última atualização de leitos informada pelo CNES nesta consulta é {max((str(value.get('updatedAt') or '') for value in beds_by_cnes.values()),default='')}." ] if any(value.get("updatedAt") for value in beds_by_cnes.values()) else [] ),
             *([f"O CNES não respondeu para {lookup_errors} estabelecimento(s); a ocupação e o saldo desses locais ficam sem cálculo até uma próxima consulta."] if lookup_errors else []),
             *([f"O CNES está indisponível para {sum(1 for item in beds_by_cnes.values() if item.get('stale'))} estabelecimento(s); seus leitos usam a última cópia válida, consultada em {time.strftime('%d/%m/%Y',time.localtime(max(float(item.get('cachedAt') or 0) for item in beds_by_cnes.values() if item.get('stale'))))}."] if any(item.get('stale') for item in beds_by_cnes.values()) else []),

@@ -173,7 +173,7 @@ if ($binary === '') {
     }
 }
 if ($binary === '' || !is_file($binary)) {
-    respond(['ok' => false, 'error' => 'O Python do SPPtab não foi configurado. Informe o caminho confiável em TABWIN2_PYTHON ou no arquivo local uploads/.config/python-path.txt.'], 503);
+    respond(['ok' => false, 'error' => 'O Python do TabulaSUS não foi configurado. Informe o caminho confiável em TABWIN2_PYTHON ou no arquivo local uploads/.config/python-path.txt.'], 503);
 }
 $engine = in_array($action, $sigtapActions, true) ? 'sigtap.py' : (in_array($action, $tabulationActions, true) ? 'tabulation.py' : 'datasus.py');
 $script = __DIR__ . DIRECTORY_SEPARATOR . 'engine' . DIRECTORY_SEPARATOR . $engine;

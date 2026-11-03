@@ -316,7 +316,7 @@
     try {
       const data = await api({action:'sigtap_search', competence, filters:filters(), columnFilters, sort:$('sort').value, direction:$('direction').value, exportAll:true});
       const rows = data.rows.map(item => [item.code, item.name, item.group?.label || '', item.complexity?.label || '', item.financing ? `${item.financing.code} · ${item.financing.label}` : '', csvMoney(item.values?.sa), csvMoney(item.values?.sh), csvMoney(item.values?.sp)]);
-      saveCsv(`SPPtab-SIGTAP-procedimentos-${competence}.csv`, ['Código', 'Procedimento', 'Grupo', 'Complexidade', 'Financiamento', 'Valor SA (R$)', 'Valor SH (R$)', 'Valor SP (R$)'], rows);
+      saveCsv(`TabulaSUS-SIGTAP-procedimentos-${competence}.csv`, ['Código', 'Procedimento', 'Grupo', 'Complexidade', 'Financiamento', 'Valor SA (R$)', 'Valor SH (R$)', 'Valor SP (R$)'], rows);
     } catch (error) { message('message', error.message, true); }
     finally { procedureCsvButton.disabled = state.count === 0; }
   }
@@ -327,7 +327,7 @@
     try {
       const data = await api({action:'sigtap_compare', before, after, exportAll:true});
       const rows = data.rows.map(row => [row.code, {added:'Incluído', removed:'Excluído', changed:'Alterado'}[row.status] || row.status, row.afterName || row.beforeName || '', [row.fieldsChanged?.map(field => fieldNames[field] || field).join(', '), row.relationsChanged ? 'Relacionamentos' : ''].filter(Boolean).join(' · ') || '—']);
-      saveCsv(`SPPtab-SIGTAP-comparacao-${before}-${after}.csv`, ['Código', 'Alteração', 'Procedimento', 'O que mudou'], rows);
+      saveCsv(`TabulaSUS-SIGTAP-comparacao-${before}-${after}.csv`, ['Código', 'Alteração', 'Procedimento', 'O que mudou'], rows);
     } catch (error) { message('compareMessage', error.message, true); }
     finally { compareCsvButton.disabled = state.compareCount === 0; }
   }

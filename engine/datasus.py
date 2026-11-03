@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Busca e baixa arquivos DBC públicos do DATASUS para o SPPtab."""
+"""Busca e baixa arquivos DBC públicos do DATASUS para o TabulaSUS."""
 
 from __future__ import annotations
 

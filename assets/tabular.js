@@ -387,7 +387,7 @@
         return;
       }
       $('#progressLabel').textContent = 'Sem comunicação com o serviço local';
-      $('#progressCopy').textContent = 'Confira se o SPPtab continua em execução. A conversão pode ter continuado; abra novamente e consulte o arquivo na biblioteca.';
+      $('#progressCopy').textContent = 'Confira se o TabulaSUS continua em execução. A conversão pode ter continuado; abra novamente e consulte o arquivo na biblioteca.';
       notice(2, `${error.message} A conversão continua salva; tente consultar novamente.`, 'error');
       $('#startConvert').disabled = false;
     }
@@ -1057,7 +1057,7 @@
     $('#addFile').disabled = !select.value || compatible.length === 0;
     $('#fileCount').textContent = `${tabFiles.length} ${tabFiles.length === 1 ? 'base selecionada' : 'bases selecionadas'}`;
     $('#fileStatus').textContent = compatible.length
-      ? 'O SPPtab prepara cada arquivo automaticamente; bases de competências diferentes também podem ser combinadas.'
+      ? 'O TabulaSUS prepara cada arquivo automaticamente; bases de competências diferentes também podem ser combinadas.'
       : `Nenhuma outra base ${selected ? `${selected.system} · ${selected.kind}` : ''} está disponível.`;
 
     const box = $('#selectedFiles');
