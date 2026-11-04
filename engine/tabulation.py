@@ -1,8 +1,9 @@
 """Tabulação local de arquivos DATASUS usando definições oficiais do TabWin."""
 from __future__ import annotations
 
-import json, os, re, subprocess, tempfile, zipfile, secrets, threading, time, sys, mmap, hashlib, stat, calendar
-from datetime import date
+import json, os, re, subprocess, tempfile, zipfile, secrets, threading, time, sys, mmap, hashlib, stat, calendar, csv, io, shutil, gzip
+from datetime import date, timedelta
+from email.utils import parsedate_to_datetime
 import urllib.request, urllib.error, urllib.parse, xml.etree.ElementTree as ET, sqlite3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import ExitStack, contextmanager
@@ -632,6 +633,18 @@ def write_tabulation_job(job_id: str, state: dict[str,Any]):
 
 def start_tabulation(payload: dict[str,Any]):
     payload=json.loads(json.dumps(payload))
+    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","srag-semanal"}:
+        year=payload.get("year")
+        month=payload.get("month")
+        uf=str(payload.get("uf") or "").upper()
+        municipality=str(payload.get("municipalityCode") or "")
+        if not isinstance(year,int) or year<2000 or year>date.today().year:
+            raise ValueError("Selecione um ano entre 2000 e o ano atual.")
+        if not isinstance(month,int) or month<1 or month>12:
+            raise ValueError("Selecione uma competência válida.")
+        if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]:
+            raise ValueError("Selecione um município válido da unidade da Federação escolhida.")
+        return _start_tabulation_locked(payload,[])
     raw_sources=payload.get("sources")
     has_multiple=isinstance(raw_sources,list) and len(raw_sources)>0
     entries=raw_sources if has_multiple else [{"path":payload.get("path",""),"dbfPath":payload.get("dbfPath")}]
@@ -1259,6 +1272,22 @@ def _report_label(value: Any) -> str:
 
 def predefined_filter_options(payload: dict[str,Any]):
     """Return optional filters backed by official categories in the SIA definition."""
+    if payload.get("report") in {"sinan-dengue","sinan-chikungunya","sinan-zika"}:
+        return {"ok":True,"uf":"PA",
+            "cnesManagementTypes":[
+                {"value":"MUNICIPAL","label":"Gestão municipal"},
+                {"value":"ESTADUAL","label":"Gestão estadual"},
+                {"value":"DUPLA","label":"Dupla gestão"},
+                {"value":"NAO_INFORMADA","label":"Gestão não identificada"},
+            ],
+            "cnesNatureGroups":[
+                {"value":"PUBLICO","label":"Natureza pública"},
+                {"value":"PRIVADO","label":"Natureza privada"},
+                {"value":"SEM_FINS_LUCRATIVOS","label":"Sem fins lucrativos"},
+                {"value":"PESSOA_FISICA","label":"Pessoa física"},
+                {"value":"OUTROS","label":"Outras naturezas"},
+                {"value":"NAO_INFORMADA","label":"Natureza não identificada"},
+            ]}
     if payload.get("report")=="sih-rd-producao":
         return predefined_sih_filter_options(payload)
     if payload.get("report")=="sih-rd-rejeicoes":
@@ -1463,6 +1492,702 @@ def _attach_sigtap_source(result: dict[str,Any], status: dict[str,Any] | None):
     if status.get("warning"): message+=f" {status['warning']}"
     result.setdefault("notes",[]).append(message)
 
+
+def _sinan_code(value: Any) -> str:
+    raw=str(value or "").strip().lower()
+    if raw in {"", "nan", "none", "null", "na"}: return ""
+    return raw[:-2] if re.fullmatch(r"\d+\.0",raw) else raw
+
+SINAN_DENGUE_ARCHIVE_HOST="s3.sa-east-1.amazonaws.com"
+SINAN_DENGUE_ARCHIVE_MAX_BYTES=512*1024*1024
+SINAN_DENGUE_CSV_MAX_BYTES=2*1024*1024*1024
+SINAN_AGRAVOS={
+    "sinan-dengue":{"folder":"Dengue","prefix":"DENG","icd":"a90","label":"dengue"},
+    "sinan-chikungunya":{"folder":"Chikungunya","prefix":"CHIK","icd":"a920","label":"chikungunya"},
+    "sinan-zika":{"folder":"Zikavirus","prefix":"ZIKA","icd":"a928","label":"Zika"},
+}
+
+def _sinan_dengue_archive(year: int, report_id: str="sinan-dengue", progress=None):
+    """Download an approved annual public-health bundle from its fixed HTTPS source."""
+    year_code=f"{year % 100:02d}"
+    source_name="SIM" if report_id=="sim-mortalidade" else "SINAN"
+    config=SINAN_AGRAVOS.get(report_id)
+    if report_id=="sim-mortalidade":
+        filename=f"Mortalidade_Geral_{year}_csv.zip"
+        member_name=f"Mortalidade_Geral_{year}.csv"
+        url=f"https://{SINAN_DENGUE_ARCHIVE_HOST}/ckan.saude.gov.br/SIM/csv/{filename}"
+    else:
+        if config is None: raise ValueError("Fonte oficial não reconhecida.")
+        filename=f"{config['prefix']}BR{year_code}.csv.zip"
+        member_name=f"{config['prefix']}BR{year_code}.csv"
+        url=f"https://{SINAN_DENGUE_ARCHIVE_HOST}/ckan.saude.gov.br/SINAN/{config['folder']}/csv/{filename}"
+    folder=UPLOADS/".cache"/"sinan-source"
+    folder.mkdir(parents=True,exist_ok=True)
+    for old in folder.glob("sinan-*.zip.part"):
+        try:
+            if time.time()-old.stat().st_mtime>86400: old.unlink(missing_ok=True)
+        except OSError: pass
+
+    def archive_date(headers):
+        raw=headers.get("Last-Modified")
+        if raw:
+            try: return parsedate_to_datetime(raw).date().isoformat()
+            except (TypeError,ValueError,OverflowError): pass
+        return date.today().isoformat()
+
+    expected_size=0
+    fd,temp_name=tempfile.mkstemp(prefix="sinan-",suffix=".zip.part",dir=str(folder))
+    os.close(fd)
+    temp_path=Path(temp_name)
+    try:
+        request=urllib.request.Request(url,headers={"User-Agent":"TabulaSUS/1.0","Accept":"application/zip"})
+        downloaded=0
+        with open_verified_https(request,SINAN_DENGUE_ARCHIVE_HOST,120) as response, temp_path.open("wb") as output:
+            expected_size=int(response.headers.get("Content-Length") or 0)
+            updated_at=archive_date(response.headers)
+            if expected_size>SINAN_DENGUE_ARCHIVE_MAX_BYTES: raise ValueError(f"O arquivo anual do {source_name} ultrapassa o limite seguro de download.")
+            if shutil.disk_usage(folder).free<(expected_size or 32*1024*1024)+16*1024*1024:
+                raise ValueError(f"Não há espaço livre suficiente para baixar o arquivo anual do {source_name}.")
+            while True:
+                chunk=response.read(1024*1024)
+                if not chunk: break
+                downloaded+=len(chunk)
+                if downloaded>SINAN_DENGUE_ARCHIVE_MAX_BYTES or (expected_size and downloaded>expected_size):
+                    raise ValueError(f"O arquivo anual do {source_name} ultrapassou o tamanho informado pelo servidor.")
+                output.write(chunk)
+                if progress:
+                    percent=10+int(20*downloaded/expected_size) if expected_size else 10
+                    size_label=f"{downloaded/1024/1024:.1f} MB"+(f" de {expected_size/1024/1024:.1f} MB" if expected_size else "")
+                    progress(min(30,percent),f"Baixando arquivo anual do {source_name} · {size_label}")
+        if expected_size and downloaded!=expected_size: raise ValueError(f"O download do {source_name} terminou antes de o arquivo ser recebido por completo.")
+        with zipfile.ZipFile(temp_path) as bundle:
+            if len(bundle.infolist())>1000: raise ValueError(f"O pacote oficial do {source_name} contém itens demais.")
+            members=[entry for entry in bundle.infolist() if not entry.is_dir() and entry.filename.replace("\\","/").rsplit("/",1)[-1].casefold()==member_name.casefold()]
+            if len(members)!=1 or not 0<members[0].file_size<=SINAN_DENGUE_CSV_MAX_BYTES:
+                raise ValueError(f"O pacote oficial do {source_name} está incompleto ou não contém o CSV esperado para este ano.")
+        return temp_path,updated_at
+    except urllib.error.HTTPError as exc:
+        temp_path.unlink(missing_ok=True)
+        if exc.code==404: raise ValueError(f"O arquivo anual oficial de {config['label'] if config else 'mortalidade'} do {source_name} ainda não está disponível para {year}.") from exc
+        raise ValueError(f"O servidor oficial do {source_name} respondeu com erro HTTP {exc.code}.") from exc
+    except (OSError,TimeoutError,urllib.error.URLError) as exc:
+        temp_path.unlink(missing_ok=True)
+        raise ValueError(f"Não foi possível baixar o arquivo anual oficial do {source_name}. {exc}") from exc
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
+
+def _sinan_json_request(url: str, host: str, timeout: int=35, max_bytes: int=16*1024*1024):
+    request=urllib.request.Request(url,headers={"User-Agent":"TabulaSUS/1.0","Accept":"application/json"})
+    with open_verified_https(request,host,timeout) as response:
+        body=response.read(max_bytes+1)
+        if len(body)>max_bytes: raise ValueError("A fonte oficial retornou uma resposta maior que o limite seguro.")
+        encoding=str(response.headers.get("Content-Encoding") or "").strip().lower()
+    if "gzip" in encoding:
+        try:
+            with gzip.GzipFile(fileobj=io.BytesIO(body)) as compressed:
+                body=compressed.read(max_bytes+1)
+            if len(body)>max_bytes: raise ValueError("A fonte oficial retornou uma resposta descompactada maior que o limite seguro.")
+        except (OSError,EOFError) as exc: raise ValueError("A fonte oficial retornou um pacote gzip inválido.") from exc
+    elif encoding and encoding not in {"identity"}:
+        raise ValueError("A fonte oficial retornou uma compactação não reconhecida.")
+    try: return json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError,ValueError) as exc: raise ValueError("A fonte oficial respondeu em um formato inesperado.") from exc
+
+def _sinan_ibge_municipalities():
+    target=cache_target("sinan_ibge_municipalities",{"version":2})
+    cached=cache_read(target)
+    names={}
+    local_folder=UPLOADS/".cache"/"municipalities"
+    local_paths=local_folder.glob("*.json") if local_folder.is_dir() else ()
+    for local_path in local_paths:
+        local=cache_read(local_path)
+        options=local.get("municipalities") if isinstance(local,dict) else None
+        if not isinstance(options,list): continue
+        for item in options:
+            if not isinstance(item,dict): continue
+            raw_code=str(item.get("code") or item.get("ibge_id") or "")
+            code=re.sub(r"\D","",raw_code)
+            name=_report_label(item.get("name") or "")
+            if len(code)==7: code=code[:6]
+            if len(code)==6 and name: names[code]=name
+    if isinstance(cached,dict) and isinstance(cached.get("municipalities"),dict):
+        names.update({str(code):_report_label(name) for code,name in cached["municipalities"].items() if re.fullmatch(r"\d{6}",str(code)) and _report_label(name)})
+        if time.time()-float(cached.get("fetched_at",0))<30*86400:
+            return names
+    url="https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome"
+    try:
+        data=_sinan_json_request(url,"servicodados.ibge.gov.br",timeout=25,max_bytes=16*1024*1024)
+    except Exception:
+        if names: return names
+        raise
+    if not isinstance(data,list):
+        if names: return names
+        raise ValueError("O IBGE não retornou a lista de municípios esperada.")
+    ibge_names={}
+    for item in data:
+        if not isinstance(item,dict): continue
+        code=str(item.get("id") or "")
+        name=_report_label(item.get("nome") or "")
+        if len(code)==7 and code[:6].isdigit() and name: ibge_names[code[:6]]=name
+    names.update(ibge_names)
+    if not names: raise ValueError("O IBGE não retornou nomes de municípios válidos.")
+    cache_write(target,{"fetched_at":time.time(),"municipalities":names},max_bytes=8_000_000,keep=4)
+    return names
+
+def _sinan_dengue_source_rows(year: int, municipality: str, report_id: str="sinan-dengue", progress=None):
+    config=SINAN_AGRAVOS[report_id]
+    identity={"version":8,"year":year,"notifyingMunicipality":municipality} if report_id=="sinan-dengue" else {"version":11,"report":report_id,"year":year,"notifyingMunicipality":municipality}
+    target=cache_target("sinan_dengue",identity)
+    with interprocess_lock(target.with_suffix(".lock")):
+        cached=cache_read(target)
+        cache_lifetime=24*3600 if year==date.today().year else 30*86400
+        if isinstance(cached,dict) and isinstance(cached.get("rows"),list) and isinstance(cached.get("units"),list) and isinstance(cached.get("details"),list) and time.time()-float(cached.get("fetched_at",0))<cache_lifetime:
+            if progress: progress(90,"Usando os totais agregados do SINAN em cache local")
+            return cached["rows"],cached["units"],cached["details"],"totais agregados em cache local",cached.get("updatedAt"),int(cached.get("invalidOnset",0)),bool(cached.get("hasUnitField"))
+        aggregates={}; unit_aggregates={}; detail_aggregates={}; invalid_onset=0; matched=0; scanned=0; maximum=500_000; has_unit_field=False
+        expected_member=f"{config['prefix']}BR{year % 100:02d}.csv"
+        archive,updated_at=_sinan_dengue_archive(year,report_id,progress)
+        try:
+            with zipfile.ZipFile(archive) as bundle:
+                entries=[entry for entry in bundle.infolist() if not entry.is_dir() and entry.filename.replace("\\","/").rsplit("/",1)[-1].casefold()==expected_member.casefold()]
+                if len(entries)!=1 or entries[0].file_size>SINAN_DENGUE_CSV_MAX_BYTES:
+                    raise ValueError("O CSV anual do SINAN não corresponde ao ano selecionado ou excede o limite de leitura.")
+                info=entries[0]
+                with bundle.open(info) as binary, io.TextIOWrapper(binary,encoding="latin1",newline="") as text_stream:
+                    reader=csv.reader(text_stream,delimiter=",")
+                    header=next(reader,[])
+                    headers={str(name or "").lstrip("\ufeff").strip().upper():index for index,name in enumerate(header)}
+                    required=("ID_AGRAVO","NU_ANO","ID_MUNICIP","DT_SIN_PRI","SEM_PRI","ID_MN_RESI","CLASSI_FIN","CRITERIO","EVOLUCAO")
+                    missing=[name for name in required if name not in headers]
+                    if missing: raise ValueError("O CSV oficial do SINAN não contém os campos esperados: "+", ".join(missing)+".")
+                    has_unit_field="ID_UNIDADE" in headers
+                    max_required_index=max(headers[name] for name in required)
+                    if max_required_index>=len(header): raise ValueError("O cabeçalho do CSV oficial do SINAN está incompleto.")
+                    if progress: progress(32,f"Lendo registros do arquivo oficial do SINAN · {year}")
+                    for item in reader:
+                        scanned+=1
+                        if progress and scanned%25000==0:
+                            read_bytes=min(info.file_size,binary.tell())
+                            percent=32+int(54*read_bytes/max(1,info.file_size))
+                            progress(min(86,percent),f"Analisando SINAN · {read_bytes/1024/1024:.0f} de {info.file_size/1024/1024:.0f} MB · {scanned:,} registros".replace(",","."))
+                        if len(item)<=max_required_index: continue
+                        if str(item[headers["NU_ANO"]] or "").strip()!=str(year): continue
+                        if re.sub(r"\D","",str(item[headers["ID_MUNICIP"]] or ""))!=municipality: continue
+                        if re.sub(r"[^a-z0-9]","",_sinan_code(item[headers["ID_AGRAVO"]]))!=config["icd"]: continue
+                        onset=str(item[headers["DT_SIN_PRI"]] or "").strip()
+                        parsed=re.match(r"^(\d{4})-(\d{2})-(\d{2})",onset)
+                        if parsed: onset_year,onset_month,onset_day=int(parsed.group(1)),int(parsed.group(2)),int(parsed.group(3))
+                        else:
+                            parsed=re.match(r"^(\d{2})/(\d{2})/(\d{4})$",onset)
+                            if parsed: onset_year,onset_month,onset_day=int(parsed.group(3)),int(parsed.group(2)),int(parsed.group(1))
+                            else:
+                                compact=re.match(r"^(\d{4})(\d{2})(\d{2})$",onset)
+                                if compact: onset_year,onset_month,onset_day=int(compact.group(1)),int(compact.group(2)),int(compact.group(3))
+                                else: invalid_onset+=1; continue
+                        try: date(onset_year,onset_month,onset_day)
+                        except ValueError: invalid_onset+=1; continue
+                        if onset_year!=year: continue
+                        raw_week=re.sub(r"\D","",str(item[headers["SEM_PRI"]] or ""))
+                        week=int(raw_week[-2:]) if len(raw_week)>=2 else 0
+                        if not 1<=week<=53: invalid_onset+=1; continue
+                        matched+=1
+                        if matched>maximum: raise ValueError("Este município ultrapassa 500 mil notificações no ano selecionado; o recorte foi interrompido para proteger o desempenho.")
+                        residence=re.sub(r"\D", "", _sinan_code(item[headers["ID_MN_RESI"]]))
+                        if len(residence)!=6 or residence=="000000": residence=""
+                        code=residence or "000000"
+                        metrics={"notifications":0,"probable":0,"confirmed":0,"severe":0,"dengueDeaths":0,"discarded":0,"hospitalizations":0,"pregnant":0,"diseaseDeaths":0,"pending":0}
+                        row=aggregates.setdefault((onset_month,code),{"month":onset_month,"residenceCode":residence,**metrics})
+                        unit_index=headers.get("ID_UNIDADE")
+                        unit_value=item[unit_index] if unit_index is not None and unit_index<len(item) else ""
+                        unit_code=re.sub(r"\D","",_sinan_code(unit_value))
+                        unit_code=unit_code.zfill(7) if 0<len(unit_code)<=7 else ""
+                        if unit_code=="0000000": unit_code=""
+                        unit_row=unit_aggregates.setdefault((onset_month,week,unit_code),{"month":onset_month,"week":week,"unitCode":unit_code,**metrics})
+                        detail_row=detail_aggregates.setdefault((onset_month,week,unit_code,code),{"month":onset_month,"week":week,"unitCode":unit_code,"residenceCode":residence,**metrics})
+                        classification=_sinan_code(item[headers["CLASSI_FIN"]]); criterion=_sinan_code(item[headers["CRITERIO"]]); evolution=_sinan_code(item[headers["EVOLUCAO"]])
+                        confirmed=(classification in {"1","2","3","4","10","11","12"} and criterion in {"1","2"}) if report_id=="sinan-dengue" else classification==("13" if report_id=="sinan-chikungunya" else "1")
+                        discarded=classification==("2" if report_id=="sinan-zika" else "5")
+                        pending=classification in {"","0","8","9"}
+                        hospital_index=headers.get("HOSPITALIZ")
+                        hospitalized=report_id=="sinan-chikungunya" and hospital_index is not None and hospital_index<len(item) and _sinan_code(item[hospital_index])=="1"
+                        pregnant_index=headers.get("CS_GESTANT")
+                        pregnant=report_id=="sinan-zika" and pregnant_index is not None and pregnant_index<len(item) and _sinan_code(item[pregnant_index]) in {"1","2","3","4"}
+                        for group in (row,unit_row,detail_row):
+                            group["notifications"]+=1
+                            if not discarded: group["probable"]+=1
+                            if confirmed: group["confirmed"]+=1
+                            if discarded: group["discarded"]+=1
+                            if report_id=="sinan-dengue":
+                                if confirmed and classification in {"2","3","4","11","12"}: group["severe"]+=1
+                                if confirmed and evolution=="2": group["dengueDeaths"]+=1
+                            else:
+                                if pending: group["pending"]+=1
+                                if hospitalized: group["hospitalizations"]+=1
+                                if pregnant: group["pregnant"]+=1
+                                if confirmed and evolution=="2": group["diseaseDeaths"]+=1
+        except (csv.Error,UnicodeError,zipfile.BadZipFile,EOFError) as exc:
+            raise ValueError("Não foi possível ler o CSV do pacote oficial do SINAN; tente novamente para baixar uma cópia íntegra.") from exc
+        finally:
+            archive.unlink(missing_ok=True)
+        fetched_at=time.time()
+        grouped_rows=list(aggregates.values())
+        grouped_units=list(unit_aggregates.values())
+        grouped_details=list(detail_aggregates.values())
+        cache_write(target,{"fetched_at":fetched_at,"updatedAt":updated_at,"invalidOnset":invalid_onset,"hasUnitField":has_unit_field,"rows":grouped_rows,"units":grouped_units,"details":grouped_details,"sourceMode":"CSV oficial"},max_bytes=64_000_000,keep=20)
+        return grouped_rows,grouped_units,grouped_details,"CSV oficial",updated_at,invalid_onset,has_unit_field
+
+SIM_CID_CHAPTERS=(("A00","B99","Infecciosas e parasitárias"),("C00","D48","Neoplasias"),("D50","D89","Doenças do sangue"),("E00","E90","Endócrinas e metabólicas"),("F00","F99","Transtornos mentais"),("G00","G99","Sistema nervoso"),("H00","H59","Olhos"),("H60","H95","Ouvidos"),("I00","I99","Aparelho circulatório"),("J00","J99","Aparelho respiratório"),("K00","K93","Aparelho digestivo"),("L00","L99","Pele"),("M00","M99","Sistema osteomuscular"),("N00","N99","Aparelho geniturinário"),("O00","O99","Gravidez, parto e puerpério"),("P00","P96","Condições perinatais"),("Q00","Q99","Malformações congênitas"),("R00","R99","Sinais e causas mal definidas"),("S00","T98","Lesões e envenenamentos"),("V01","Y98","Causas externas"),("Z00","Z99","Fatores de saúde"),("U00","U99","Códigos especiais"))
+
+def _sim_cid_names():
+    # Descrições de três caracteres da tabela CID distribuída no TAB_SIA oficial.
+    path=Path(__file__).parent/"data"/"cid10-three.json"
+    try: return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError,ValueError): return {}
+
+def predefined_sim_mortality(payload: dict[str,Any], progress=None):
+    """Aggregate official SIM declarations by month and ICD-10 chapter for deaths occurring in Belém."""
+    year=payload.get("year"); month=payload.get("month")
+    if not isinstance(year,int) or not 2000<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12:
+        raise ValueError("Selecione um ano e um mês válidos para o SIM.")
+    if str(payload.get("uf") or "").upper()!="PA" or str(payload.get("municipalityCode") or "")!="150140":
+        raise ValueError("O relatório de mortalidade considera óbitos ocorridos em Belém.")
+    view=str(payload.get("view") or "summary")
+    if view not in {"summary","detail"}: raise ValueError("Selecione uma visão válida do relatório de mortalidade.")
+    week_index=payload.get("weekIndex") if view=="detail" else None
+    if view=="detail" and (not isinstance(week_index,int) or not 1<=week_index<=53):
+        raise ValueError("Selecione uma semana válida para detalhar.")
+    target=cache_target("sim_mortality",{"version":5,"year":year,"municipality":"150140"})
+    with interprocess_lock(target.with_suffix(".lock")):
+        cached=cache_read(target)
+        cache_lifetime=24*3600 if year==date.today().year else 30*86400
+        if isinstance(cached,dict) and isinstance(cached.get("rows"),list) and isinstance(cached.get("details"),list) and time.time()-float(cached.get("fetched_at",0))<cache_lifetime:
+            annual_rows=cached["rows"]; annual_details=cached["details"]; updated_at=cached.get("updatedAt")
+        else:
+            if progress: progress(5,"Baixando declarações públicas do SIM")
+            archive,updated_at=_sinan_dengue_archive(year,"sim-mortalidade",progress)
+            groups={}; details={}
+            jan_four=date(year,1,4)
+            first_sunday=jan_four-timedelta(days=(jan_four.weekday()+1)%7)
+            previous_jan_four=date(year-1,1,4)
+            previous_first_sunday=previous_jan_four-timedelta(days=(previous_jan_four.weekday()+1)%7)
+            next_jan_four=date(year+1,1,4)
+            next_first_sunday=next_jan_four-timedelta(days=(next_jan_four.weekday()+1)%7)
+            try:
+                with zipfile.ZipFile(archive) as bundle:
+                    expected=f"Mortalidade_Geral_{year}.csv"
+                    matches=[item for item in bundle.infolist() if not item.is_dir() and item.filename.replace("\\","/").rsplit("/",1)[-1].casefold()==expected.casefold()]
+                    if len(matches)!=1 or matches[0].file_size>SINAN_DENGUE_CSV_MAX_BYTES: raise ValueError("O pacote SIM não contém o CSV anual esperado.")
+                    with bundle.open(matches[0]) as binary, io.TextIOWrapper(binary,encoding="latin1",newline="") as stream:
+                        reader=csv.DictReader(stream,delimiter=";")
+                        required={"DTOBITO","CODMUNOCOR","CODMUNRES","CAUSABAS","TIPOBITO"}
+                        if not required.issubset(set(reader.fieldnames or [])): raise ValueError("O CSV do SIM não contém os campos necessários ao relatório.")
+                        for number,item in enumerate(reader,1):
+                            if progress and number%50000==0: progress(min(88,32+int(54*binary.tell()/max(1,matches[0].file_size))),f"Lendo óbitos do SIM · {number:,} registros".replace(",","."))
+                            if re.sub(r"\D","",str(item.get("CODMUNOCOR") or ""))[:6]!="150140": continue
+                            raw=str(item.get("DTOBITO") or "").strip()
+                            if re.fullmatch(r"\d{8}",raw): day,mo,yr=int(raw[:2]),int(raw[2:4]),int(raw[4:])
+                            else:
+                                try: parsed=date.fromisoformat(raw[:10]); day,mo,yr=parsed.day,parsed.month,parsed.year
+                                except ValueError: continue
+                            try: death_date=date(yr,mo,day)
+                            except ValueError: continue
+                            if yr!=year: continue
+                            if str(item.get("TIPOBITO") or "").strip()!="2": continue
+                            cid=re.sub(r"[^A-Z0-9]","",str(item.get("CAUSABAS") or "").upper())[:3]
+                            chapter=next(((start,end,label) for start,end,label in SIM_CID_CHAPTERS if start<=cid<=end),None)
+                            index=SIM_CID_CHAPTERS.index(chapter)+1 if chapter else len(SIM_CID_CHAPTERS)+1
+                            week_anchor=previous_first_sunday if death_date<first_sunday else next_first_sunday if death_date>=next_first_sunday else first_sunday
+                            week_year=year-1 if death_date<first_sunday else year+1 if death_date>=next_first_sunday else year
+                            week=(death_date-week_anchor).days//7+1
+                            if not 1<=week<=53: continue
+                            key=(mo,week)
+                            base={"deaths":0,"residents":0,"otherResidents":0,"unknownResidence":0}
+                            row=groups.setdefault(key,{"month":mo,"week":week,"weekYear":week_year,"code":str(week),"weekName":f"Semana epidemiológica {week:02d}"+(f" · {week_year}" if week_year!=year else ""),**base})
+                            detail=details.setdefault((mo,week,index,cid),{"month":mo,"week":week,"chapterIndex":index,"chapterName":chapter[2] if chapter else "Causa básica não classificada","causeCode":cid or "Não informado",**base})
+                            row["deaths"]+=1; detail["deaths"]+=1
+                            residence=re.sub(r"\D","",str(item.get("CODMUNRES") or ""))[:6]
+                            residence_key="residents" if residence=="150140" else "otherResidents" if re.fullmatch(r"\d{6}",residence) else "unknownResidence"
+                            row[residence_key]+=1; detail[residence_key]+=1
+            finally: archive.unlink(missing_ok=True)
+            annual_rows=list(groups.values()); annual_details=list(details.values())
+            cache_write(target,{"fetched_at":time.time(),"updatedAt":updated_at,"rows":annual_rows,"details":annual_details},max_bytes=20_000_000,keep=10)
+    cid_names=_sim_cid_names() if view=="detail" else {}
+    if view=="detail":
+        rows=sorted(({**row,"causeName":cid_names.get(row["causeCode"],"Descrição não disponível na tabela CID local")} for row in annual_details if row["month"]==month and row["week"]==week_index),key=lambda row:(-row["deaths"],row["causeCode"]))
+    else:
+        rows=sorted(({**row,"weekName":f"Semana {row['week']:02d}"+(f" · {row['weekYear']}" if row["weekYear"]!=year else "")} for row in annual_rows if row["month"]==month),key=lambda row:(row["weekYear"],row["week"]))
+    total=sum(row["deaths"] for row in rows)
+    week_label=f"Semana {week_index:02d}" if week_index else None
+    if progress: progress(98,"Preparando o painel de mortalidade")
+    return {"ok":True,"report":"sim-mortalidade","view":view,"flatTable":True,"file":"SIM · CSV oficial","year":year,"month":month,"uf":"PA","state":"Pará","municipality":"Belém","municipalityCode":"150140","establishmentCode":str(week_index) if week_index else None,"establishmentName":week_label,"rows":rows,"records":total,"emptyStateMessage":f"O arquivo oficial do SIM ainda não apresenta óbitos ocorridos em Belém em {month:02d}/{year}. Os dados recentes podem ser preliminares.",
+        "columns":[{"id":"cause" if view=="detail" else "week","label":"CAUSA BÁSICA · CID-10" if view=="detail" else "SEMANA","kind":"primary","primaryField":"causeName" if view=="detail" else "weekName","secondaryField":"causeCode" if view=="detail" else None,"filterFields":["causeName","causeCode"] if view=="detail" else ["weekName","week"],"sortField":"causeName" if view=="detail" else "week","type":"text","sticky":True},*([{"id":"chapter","label":"CAPÍTULO · CID-10","field":"chapterName","type":"text"}] if view=="detail" else []),{"id":"deaths","label":"ÓBITOS NÃO FETAIS","metricId":"deaths","type":"number","decimals":0},{"id":"residents","label":"RESIDENTES EM BELÉM","metricId":"residents","type":"number","decimals":0},{"id":"otherResidents","label":"RESIDENTES DE OUTROS MUNICÍPIOS","metricId":"otherResidents","type":"number","decimals":0},{"id":"unknownResidence","label":"RESIDÊNCIA NÃO INFORMADA","metricId":"unknownResidence","type":"number","decimals":0},*([{"id":"detail","label":"DETALHAR","kind":"action","actionLabel":"Detalhar →"}] if view=="summary" else [])],
+        "metrics":[{"id":key,"label":label,"decimals":0} for key,label in (("deaths","Óbitos não fetais"),("residents","Residentes em Belém"),("otherResidents","Outros municípios"),("unknownResidence","Residência não informada"))],"kpis":[{"label":"ÓBITOS NÃO FETAIS","value":{"value":total}},{"label":"RESIDENTES EM BELÉM","value":{"value":sum(row["residents"] for row in rows)}},{"label":"OUTROS MUNICÍPIOS","value":{"value":sum(row["otherResidents"] for row in rows)}}],"notes":[f"Fonte: SIM, arquivo anual público atualizado em {updated_at or 'data não informada'}. Recorte por município de ocorrência do óbito; mês da data do óbito.","O painel usa somente registros não fetais (TIPOBITO = 2) do arquivo Mortalidade Geral. As semanas são calculadas pela data do óbito, de domingo a sábado, com a semana 1 contendo 4 de janeiro. O detalhamento mostra a causa básica por categoria de três caracteres e seu capítulo CID-10. As descrições CID vêm da definição oficial TAB_SIA. Dados preliminares podem ser revistos.","Semanas que atravessam dois meses aparecem em cada recorte com apenas os óbitos daquele mês. Residência não informada não entra nos grupos Belém ou outros municípios."],"cachedAt":time.time()}
+
+SRAG_METRICS=(
+    ("cases","CASOS DE SRAG"),("influenza","INFLUENZA"),("covid","COVID-19"),
+    ("vsr","VSR"),("otherViral","OUTROS VÍRUS"),("otherAgent","OUTROS AGENTES"),
+    ("unspecified","SEM AGENTE DEFINIDO"),("icu","UTI"),("deaths","ÓBITOS"),
+)
+SRAG_AGE_GROUPS=(("lt1","Menor de 1 ano"),("1to4","1 a 4 anos"),("5to19","5 a 19 anos"),("20to39","20 a 39 anos"),("40to59","40 a 59 anos"),("60plus","60 anos ou mais"),("unknown","Idade não informada"))
+
+def _srag_age_group(row, fields):
+    unit=row[fields["TP_IDADE"]].strip()
+    raw=row[fields["NU_IDADE_N"]].strip()
+    if not raw.isdigit(): return "unknown"
+    age=int(raw)
+    if unit in {"1","2"}: return "lt1"
+    if unit!="3": return "unknown"
+    if age<1: return "lt1"
+    if age<5: return "1to4"
+    if age<20: return "5to19"
+    if age<40: return "20to39"
+    if age<60: return "40to59"
+    return "60plus"
+
+def _srag_source(year: int, municipality: str, progress=None):
+    """Read one official annual SIVEP-Gripe CSV as a stream; cache only municipal aggregates."""
+    target=cache_target("srag_weekly",{"version":1,"year":year,"municipality":municipality})
+    with interprocess_lock(target.with_suffix(".lock")):
+        cached=cache_read(target)
+        ttl=12*3600 if year==date.today().year else 30*86400
+        if isinstance(cached,dict) and isinstance(cached.get("weeks"),list) and time.time()-float(cached.get("fetched_at",0))<ttl:
+            return cached
+        if progress: progress(5,"Localizando o banco público do SIVEP-Gripe")
+        catalog_url="https://dadosabertos.saude.gov.br/dataset/srag-2019-a-2026"
+        request=urllib.request.Request(catalog_url,headers={"User-Agent":"TabulaSUS/1.0","Accept":"text/html"})
+        with open_verified_https(request,"dadosabertos.saude.gov.br",35) as response:
+            catalog=response.read(8*1024*1024+1)
+        if len(catalog)>8*1024*1024: raise ValueError("O catálogo oficial da SRAG excedeu o limite de leitura.")
+        pattern=rf"https://s3\.sa-east-1\.amazonaws\.com/ckan\.saude\.gov\.br/SRAG/{year}/INFLUD{year%100:02d}-\d{{2}}-\d{{2}}-\d{{4}}\.csv"
+        links=set(re.findall(pattern,catalog.decode("utf-8","replace"),flags=re.I))
+        if not links: raise ValueError(f"O catálogo oficial ainda não oferece o arquivo CSV de SRAG para {year}.")
+        def source_date(url):
+            match=re.search(r"-(\d{2})-(\d{2})-(\d{4})\.csv$",url)
+            return (int(match[3]),int(match[2]),int(match[1])) if match else (0,0,0)
+        url=max(links,key=source_date)
+        updated_at="-".join(str(part).zfill(2 if index else 4) for index,part in enumerate(source_date(url)))
+        if isinstance(cached,dict) and isinstance(cached.get("weeks"),list) and cached.get("sourceUrl")==url:
+            cached["fetched_at"]=time.time()
+            cache_write(target,cached,max_bytes=20_000_000,keep=8)
+            return cached
+        if progress: progress(10,"Lendo o arquivo anual de SRAG · primeira consulta pode levar alguns minutos")
+        request=urllib.request.Request(url,headers={"User-Agent":"TabulaSUS/1.0","Accept":"text/csv"})
+        grouped={}; age_grouped={}; read_count=0
+        with open_verified_https(request,SINAN_DENGUE_ARCHIVE_HOST,120) as response:
+            size=int(response.headers.get("Content-Length") or 0)
+            if not 0<size<=700*1024*1024: raise ValueError("O tamanho do arquivo oficial de SRAG não está dentro do limite seguro.")
+            with io.TextIOWrapper(response,encoding="utf-8-sig",errors="replace",newline="") as stream:
+                reader=csv.reader(stream,delimiter=";")
+                headers={name.strip().strip('"'):index for index,name in enumerate(next(reader,[]))}
+                needed={"DT_SIN_PRI","SEM_PRI","CO_MUN_RES","CLASSI_FIN","PCR_VSR","AN_VSR","UTI","EVOLUCAO","TP_IDADE","NU_IDADE_N"}
+                if not needed.issubset(headers): raise ValueError("O arquivo oficial de SRAG não contém os campos necessários ao relatório.")
+                for row in reader:
+                    read_count+=1
+                    if read_count%10000==0 and progress:
+                        remaining=getattr(response,"length",None)
+                        percent=12+int(75*(size-remaining)/size) if isinstance(remaining,int) else 12
+                        progress(min(87,percent),f"Lendo notificações de SRAG · {read_count:,} registros".replace(",","."))
+                    if len(row)<len(headers) or row[headers["CO_MUN_RES"]].strip()!=municipality: continue
+                    raw_date=row[headers["DT_SIN_PRI"]].strip()[:10]
+                    try: onset=date.fromisoformat(raw_date)
+                    except ValueError: continue
+                    if onset.year!=year: continue
+                    raw_week=row[headers["SEM_PRI"]].strip()
+                    if not raw_week.isdigit() or not 1<=int(raw_week)<=53: continue
+                    week=int(raw_week); month=onset.month
+                    classification=row[headers["CLASSI_FIN"]].strip()
+                    if classification=="1": agent="influenza"
+                    elif classification=="5": agent="covid"
+                    elif classification=="2": agent="vsr" if row[headers["PCR_VSR"]].strip()=="1" or row[headers["AN_VSR"]].strip()=="1" else "otherViral"
+                    elif classification=="3": agent="otherAgent"
+                    else: agent="unspecified"
+                    base={key:0 for key,_ in SRAG_METRICS}
+                    weekly=grouped.setdefault((month,week),{"month":month,"week":week,"code":str(week),"weekName":f"Semana epidemiológica {week:02d}",**base})
+                    age=_srag_age_group(row,headers)
+                    age_item=age_grouped.setdefault((month,week,age),{"month":month,"week":week,"ageCode":age,"ageName":dict(SRAG_AGE_GROUPS)[age],**base})
+                    for item in (weekly,age_item):
+                        item["cases"]+=1; item[agent]+=1
+                        if row[headers["UTI"]].strip()=="1": item["icu"]+=1
+                        if row[headers["EVOLUCAO"]].strip()=="2": item["deaths"]+=1
+        result={"fetched_at":time.time(),"updatedAt":updated_at,"sourceUrl":url,"weeks":list(grouped.values()),"ages":list(age_grouped.values()),"scanned":read_count}
+        cache_write(target,result,max_bytes=20_000_000,keep=8)
+        return result
+
+def predefined_srag_weekly(payload: dict[str,Any], progress=None):
+    if progress is None: return _predefined_srag_weekly_impl(payload,None)
+    stop=threading.Event(); progress_lock=threading.Lock()
+    latest={"percent":5,"stage":"Preparando o arquivo oficial do SIVEP-Gripe"}
+    def publish(percent,stage):
+        with progress_lock:
+            latest["percent"]=percent; latest["stage"]=stage
+            progress(percent,stage)
+    def heartbeat():
+        while not stop.wait(4):
+            try:
+                with progress_lock: progress(latest["percent"],latest["stage"])
+            except Exception: pass
+    thread=threading.Thread(target=heartbeat,name="srag-progress-heartbeat",daemon=True)
+    thread.start()
+    try: return _predefined_srag_weekly_impl(payload,publish)
+    finally:
+        stop.set(); thread.join(timeout=1)
+
+def _predefined_srag_weekly_impl(payload: dict[str,Any], progress=None):
+    year=payload.get("year"); month=payload.get("month"); municipality=str(payload.get("municipalityCode") or "")
+    uf=str(payload.get("uf") or "").upper(); view=str(payload.get("view") or "summary")
+    if not isinstance(year,int) or not 2025<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12:
+        raise ValueError("Selecione um mês de 2025 em diante para o relatório de SRAG.")
+    if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]:
+        raise ValueError("Selecione um município de residência válido para o relatório de SRAG.")
+    if view not in {"summary","detail"}: raise ValueError("Selecione uma visão válida do relatório de SRAG.")
+    week=payload.get("weekIndex") if view=="detail" else None
+    if view=="detail" and (not isinstance(week,int) or not 1<=week<=53): raise ValueError("Selecione uma semana epidemiológica para detalhar.")
+    data=_srag_source(year,municipality,progress)
+    if progress: progress(95,"Preparando a evolução semanal da SRAG")
+    source=data["ages"] if view=="detail" else data["weeks"]
+    rows=[dict(item) for item in source if item["month"]==month and (view!="detail" or item["week"]==week)]
+    rows.sort(key=(lambda item:next((index for index,(code,_) in enumerate(SRAG_AGE_GROUPS) if code==item["ageCode"]),99)) if view=="detail" else (lambda item:item["week"]))
+    totals={key:sum(item[key] for item in rows) for key,_ in SRAG_METRICS}
+    primary={"id":"age" if view=="detail" else "week","label":"FAIXA ETÁRIA" if view=="detail" else "SEMANA EPIDEMIOLÓGICA","kind":"primary","primaryField":"ageName" if view=="detail" else "weekName","sortField":"ageName" if view=="detail" else "week","type":"text","sticky":True}
+    columns=[primary,*({"id":key,"label":label,"metricId":key,"type":"number","decimals":0} for key,label in SRAG_METRICS)]
+    if view=="summary": columns.append({"id":"detail","label":"DETALHAR","kind":"action","actionLabel":"Detalhar →"})
+    municipality_name=_report_label(payload.get("municipalityName") or "")[:100] or f"Município {municipality}"
+    notes=[f"Fonte: SIVEP-Gripe, banco público anual de {year}, publicado em {data['updatedAt']}. Recorte por município de residência ({municipality_name}, {uf}); mês e semana do início dos sintomas.",
+           "As categorias de agente usam a classificação final do registro. VSR é separado dos outros vírus quando o exame PCR ou antígeno está positivo; coinfecções permanecem no grupo da classificação final. Sem agente definido inclui casos pendentes e não especificados.",
+           "UTI e óbitos são contados entre os casos da tabela. Dados recentes podem ser incompletos e são revistos; números não equivalem a internações faturadas no SIH."]
+    return {"ok":True,"report":"srag-semanal","view":view,"flatTable":True,"file":"SIVEP-Gripe · CSV oficial","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality,"updatedAt":data["updatedAt"],"establishmentCode":str(week) if week else None,"establishmentName":f"Semana epidemiológica {week:02d}" if week else None,"rows":rows,"records":totals["cases"],"columns":columns,"metrics":[{"id":key,"label":label.title(),"decimals":0} for key,label in SRAG_METRICS],"kpis":[{"label":"CASOS DE SRAG","value":{"value":totals["cases"]}},{"label":"PASSARAM POR UTI","value":{"value":totals["icu"]}},{"label":"ÓBITOS REGISTRADOS","value":{"value":totals["deaths"]}}],"notes":notes,"emptyStateMessage":f"Não há registros de SRAG com início dos sintomas em {month:02d}/{year} para {municipality_name} na base publicada em {data['updatedAt']}. Isso não confirma ausência de casos.","cachedAt":time.time()}
+
+def _sinan_cnes_unit_metadata(codes: list[str], year: int, month: int, progress=None):
+    """Resolve current unit identity and competence-aware management/legal-nature classifications."""
+    valid=sorted({re.sub(r"\D","",str(code or "")) for code in codes if re.fullmatch(r"\d{7}",re.sub(r"\D","",str(code or "")))})
+    if not valid: return {},0,0
+    competence=f"{year:04d}{month:02d}"
+    # Reuse the app's competence-aware CNES lookup for management and legal nature.
+    # The direct current record below is only a fallback for those classifications.
+    history_progress=(lambda percent,stage: progress(min(91,89+int(max(0,percent-80)*0.2)),stage)) if progress else None
+    historical,_,_=_cnes_establishment_classifications(valid,year,month,need_sus=False,progress=history_progress)
+    target=cache_target("sinan_cnes_units",{"version":3})
+    metadata={}; missing=[]; failed=0; now=time.time(); ttl=30*86400
+    with interprocess_lock(target.with_suffix(".lock")):
+        cached=cache_read(target)
+        entries=cached.get("units",{}) if isinstance(cached,dict) and isinstance(cached.get("units"),dict) else {}
+        for code in valid:
+            entry=entries.get(code)
+            try: fresh=isinstance(entry,dict) and now-float(entry.get("checkedAt",0))<ttl
+            except (TypeError,ValueError,OverflowError): fresh=False
+            if fresh:
+                metadata[code]={key:entry.get(key) for key in ("name","municipalityCode","currentManagement","currentNatureGroup","currentNatureCode","neighborhood")}
+            else: missing.append(code)
+        if missing:
+            if progress: progress(92,f"Consultando dados cadastrais das unidades no CNES · {len(missing)} unidade(s)")
+            def lookup(code):
+                data,ok=_cnes_open_data_json(f"/cnes/estabelecimentos/{code}")
+                if not ok: return code,None,False
+                if not isinstance(data,dict): return code,"",True
+                returned=re.sub(r"\D","",str(data.get("codigo_cnes") or data.get("co_cnes") or "")).zfill(7)
+                if returned!=code: return code,{},True
+                name=next((_report_label(data.get(key) or "")[:180] for key in ("nome_fantasia","nome_razao_social") if _report_label(data.get(key) or "")),"")
+                municipality=re.sub(r"\D","",str(data.get("codigo_municipio") or ""))
+                nature_code=_cnes_nature_code(data.get("descricao_natureza_juridica_estabelecimento"))
+                management=_normalize_cnes_management(data.get("tipo_gestao") or data.get("descricao_esfera_administrativa"))
+                nature_group=_normalize_cnes_nature_group("",nature_code)
+                neighborhood=_report_label(data.get("bairro_estabelecimento") or "")[:120]
+                return code,{"name":name,"municipalityCode":municipality if re.fullmatch(r"\d{6}",municipality) else "","currentManagement":management,"currentNatureGroup":nature_group,"currentNatureCode":nature_code,"neighborhood":neighborhood},True
+            with ThreadPoolExecutor(max_workers=min(8,len(missing)),thread_name_prefix="sinan-cnes") as executor:
+                futures=[executor.submit(lookup,code) for code in missing]
+                for future in as_completed(futures):
+                    try: code,record,ok=future.result()
+                    except Exception: failed+=1; continue
+                    if not ok: failed+=1; continue
+                    entries[code]={**(record if isinstance(record,dict) else {}),"checkedAt":now}
+                    metadata[code]=record if isinstance(record,dict) else {}
+            cache_write(target,{"fetched_at":now,"units":entries},max_bytes=2_000_000,keep=2)
+    for code in valid:
+        record=metadata.setdefault(code,{})
+        historical_record=historical.get(code) if isinstance(historical,dict) else None
+        if isinstance(historical_record,dict) and historical_record.get("source")=="competence":
+            record.update({"management":historical_record.get("management") or "NAO_INFORMADA","natureGroup":historical_record.get("natureGroup") or "NAO_INFORMADA","natureCode":historical_record.get("legalNature") or "","classificationSource":"competence"})
+        else:
+            record.update({"management":record.get("currentManagement") or "NAO_INFORMADA","natureGroup":record.get("currentNatureGroup") or "NAO_INFORMADA","natureCode":record.get("currentNatureCode") or "","classificationSource":"current" if record.get("currentManagement") or record.get("currentNatureGroup") else "unavailable"})
+    unresolved=sum(1 for code in valid if not metadata.get(code,{}).get("municipalityCode"))
+    return metadata,unresolved,failed
+
+def predefined_sinan_dengue(payload: dict[str,Any], progress=None):
+    if progress is None: return _predefined_sinan_dengue_impl(payload,None)
+    stop=threading.Event(); progress_lock=threading.Lock()
+    latest={"percent":5,"stage":"Preparando o arquivo oficial do SINAN"}
+    def publish(percent,stage):
+        with progress_lock:
+            latest["percent"]=percent; latest["stage"]=stage
+            progress(percent,stage)
+    def heartbeat():
+        while not stop.wait(4):
+            try:
+                with progress_lock: progress(latest["percent"],latest["stage"])
+            except Exception: pass
+    thread=threading.Thread(target=heartbeat,name="sinan-progress-heartbeat",daemon=True)
+    thread.start()
+    try: return _predefined_sinan_dengue_impl(payload,publish)
+    finally:
+        stop.set(); thread.join(timeout=1)
+
+def _predefined_sinan_dengue_impl(payload: dict[str,Any], progress=None):
+    """Show weekly SINAN notifications, then the units and residences behind a week."""
+    report_id=str(payload.get("predefinedReport") or "sinan-dengue")
+    if report_id not in SINAN_AGRAVOS: raise ValueError("Agravo SINAN não disponível neste relatório.")
+    agravo=SINAN_AGRAVOS[report_id]["label"]
+    year=payload.get("year")
+    month=payload.get("month")
+    uf=str(payload.get("uf") or "").upper()
+    municipality=str(payload.get("municipalityCode") or "")
+    municipality_name=_report_label(payload.get("municipalityName") or "")[:100]
+    view=str(payload.get("view") or "summary")
+    if view not in {"summary","detail"}: raise ValueError("Selecione um agrupamento válido para o relatório do SINAN.")
+    if not isinstance(year,int) or year<2000 or year>date.today().year: raise ValueError("Selecione um ano entre 2000 e o ano atual.")
+    if not isinstance(month,int) or month<1 or month>12: raise ValueError("Selecione uma competência válida.")
+    if uf!="PA" or municipality!="150140": raise ValueError("Este relatório mostra notificações registradas em unidades de Belém, no Pará.")
+    week_index=payload.get("weekIndex") if view=="detail" else None
+    if view=="detail" and (not isinstance(week_index,int) or not 1<=week_index<=53):
+        raise ValueError("Selecione uma semana epidemiológica válida para detalhar.")
+    if progress: progress(5,"Preparando o arquivo oficial do SINAN")
+    source_rows,source_units,source_details,source_mode,updated_at,invalid_onset,has_unit_field=_sinan_dengue_source_rows(year,municipality,report_id,progress)
+    if progress: progress(89,"Associando unidades e filtros cadastrais do CNES")
+    municipality_names={}
+    try: municipality_names=_sinan_ibge_municipalities()
+    except Exception: municipality_names={}
+    rows=[]
+    unit_unresolved=0; unit_lookup_failures=0; out_of_bel_em_notifications=0; filtered_notifications=0
+    valid_management={"MUNICIPAL","ESTADUAL","DUPLA","NAO_INFORMADA"}
+    valid_nature={"PUBLICO","PRIVADO","SEM_FINS_LUCRATIVOS","PESSOA_FISICA","OUTROS","NAO_INFORMADA"}
+    def selected_codes(key,allowed):
+        raw=payload.get(key) or []
+        if isinstance(raw,(str,int,float)): raw=[raw]
+        if not isinstance(raw,(list,tuple)) or len(raw)>20: raise ValueError("Os filtros CNES selecionados são inválidos.")
+        values={str(item or "").strip().upper() for item in raw if str(item or "").strip()}
+        if not values.issubset(allowed): raise ValueError("Os filtros CNES selecionados contêm uma categoria desconhecida.")
+        return values
+    selected_management=selected_codes("cnesManagementCode",valid_management)
+    selected_nature=selected_codes("cnesNatureGroupCode",valid_nature)
+    management_labels={"MUNICIPAL":"Gestão municipal","ESTADUAL":"Gestão estadual","DUPLA":"Dupla gestão","NAO_INFORMADA":"Gestão não identificada"}
+    nature_labels={"PUBLICO":"Natureza pública","PRIVADO":"Natureza privada","SEM_FINS_LUCRATIVOS":"Sem fins lucrativos","PESSOA_FISICA":"Pessoa física","OUTROS":"Outras naturezas","NAO_INFORMADA":"Natureza não identificada"}
+    selected_units=[dict(item) for item in source_units if int(item.get("month",0))==month]
+    selected_details=[dict(item) for item in source_details if int(item.get("month",0))==month and int(item.get("week",0))==week_index] if view=="detail" else []
+    cnes_codes=[str(item.get("unitCode") or "") for item in selected_units]
+    unit_metadata,unit_unresolved,unit_lookup_failures=_sinan_cnes_unit_metadata(cnes_codes,year,month,progress)
+    historical_classification_units=set(); current_classification_units=set()
+    eligible_units={}
+    for unit in selected_units:
+        code=str(unit.get("unitCode") or "")
+        metadata=unit_metadata.get(code,{})
+        if not code or metadata.get("municipalityCode")!="150140":
+            out_of_bel_em_notifications+=int(unit.get("notifications",0)); continue
+        management=str(metadata.get("management") or "NAO_INFORMADA")
+        nature=str(metadata.get("natureGroup") or "NAO_INFORMADA")
+        if metadata.get("classificationSource")=="competence": historical_classification_units.add(code)
+        elif metadata.get("classificationSource")=="current": current_classification_units.add(code)
+        if selected_management and management not in selected_management:
+            filtered_notifications+=int(unit.get("notifications",0)); continue
+        if selected_nature and nature not in selected_nature:
+            filtered_notifications+=int(unit.get("notifications",0)); continue
+        eligible_units[code]={
+            "unitName":metadata.get("name") or f"Unidade CNES {code}","unitCode":code,
+            "managementName":management_labels.get(management,"Gestão não identificada"),
+            "natureGroupName":nature_labels.get(nature,"Natureza não identificada"),
+            "neighborhood":metadata.get("neighborhood") or "Não informado",
+        }
+    metric_keys=("notifications","probable","confirmed","severe","dengueDeaths","discarded","hospitalizations","pregnant","diseaseDeaths","pending")
+    if view=="summary":
+        weekly={}
+        for unit in selected_units:
+            if str(unit.get("unitCode") or "") not in eligible_units: continue
+            week=int(unit["week"])
+            row=weekly.setdefault(week,{"code":str(week),"week":week,"weekName":f"Semana epidemiológica {week:02d}",**{key:0 for key in metric_keys}})
+            for key in metric_keys: row[key]+=int(unit.get(key,0))
+        rows=sorted(weekly.values(),key=lambda item:item["week"])
+    else:
+        for item in selected_details:
+            code=str(item.get("unitCode") or "")
+            unit=eligible_units.get(code)
+            if unit is None: continue
+            residence=str(item.get("residenceCode") or "")
+            residence_name="Residência ignorada ou exterior" if residence=="999999" else municipality_names.get(residence,"Município de residência não identificado") if residence else "Residência não informada"
+            rows.append({**item,**unit,"residenceName":residence_name})
+        rows.sort(key=lambda item:(-item["notifications"],item["unitName"].casefold(),item["residenceName"].casefold()))
+    month_names=("","janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro")
+    monthly_counts=defaultdict(int)
+    for item in source_rows: monthly_counts[int(item.get("month",0))]+=int(item.get("notifications",0))
+    available_month=max((value for value,count in monthly_counts.items() if 1<=value<=12 and count>0),default=0)
+    empty_state_message=""
+    if not rows and view=="summary" and out_of_bel_em_notifications:
+        empty_state_message=(f"Não foi possível confirmar no cadastro atual do CNES que as unidades responsáveis por {out_of_bel_em_notifications:,} notificação(ões) estão localizadas em Belém. Esses registros foram mantidos fora da tabela para preservar o recorte municipal.".replace(",","."))
+    elif not rows and view=="summary" and filtered_notifications:
+        empty_state_message="Há notificações de unidades de Belém neste mês, mas nenhuma atende aos filtros CNES selecionados. Remova ou ajuste os filtros de gestão e natureza jurídica."
+    elif not rows and view=="detail":
+        empty_state_message=f"A semana epidemiológica {week_index:02d} não tem notificações das unidades de Belém compatíveis com o recorte selecionado."
+    elif not rows:
+        if available_month:
+            empty_state_message=(f"O arquivo oficial do SINAN, atualizado em {updated_at or 'data não informada'}, ainda não traz notificações com início dos sintomas em {month_names[month]} de {year} para {municipality_name or municipality}. "
+                f"O mês mais recente com registros neste arquivo é {month_names[available_month]} de {year} ({format(monthly_counts[available_month], ',').replace(',', '.')} notificações). A ausência de registros pode refletir atraso de notificação ou atualização e não confirma ausência de casos.")
+        else:
+            empty_state_message=(f"O arquivo oficial do SINAN, atualizado em {updated_at or 'data não informada'}, não traz notificações com início dos sintomas para {municipality_name or municipality} em {year}. "
+                "A ausência de registros pode refletir atraso de notificação ou atualização e não confirma ausência de casos.")
+    totals={key:sum(int(row.get(key,0)) for row in rows) for key in metric_keys}
+    total_month_records=totals["notifications"]
+    additional_metrics=(
+        [("probable","PROVÁVEIS · NÃO DESCARTADAS"),("confirmed","DENGUE CONFIRMADA"),("severe","CASOS GRAVES"),("dengueDeaths","ÓBITOS POR DENGUE"),("discarded","DESCARTADAS")]
+        if report_id=="sinan-dengue" else
+        [("probable","PROVÁVEIS · NÃO DESCARTADAS"),("confirmed","CHIKUNGUNYA CONFIRMADA"),("hospitalizations","NOTIFICAÇÕES COM INTERNAÇÃO"),("diseaseDeaths","ÓBITOS POR CHIKUNGUNYA"),("discarded","DESCARTADAS"),("pending","SEM CONCLUSÃO")]
+        if report_id=="sinan-chikungunya" else
+        [("probable","PROVÁVEIS · NÃO DESCARTADAS"),("confirmed","ZIKA CONFIRMADA"),("pregnant","GESTANTES NOTIFICADAS"),("diseaseDeaths","ÓBITOS POR ZIKA"),("discarded","DESCARTADAS"),("pending","SEM CONCLUSÃO")]
+    )
+    disease_name="Chikungunya" if report_id=="sinan-chikungunya" else "Zika"
+    summary_kpis=(
+        [{"label":"DENGUE CONFIRMADA","value":{"value":totals["confirmed"]}},{"label":"CASOS GRAVES","value":{"value":totals["severe"]}},{"label":"ÓBITOS POR DENGUE","value":{"value":totals["dengueDeaths"]}}]
+        if report_id=="sinan-dengue" else
+        [{"label":f"{disease_name.upper()} CONFIRMADA","value":{"value":totals["confirmed"]}},{"label":"NOTIFICAÇÕES COM INTERNAÇÃO" if report_id=="sinan-chikungunya" else "GESTANTES NOTIFICADAS","value":{"value":totals["hospitalizations" if report_id=="sinan-chikungunya" else "pregnant"]}},{"label":f"ÓBITOS POR {disease_name.upper()}","value":{"value":totals["diseaseDeaths"]}}]
+    )
+    result={
+        "ok":True,"report":report_id,"view":view,"flatTable":True,"file":"SINAN · CSV oficial",
+        "year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":"Belém","municipalityCode":municipality,"updatedAt":updated_at,"establishmentCode":str(week_index) if week_index else None,"establishmentName":f"Semana epidemiológica {week_index:02d}" if week_index else None,"emptyStateMessage":empty_state_message,
+        "columns":[
+            {"id":"week" if view=="summary" else "unit","label":"SEMANA EPIDEMIOLÓGICA" if view=="summary" else "UNIDADE NOTIFICADORA","kind":"primary","primaryField":"weekName" if view=="summary" else "unitName","secondaryField":"unitCode" if view=="detail" else None,"secondaryPrefix":"CNES " if view=="detail" else "","filterFields":["weekName","week"] if view=="summary" else ["unitName","unitCode"],"sortField":"week" if view=="summary" else "unitName","type":"text","sticky":True},
+            *([{"id":"residence","label":"MUNICÍPIO DE RESIDÊNCIA","field":"residenceName","type":"text","filterFields":["residenceName","residenceCode"]}] if view=="detail" else []),
+            {"id":"notifications","label":"NOTIFICAÇÕES","metricId":"notifications","type":"number","decimals":0},
+            *({"id":key,"label":label,"metricId":key,"type":"number","decimals":0} for key,label in additional_metrics),
+            *([{"id":"neighborhood","label":"BAIRRO DA UNIDADE","field":"neighborhood","type":"text"},{"id":"management","label":"TIPO DE GESTÃO · CNES","field":"managementName","type":"text"},{"id":"nature","label":"NATUREZA JURÍDICA · CNES","field":"natureGroupName","type":"text"}] if view=="detail" else []),
+            *([{"id":"detail","label":"DETALHAR","kind":"action","actionLabel":"Detalhar →"}] if view=="summary" else []),
+        ],
+        "metrics":[
+            {"id":"notifications","label":"Notificações","decimals":0},
+            *({"id":key,"label":label.title(),"decimals":0} for key,label in additional_metrics),
+        ],
+        "kpis":[
+            {"label":"NOTIFICAÇÕES","value":{"value":totals["notifications"]}},
+            *summary_kpis,
+        ],
+        "records":total_month_records,"rows":rows,"notes":[
+            f"Fonte: arquivo CSV anual oficial do SINAN · {source_mode}. Município notificante: {municipality_name or municipality} ({municipality}). Arquivo atualizado em {updated_at or 'data não informada'}.",
+            "Mês definido pela data de início dos sintomas (DT_SIN_PRI); semana epidemiológica informada no campo SEM_PRI do SINAN. A primeira tabela mostra a evolução semanal das unidades notificadoras de Belém. Detalhar abre as unidades e os municípios de residência registrados naquela semana. Semanas que atravessam dois meses aparecem em cada recorte com apenas os dias daquele mês.",
+            "Nome, município cadastral e bairro da unidade vêm do CNES atual. Gestão e natureza jurídica usam primeiro o CNES da competência; quando não há registro histórico, o cadastro atual complementa a informação.",
+            *( [f"A gestão e a natureza jurídica foram confirmadas no CNES da competência {year:04d}{month:02d} para {len(historical_classification_units)} unidade(s).".replace(",",".")] if historical_classification_units else [] ),
+            *( [f"Gestão e natureza jurídica vieram do cadastro atual do CNES para {len(current_classification_units)} unidade(s), sem classificação histórica disponível para {year:04d}{month:02d}.".replace(",",".")] if current_classification_units else [] ),
+            *(["Prováveis · não descartadas segue a definição do Portal de Dados Abertos do SUS: notificações suspeitas, exceto as descartadas. Dengue confirmada exige classificação final de dengue (1–4, 10–12) e critério laboratorial ou clínico-epidemiológico. Casos graves usam as classificações 2, 3, 4, 11 e 12 com critério confirmado; óbitos exigem evolução ‘óbito pelo agravo’ (código 2)."] if report_id=="sinan-dengue" else [
+                f"Para {agravo}, prováveis são notificações não descartadas; confirmadas exigem classificação final {'13' if report_id=='sinan-chikungunya' else '1'}, descartadas usam {'5' if report_id=='sinan-chikungunya' else '2'}, e sem conclusão reúne classificação vazia, 0, 8 ou 9. Óbitos pelo agravo exigem caso confirmado e evolução 2.",
+                "Internação registrada (HOSPITALIZ = 1) conta notificações, inclusive as ainda não confirmadas; não representa internações causadas por chikungunya." if report_id=="sinan-chikungunya" else "Gestantes notificadas (CS_GESTANT = 1 a 4) contam notificações de gestantes, inclusive as não confirmadas; não representam gestantes com Zika confirmada."
+            ]),
+            "Os totais contam notificações publicadas, sem deduplicação de pessoas. O SINAN é atualizado e revisado; para incidência, use município de residência e a população oficial como denominador.",
+            *([empty_state_message] if empty_state_message else []),
+            *( [f"{invalid_onset:,} registro(s) consultado(s) não tinham data de início dos sintomas ou semana epidemiológica válida e ficaram fora da série.".replace(",",".")] if invalid_onset else [] ),
+            *( ["Alguns códigos de município de residência não foram encontrados no cadastro do IBGE; nesses casos o código foi preservado e o nome ficou não identificado."] if view=="detail" and any(row["residenceCode"] and row["residenceName"].startswith("Município de residência não") for row in rows) else [] ),
+            *( [f"{out_of_bel_em_notifications:,} notificação(ões) foram omitidas porque o CNES não confirmou município Belém para a unidade ou o código não pôde ser associado.".replace(",",".")] if out_of_bel_em_notifications else [] ),
+            *( [f"{filtered_notifications:,} notificação(ões) de unidades em Belém ficaram fora por não corresponderem aos filtros CNES selecionados.".replace(",",".")] if filtered_notifications else [] ),
+            *( ["O serviço do CNES não respondeu para algumas unidades; os registros sem município confirmado ficaram fora do recorte Belém e podem ser consultados novamente ao atualizar o relatório."] if unit_lookup_failures else [] ),
+            *( ["O CSV anual não contém o campo ID_UNIDADE; não foi possível associar notificações a unidades do CNES."] if not has_unit_field else [] ),
+        ],"cachedAt":time.time(),"filters":[{"label":"Município notificante","value":"Belém"}]+([{"label":"Gestão CNES","value":", ".join(management_labels[value] for value in sorted(selected_management))}] if selected_management else [])+([{"label":"Natureza jurídica CNES","value":", ".join(nature_labels[value] for value in sorted(selected_nature))}] if selected_nature else []),
+    }
+    if progress: progress(98,"Preparando a tabela e os indicadores do mês")
+    return result
 
 def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
     """Monthly state-level SIA production, with optional municipal and classification filters."""
@@ -3571,6 +4296,12 @@ def _predefined_sih_occupancy_services(payload: dict[str,Any], uf: str, progress
     return result
 
 def tabulate(payload, progress=None):
+    if payload.get("predefinedReport")=="srag-semanal":
+        return predefined_srag_weekly(payload,progress)
+    if payload.get("predefinedReport")=="sim-mortalidade":
+        return predefined_sim_mortality(payload,progress)
+    if payload.get("predefinedReport") in SINAN_AGRAVOS:
+        return predefined_sinan_dengue(payload,progress)
     if payload.get("predefinedReport") in {"sia-pa-producao","sia-pa-belem"}:
         return predefined_sia_pa_production(payload,progress)
     if payload.get("predefinedReport")=="sih-rd-producao":

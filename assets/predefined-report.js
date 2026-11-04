@@ -88,6 +88,10 @@
     cnesLegalNature: { label:'Natureza jurídica detalhada · CNES', field:'cnesLegalNatureCode', nameField:'cnesLegalNatureName', responseKey:'cnesLegalNatures', queryKey:'cnes_natureza', sourceLabel:'CNES na competência · cadastro atual se ausente' },
     cnesHospitalSUS: { label:'Atendimento hospitalar SUS · CNES atual', field:'cnesHospitalSUSCode', nameField:'cnesHospitalSUSName', responseKey:'cnesHospitalSUS', queryKey:'cnes_atende_sus', sourceLabel:'Cadastro atual · pode diferir da competência histórica' }
   };
+  const sinanFilterDefinitions = {
+    cnesManagement:{ ...sihSpFilterDefinitions.cnesManagement, sourceLabel:'Cadastro atual do CNES' },
+    cnesNatureGroup:{ ...sihSpFilterDefinitions.cnesNatureGroup, sourceLabel:'Cadastro atual do CNES' }
+  };
   const sihOccupancyFilterDefinitions = {
     ...sihFilterDefinitions,
     specialty: { label:'Especialidade do leito', field:'ESPEC', nameField:'ESPECName', responseKey:'specialties', queryKey:'especialidade' }
@@ -172,7 +176,52 @@
       methodTitle:'Como interpretar o fluxo:', methodText:' a tabela conta AIHs processadas e não pessoas únicas. Uma mesma pessoa pode gerar mais de uma AIH; em consultas com várias competências, internações prolongadas também podem aparecer em meses diferentes. AIHs rejeitadas não são tratadas como internações confirmadas.',
       summaryTitle:'Fluxo de internações por origem e destino', tableSearchSummary:'Buscar município de origem, hospital ou destino', tableSearchDetail:'Buscar AIH, procedimento ou saída',
       filters:sihFilterDefinitions
+    },
+    'sinan-dengue': {
+      id:'sinan-dengue', system:'sinan', systemCode:'SINAN', kind:'DENGUE', remoteSource:true, tableMode:'flat',
+      systemLabel:'SINAN · VIGILÂNCIA', sourceLabel:'notificações públicas do SINAN', defaultUf:'PA', fixedUf:'PA', defaultMunicipalityCode:'150140', fixedMunicipalityCode:'150140',
+      workspaceTitle:'Dengue · SINAN', introLabel:'VIGILÂNCIA EPIDEMIOLÓGICA · SINAN', introTitle:'Notificações de dengue.',
+      introDescription:'Consulte as notificações por semana epidemiológica e abra as unidades notificadoras e os municípios de residência.',
+      setupTitle:'Notificações de dengue · Belém', setupDescription:'O recorte mostra unidades notificadoras localizadas em Belém. Escolha o período e, se quiser, filtre por gestão ou natureza jurídica do CNES.',
+      emptyMessage:'O relatório considera unidades notificadoras cadastradas em Belém. Escolha ao menos um mês; os filtros de gestão e natureza jurídica são opcionais.',
+      municipalityLabel:'MUNICÍPIO DAS UNIDADES',
+      filterNote:'Gestão municipal, estadual ou dupla e natureza pública, privada ou sem fins lucrativos vêm do cadastro atual do CNES. Selecione várias opções com Ctrl no Windows ou Command no Mac. Os filtros são opcionais e podem ser combinados.',
+      methodTitle:'Como interpretar este relatório:', methodText:' a primeira tabela acompanha as notificações por semana epidemiológica de início dos sintomas. Detalhar mostra unidades de Belém e municípios de residência. Os totais são notificações, não pessoas únicas, e as semanas recentes podem ser revistas.',
+      summaryTitle:'Notificações de dengue', countMetric:'notifications', countLabel:'NOTIFICAÇÕES',
+      tableSearchSummary:'Buscar semana epidemiológica', tableSearchDetail:'Buscar unidade, CNES ou município de residência', filters:sinanFilterDefinitions
     }
+  };
+  for (const [id, name, kind] of [['sinan-chikungunya','Chikungunya','CHIK'],['sinan-zika','Zika','ZIKA']]) {
+    reportConfigurations[id] = {
+      ...reportConfigurations['sinan-dengue'], id, kind, firstYear:kind === 'CHIK' ? 2014 : 2015,
+      workspaceTitle:`${name} · SINAN`, introTitle:`Notificações de ${name}.`,
+      introDescription:`Consulte as notificações por semana epidemiológica, com unidades notificadoras e residência detalhadas.`,
+      setupTitle:`Notificações de ${name} · Belém`, summaryTitle:`Notificações de ${name}`,
+      methodText:` os totais representam notificações de ${name}, não pessoas únicas. Prováveis excluem as descartadas; confirmadas seguem a classificação final própria do agravo. ${kind === 'CHIK' ? 'Internações registradas incluem notificações ainda não confirmadas.' : 'Gestantes notificadas incluem casos ainda não confirmados.'} A semana vem do início dos sintomas; Detalhar mostra as unidades e a residência.`,
+    };
+  }
+  reportConfigurations['sim-mortalidade'] = {
+    ...reportConfigurations['sinan-dengue'], id:'sim-mortalidade', system:'sim', systemCode:'SIM', kind:'MORTALIDADE', filters:{},
+    systemLabel:'SIM · MORTALIDADE', sourceLabel:'declarações públicas do SIM', workspaceTitle:'Mortalidade · SIM',
+    introLabel:'MORTALIDADE · SIM', introTitle:'Óbitos por semana.',
+    introDescription:'Acompanhe os óbitos não fetais ocorridos em Belém por semana e detalhe as causas básicas e a residência.',
+    setupTitle:'Mortalidade · Belém', setupDescription:'Escolha o período para consultar os óbitos ocorridos em Belém.',
+    emptyMessage:'Escolha ao menos um mês para consultar a base pública do SIM.', municipalityLabel:'MUNICÍPIO DE OCORRÊNCIA',
+    methodTitle:'Como interpretar este relatório:', methodText:' os totais são declarações de óbito não fetal do SIM. A primeira tabela acompanha as semanas pela data do óbito; Detalhar mostra as categorias da causa básica e o capítulo CID-10. Belém é o município do óbito; a residência é apresentada em grupos.',
+    summaryTitle:'Óbitos por semana', countMetric:'deaths', countLabel:'ÓBITOS NÃO FETAIS',
+    tableSearchSummary:'Buscar semana', tableSearchDetail:'Buscar causa básica ou capítulo CID-10'
+  };
+  reportConfigurations['srag-semanal'] = {
+    id:'srag-semanal', system:'srag', systemCode:'SIVEP-GRIPE', kind:'SRAG', remoteSource:true, tableMode:'flat', firstYear:2025,
+    systemLabel:'SIVEP-Gripe · Vigilância', sourceLabel:'banco público de SRAG', defaultUf:'PA',
+    workspaceTitle:'Síndrome respiratória grave · SIVEP-Gripe', introLabel:'VIGILÂNCIA RESPIRATÓRIA · SIVEP-GRIPE', introTitle:'SRAG por semana epidemiológica.',
+    introDescription:'Acompanhe casos graves por semana, agente respiratório, UTI e evolução.',
+    setupTitle:'Síndrome respiratória grave', setupDescription:'Escolha o município de residência e o mês do início dos sintomas. A primeira leitura do banco anual pode levar alguns minutos.',
+    emptyMessage:'Escolha um município de residência e um mês para acompanhar a evolução semanal da SRAG.', municipalityLabel:'MUNICÍPIO DE RESIDÊNCIA',
+    filterNote:'Os casos são agrupados pela semana epidemiológica do início dos sintomas. Dados recentes podem mudar após investigação.',
+    methodTitle:'Como ler a evolução:', methodText:' os totais representam registros de síndrome respiratória aguda grave, não todas as infecções respiratórias. Os agentes seguem a classificação final do SIVEP-Gripe; UTI e óbitos são evoluções dos casos apresentados. Semanas recentes podem estar incompletas.',
+    summaryTitle:'SRAG por semana epidemiológica', countMetric:'cases', countLabel:'CASOS DE SRAG',
+    tableSearchSummary:'Buscar semana epidemiológica', tableSearchDetail:'Buscar faixa etária', filters:{}
   };
   const params = new URLSearchParams(location.search);
   const linkedReportId = params.get('relatorio') === 'sia-pa-belem' ? 'sia-pa-producao' : params.get('relatorio');
@@ -203,6 +252,7 @@
       : params.getAll(definition.queryKey);
     linkedFilters[definition.field] = values;
   }
+  if (activeReport.system === 'sinan' && savedGlobalLocation?.useMunicipalManager && savedGlobalMunicipality === '150140' && !params.has('cnes_gestao')) linkedFilters.cnesManagementCode = ['MUNICIPAL'];
 
   function normalizeSelectedValues(value) {
     const values = Array.isArray(value) ? value : value == null || value === '' ? [] : [value];
@@ -239,18 +289,20 @@
   }
 
   function filtersFromParams(searchParams) {
-    const preferred = { municipalityCode:searchParams.get('municipio') || (searchParams.get('relatorio') === 'sia-pa-belem' ? '150140' : '') };
+    const preferred = { municipalityCode:activeReport.fixedMunicipalityCode || searchParams.get('municipio') || (searchParams.get('relatorio') === 'sia-pa-belem' ? '150140' : '') };
     for (const definition of Object.values(filterDefinitions)) preferred[definition.field] = searchParams.getAll(definition.queryKey);
+    if (activeReport.system === 'sinan' && savedGlobalLocation?.useMunicipalManager && savedGlobalMunicipality === '150140' && !searchParams.has('cnes_gestao')) preferred.cnesManagementCode = ['MUNICIPAL'];
     return preferred;
   }
 
-  function selectedUf() { return ufSelect.value || 'PA'; }
+  function selectedUf() { return activeReport.fixedUf || ufSelect.value || 'PA'; }
   function selectedOptionText(select, fallback) { return select.selectedOptions?.[0]?.textContent || fallback; }
   function selectedMonths() {
     return [...monthSelect.selectedOptions].map((option) => Number(option.value)).filter((month) => month >= 1 && month <= 12).sort((a, b) => a - b);
   }
   function allowedMonths(months, year = Number(yearSelect.value), uf = selectedUf()) {
     const valid = [...new Set(months.map(Number).filter((month) => month >= 1 && month <= 12))];
+    if (activeReport.remoteSource) return valid;
     if (valid.length < 2) return valid;
     const downloaded = new Set(localMonths(year, uf));
     return valid.every((month) => downloaded.has(month)) ? valid : [valid[valid.length - 1]];
@@ -327,6 +379,7 @@
       filterCategories = Object.fromEntries(Object.keys(filterDefinitions).map((type) => [type, []]));
       reportControlsReady = false;
       results.clear();
+      setYears();
     }
     $('reportWorkspaceTitle').textContent = activeReport.workspaceTitle;
     $('reportSetupTitle').textContent = activeReport.setupTitle;
@@ -334,17 +387,38 @@
     $('reportEmptyMessage').textContent = activeReport.emptyMessage;
     const municipalityLabel = $('reportMunicipalityLabel');
     if (municipalityLabel) {
-      const optional = document.createElement('small');
-      optional.textContent = 'opcional';
-      municipalityLabel.replaceChildren(document.createTextNode(`${activeReport.municipalityLabel} `), optional);
+      const qualifier = document.createElement('small');
+      qualifier.textContent = activeReport.fixedMunicipalityCode ? 'fixo' : activeReport.remoteSource ? 'obrigatório' : 'opcional';
+      municipalityLabel.replaceChildren(document.createTextNode(`${activeReport.municipalityLabel} `), qualifier);
     }
+    ufSelect.disabled = Boolean(activeReport.fixedUf);
+    municipalitySelect.disabled = Boolean(activeReport.fixedMunicipalityCode);
+    const optionalSection = document.querySelector('.setup-optional-section');
+    if (optionalSection) optionalSection.hidden = Boolean(activeReport.remoteSource && activeReport.system !== 'sinan');
+    const monthLabel = $('reportMonthLabel');
+    if (monthLabel) {
+      const qualifier = document.createElement('small');
+      qualifier.textContent = activeReport.remoteSource ? 'múltiplos meses' : 'uma por vez; várias se já baixadas';
+      monthLabel.replaceChildren(document.createTextNode(`${activeReport.system === 'sim' ? 'MÊS DO ÓBITO' : activeReport.remoteSource ? 'INÍCIO DOS SINTOMAS' : 'COMPETÊNCIA'} `), qualifier);
+    }
+    const monthHelp = document.querySelector('.setup-competency-help');
+    if (monthHelp) monthHelp.textContent = activeReport.system === 'sim' ? 'O mês usa a data do óbito; dados recentes podem ser preliminares.' : activeReport.remoteSource ? 'O mês usa a data de início dos sintomas; o período atual pode ter dados parciais.' : 'Vários meses só com bases já baixadas. Uma competência pode ser buscada no DATASUS ao abrir.';
+    const locationHelp = document.querySelector('.setup-primary-grid')?.closest('.setup-section')?.querySelector('.setup-section-heading span');
+    if (locationHelp) locationHelp.textContent = activeReport.system === 'sinan' ? 'O recorte considera unidades notificadoras atualmente cadastradas em Belém.' : activeReport.system === 'sim' ? 'O recorte considera óbitos ocorridos em Belém.' : activeReport.system === 'srag' ? 'Escolha o município onde os casos residem.' : 'A UF define qual arquivo estadual será consultado.';
     $('predefinedIntroLabel').textContent = activeReport.introLabel;
     $('predefinedIntroTitle').textContent = activeReport.introTitle;
     $('predefinedIntroDescription').textContent = activeReport.introDescription;
     const tag = document.querySelector('.top-tag b');
     if (tag) tag.textContent = activeReport.systemLabel;
+    const sourceTag = document.querySelector('.report-scope');
+    if (sourceTag) {
+      const label = activeReport.remoteSource ? `${activeReport.systemCode} · ARQUIVO OFICIAL` : 'DATASUS';
+      sourceTag.textContent = label;
+    }
     const sidebarSource = document.querySelector('.sidebar-foot strong');
     if (sidebarSource) sidebarSource.textContent = activeReport.systemLabel;
+    const footerSource = document.querySelector('.page-footer > span:last-child');
+    if (footerSource) footerSource.textContent = activeReport.remoteSource ? `Dados públicos · ${activeReport.systemCode}` : 'Dados públicos · DATASUS';
     const methodNote = $('reportMethodNote');
     if (methodNote) {
       const strong = document.createElement('strong');
@@ -356,7 +430,8 @@
     return true;
   }
   function selectedFilters() {
-    const filters = { uf:selectedUf(), municipalityCode:municipalitySelect.value || '', municipalityName:municipalitySelect.value ? selectedOptionText(municipalitySelect, '') : '' };
+    const municipalityCode=activeReport.fixedMunicipalityCode || municipalitySelect.value || '';
+    const filters = { uf:selectedUf(), municipalityCode, municipalityName:municipalityCode === '150140' ? 'Belém' : municipalityCode ? selectedOptionText(municipalitySelect, '') : '' };
     for (const definition of Object.values(filterDefinitions)) {
       filters[definition.field] = [];
       filters[definition.nameField] = [];
@@ -393,7 +468,7 @@
     const selected = selectedFilters();
     const filters = {};
     for (const definition of Object.values(filterDefinitions)) filters[definition.field] = selected[definition.field];
-    return { uf:selected.uf, municipalityCode:selected.municipalityCode, activeFilterTypes:[...activeFilterTypes], filters };
+    return { uf:selected.uf, municipalityCode:activeReport.fixedMunicipalityCode || selected.municipalityCode, activeFilterTypes:[...activeFilterTypes], filters };
   }
 
   function setupPreference() {
@@ -402,8 +477,8 @@
     const filters = {};
     for (const definition of Object.values(filterDefinitions)) filters[definition.field] = normalizeSelectedValues(saved.filters?.[definition.field]);
     return {
-      uf:stateNames[saved.uf] ? saved.uf : selectedUf(),
-      municipalityCode:String(saved.municipalityCode || ''),
+      uf:activeReport.fixedUf || (stateNames[saved.uf] ? saved.uf : selectedUf()),
+      municipalityCode:activeReport.fixedMunicipalityCode || String(saved.municipalityCode || ''),
       activeFilterTypes:(Array.isArray(saved.activeFilterTypes) ? saved.activeFilterTypes : []).filter((type) => filterDefinitions[type]),
       filters
     };
@@ -445,9 +520,9 @@
 
   function applySetupPreference(fallbackUf = selectedUf()) {
     const saved = setupPreference();
-    setUfOptions(saved?.uf || activeReport.defaultUf || fallbackUf);
+    setUfOptions(activeReport.fixedUf || saved?.uf || activeReport.defaultUf || fallbackUf);
     activeFilterTypes = saved?.activeFilterTypes || [];
-    return saved ? { municipalityCode:saved.municipalityCode, ...saved.filters } : (activeReport.defaultMunicipalityCode ? { municipalityCode:activeReport.defaultMunicipalityCode } : {});
+    return saved ? { municipalityCode:activeReport.fixedMunicipalityCode || saved.municipalityCode, ...saved.filters } : (activeReport.defaultMunicipalityCode ? { municipalityCode:activeReport.defaultMunicipalityCode } : {});
   }
 
   function updateScopeDescription() {
@@ -464,10 +539,12 @@
 
   function setUfOptions(preferred = 'PA') {
     ufSelect.replaceChildren();
-    for (const [uf, name] of Object.entries(stateNames).sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'))) {
+    const options=activeReport.fixedUf ? [[activeReport.fixedUf,stateNames[activeReport.fixedUf]]] : Object.entries(stateNames).sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'));
+    for (const [uf, name] of options) {
       ufSelect.add(new Option(`${name} · ${uf}`, uf));
     }
-    ufSelect.value = Object.prototype.hasOwnProperty.call(stateNames, preferred) ? preferred : 'PA';
+    ufSelect.value = activeReport.fixedUf || (Object.prototype.hasOwnProperty.call(stateNames, preferred) ? preferred : 'PA');
+    ufSelect.disabled = Boolean(activeReport.fixedUf);
   }
 
   function setPageView(view, updateUrl = false) {
@@ -478,6 +555,11 @@
     $('predefinedIntroLabel').textContent = showReport ? activeReport.introLabel : 'RELATÓRIOS PRÉ-DEFINIDOS';
     $('predefinedIntroTitle').textContent = showReport ? activeReport.introTitle : 'Tabulações prontas para consultar.';
     $('predefinedIntroDescription').textContent = showReport ? activeReport.introDescription : 'Escolha um relatório. Cada tabulação terá seu próprio recorte e filtros.';
+    if (!showReport) {
+      const tag = document.querySelector('.top-tag b'); if (tag) tag.textContent = 'Fontes oficiais';
+      const sidebarSource = document.querySelector('.sidebar-foot strong'); if (sidebarSource) sidebarSource.textContent = 'Fontes oficiais';
+      const footerSource = document.querySelector('.page-footer > span:last-child'); if (footerSource) footerSource.textContent = 'Dados públicos · fontes oficiais';
+    }
     if (updateUrl) {
       const next = new URL(location.href);
       if (showReport) {
@@ -492,7 +574,7 @@
 
   async function prepareReportControls(preferred = {}) {
     setAvailability('Preparando as opções desta tabulação…', 'loading');
-    if (!reportControlsReady) {
+    if (!reportControlsReady && !activeReport.remoteSource) {
       try {
         const catalog = await api({ action: 'catalog' });
         addLocalFiles(catalog.files);
@@ -570,7 +652,7 @@
     resultPanel.hidden = true;
     empty.hidden = false;
     $('reportEmpty').querySelector('strong').textContent = 'Não foi possível gerar o relatório';
-    $('reportEmptyMessage').textContent = `Confira a conexão com o DATASUS e tente novamente. ${activeReport.emptyMessage}`;
+    $('reportEmptyMessage').textContent = `${activeReport.remoteSource ? `Confira a conexão com a fonte oficial do ${activeReport.systemCode} e tente novamente.` : 'Confira a conexão com o DATASUS e tente novamente.'} ${activeReport.emptyMessage}`;
     showNotice(message, 'error');
   }
 
@@ -669,7 +751,7 @@
     if (!valid.length) {
       monthSelect.add(new Option('Nenhuma competência disponível', ''));
       monthSelect.disabled = true;
-      openButton.disabled = true;
+      updateOpenButton();
       updateMonthPicker();
       return false;
     }
@@ -681,7 +763,7 @@
       monthSelect.add(option);
     }
     monthSelect.disabled = false;
-    openButton.disabled = selectedMonths().length === 0;
+    updateOpenButton();
     updateMonthPicker();
     return true;
   }
@@ -694,6 +776,16 @@
 
   async function refreshCompetencies(year, preferred = [], uf = selectedUf()) {
     const requestId = ++competencyRequest;
+    if (activeReport.remoteSource) {
+      const now = new Date();
+      const monthCount = year === now.getFullYear() ? now.getMonth() + 1 : 12;
+      const allMonths = Array.from({ length:monthCount }, (_, index) => index + 1);
+      const wanted = (Array.isArray(preferred) ? preferred : [preferred]).map(Number).filter((month) => allMonths.includes(month));
+      const defaultMonth = year === now.getFullYear() ? Math.max(1, now.getMonth() - 1) : 12;
+      setMonthOptions(allMonths, wanted.length ? wanted : [defaultMonth]);
+      setAvailability(`Período disponível no ${activeReport.systemCode} · o arquivo anual oficial será consultado.`, 'good');
+      return;
+    }
     const cachedMonths = localMonths(year, uf);
     const hasLocal = setMonthOptions(cachedMonths, preferred);
     if (hasLocal) setAvailability(`${cachedMonths.length} competência(s) de ${uf} já salva(s) neste computador.`, 'good');
@@ -819,25 +911,33 @@
 
   async function loadOptionalFilters(uf, preferred = {}) {
     const requestId = ++filterRequest;
-    setAvailability('Carregando filtros da definição oficial…', 'loading');
-    resetSelect(municipalitySelect, 'Todos os municípios');
+    setAvailability(activeReport.remoteSource ? 'Carregando municípios para a consulta…' : 'Carregando filtros da definição oficial…', 'loading');
+    resetSelect(municipalitySelect, activeReport.system === 'srag' ? 'Selecione um município de residência' : activeReport.remoteSource ? 'Selecione um município notificante' : 'Todos os municípios');
     const preferredMunicipality = String(preferred.municipalityCode || '');
     for (const [type, definition] of Object.entries(filterDefinitions)) {
       if (normalizeSelectedValues(preferred[definition.field]).length && !activeFilterTypes.includes(type)) activeFilterTypes.push(type);
     }
     for (const type of Object.keys(filterDefinitions)) filterCategories[type] = [];
     refreshAddFilterOptions();
-    municipalitySelect.disabled = false;
+    municipalitySelect.disabled = Boolean(activeReport.fixedMunicipalityCode);
     const municipalityTask = api({ action: 'municipalities', uf }).then((data) => {
       if (requestId !== filterRequest) return;
-      const options = (data.municipalities || []).map((item) => ({ value: String(item.code || ''), label: String(item.name || '') })).filter((item) => /^\d{6}$/.test(item.value) && item.value.startsWith(stateCodes[uf]) && item.label);
+      let options = (data.municipalities || []).map((item) => ({ value: String(item.code || ''), label: String(item.name || '') })).filter((item) => /^\d{6}$/.test(item.value) && item.value.startsWith(stateCodes[uf]) && item.label);
+      if (activeReport.fixedMunicipalityCode) options=options.filter((item) => item.value === activeReport.fixedMunicipalityCode);
       for (const item of options) municipalitySelect.add(new Option(item.label, item.value));
-      municipalitySelect.value = [...municipalitySelect.options].some((option) => option.value === preferredMunicipality) ? preferredMunicipality : '';
+      if (activeReport.fixedMunicipalityCode && ![...municipalitySelect.options].some((option) => option.value === activeReport.fixedMunicipalityCode)) municipalitySelect.add(new Option('Belém · PA',activeReport.fixedMunicipalityCode));
+      municipalitySelect.value = activeReport.fixedMunicipalityCode || ([...municipalitySelect.options].some((option) => option.value === preferredMunicipality) ? preferredMunicipality : '');
+      municipalitySelect.disabled = Boolean(activeReport.fixedMunicipalityCode);
     }).catch(() => {
       if (requestId !== filterRequest) return;
-      municipalitySelect.title = 'A lista de municípios não foi carregada. O relatório continua disponível para toda a UF.';
+      if (activeReport.fixedMunicipalityCode) {
+        municipalitySelect.add(new Option('Belém · PA', activeReport.fixedMunicipalityCode));
+        municipalitySelect.value = activeReport.fixedMunicipalityCode;
+      }
+      municipalitySelect.title = activeReport.remoteSource ? 'A lista de municípios não foi carregada. Confira a conexão e reabra o recorte.' : 'A lista de municípios não foi carregada. O relatório continua disponível para toda a UF.';
+      if (activeReport.remoteSource && !activeReport.fixedMunicipalityCode) setAvailability('Não foi possível carregar a lista de municípios. Confira a conexão e tente novamente.', 'error');
     });
-    const categoryTask = api({ action: 'predefined_filter_options', report:activeReport.id, uf }).then((data) => {
+    const categoryTask = activeReport.remoteSource && activeReport.system !== 'sinan' ? Promise.resolve() : api({ action: 'predefined_filter_options', report:activeReport.id, uf }).then((data) => {
       if (requestId !== filterRequest) return;
       for (const [type, definition] of Object.entries(filterDefinitions)) filterCategories[type] = data[definition.responseKey] || [];
     }).catch(() => {
@@ -845,7 +945,21 @@
       for (const type of Object.keys(filterDefinitions)) filterCategories[type] = [];
     });
     await Promise.all([municipalityTask, categoryTask]);
-    if (requestId === filterRequest) renderAdditionalFilterRows(preferred);
+    if (requestId === filterRequest) {
+      renderAdditionalFilterRows(preferred);
+      if (activeReport.remoteSource) {
+        if (activeReport.system === 'sinan') setAvailability('Unidades cadastradas em Belém · gestão e natureza jurídica do CNES são opcionais.', '');
+        else if (activeReport.system === 'srag') setAvailability('Município de residência · escolha o mês do início dos sintomas.', '');
+        else setAvailability('Óbitos ocorridos em Belém · escolha o mês da ocorrência.', '');
+        updateOpenButton();
+      }
+    }
+  }
+
+  function updateOpenButton() {
+    const hasMonths = selectedMonths().length > 0;
+    const hasMunicipality = !activeReport.remoteSource || /^\d{6}$/.test(activeReport.fixedMunicipalityCode || municipalitySelect.value);
+    openButton.disabled = !hasMonths || !hasMunicipality;
   }
 
   function formatNumber(value, decimals = 0) {
@@ -885,12 +999,12 @@
 
   function tableColumns() {
     if (!activeResult) return [];
-    const competenceColumn = { id:'competence', label:'Competência', field:'competence', type:'text', sortField:'competence', filterable:true, sortable:true };
+    const competenceColumn = { id:'competence', label:activeReport.system === 'sim' ? 'MÊS DO ÓBITO' : activeReport.remoteSource ? 'INÍCIO DOS SINTOMAS' : 'Competência', field:'competence', type:'text', sortField:'competence', filterable:true, sortable:true };
     if (activeReport.tableMode === 'flat' || activeReport.tableMode === 'occupancy') {
-      const columns = (activeResult.columns || []).map((column) => ({ ...column, filterable:column.kind !== 'action', sortable:column.kind !== 'action' }));
-      const actionIndex = columns.findIndex((column) => column.kind === 'action');
-      columns.splice(actionIndex < 0 ? columns.length : actionIndex, 0, competenceColumn);
-      return columns;
+      const sourceColumns = activeResult.columns || [];
+      const columns = sourceColumns.filter((column) => column.kind !== 'action').map((column) => ({ ...column, filterable:true, sortable:true }));
+      const actions = sourceColumns.filter((column) => column.kind === 'action').map((column) => ({ ...column, filterable:false, sortable:false }));
+      return [...columns, competenceColumn, ...actions];
     }
     const summaryView = activeView === 'summary';
     let dimensions = summaryView ? [] : [...(activeResult.detailDimensions || [{ id:'complexity', label:'Complexidade' }])];
@@ -912,6 +1026,10 @@
     columns.push(competenceColumn);
     if (summaryView) columns.push({ id:'action', label:'Detalhamento', kind:'action', filterable:false, sortable:false });
     return columns;
+  }
+
+  function tablePreferenceView() {
+    return activeView;
   }
 
   function rawColumnValue(row, column) {
@@ -1071,6 +1189,7 @@
       button.dataset.year = String(row._competenceYear || activeYear || '');
       if (column.actionType === 'services') { button.dataset.aih = row.aih; button.dataset.cnes = row.cnes || activeCnes; button.dataset.action = 'services'; button.textContent = 'Serviços →'; }
       else if (column.actionType === 'flow-detail') { button.dataset.cnes = row.cnes || ''; button.dataset.originCode = row.originCode || ''; button.dataset.destinationCode = row.destinationCode || ''; button.dataset.action = 'flow-detail'; button.textContent = column.actionLabel || 'Detalhar →'; }
+      else if (column.actionType === 'sinan-detail') { button.dataset.cnes = row.unitCode || ''; button.dataset.action = 'sinan-detail'; button.textContent = column.actionLabel || 'Detalhar →'; }
       else { button.dataset.cnes = row.code || row.cnes; button.dataset.action = 'detail'; button.textContent = column.actionLabel || 'Detalhar →'; }
       action.append(button); return action;
     }
@@ -1165,6 +1284,8 @@
     resultPanel.classList.toggle('is-flow-detail', activeReport.id === 'sih-rd-fluxo' && activeView === 'detail');
     resultPanel.classList.toggle('is-bed-occupancy-report', activeReport.tableMode === 'occupancy');
     resultPanel.classList.toggle('is-sia-detail-report', activeReport.id === 'sia-pa-producao' && activeView === 'detail');
+    resultPanel.classList.toggle('is-sinan-report', activeReport.system === 'sinan');
+    resultPanel.classList.toggle('is-sinan-detail', activeReport.system === 'sinan' && activeView === 'detail');
     const rows = visibleRows();
     const pageCount = Math.max(1, Math.ceil(rows.length / tablePageSize));
     tablePage = Math.min(Math.max(1, tablePage), pageCount);
@@ -1180,7 +1301,10 @@
     }
     if (!rows.length) {
       const tr = document.createElement('tr');
-      tr.append(buildCell('td', 'Nenhum resultado corresponde aos filtros aplicados.', 'primary-cell'));
+      const emptyText = activeReport.remoteSource && activeResult.emptyStateMessage
+        ? activeResult.emptyStateMessage
+        : 'Nenhum resultado corresponde aos filtros aplicados.';
+      tr.append(buildCell('td', emptyText, 'primary-cell'));
       const spacer = document.createElement('td'); spacer.colSpan = Math.max(1, columns.length - 1); tr.append(spacer); body.append(tr);
     }
 
@@ -1203,7 +1327,7 @@
     }
 
     $('reportCount').textContent = formatNumber(rows.length);
-    const itemLabel = activeReport.id === 'sih-rd-fluxo' ? (activeView === 'detail' ? 'AIHs da rota' : 'rotas de origem e destino') : activeReport.tableMode === 'flat' ? 'lançamentos' : activeReport.tableMode === 'occupancy' ? (activeView === 'summary' ? 'estabelecimentos' : activeView === 'detail' ? 'AIHs' : 'serviços profissionais') : activeView === 'summary' ? 'estabelecimentos' : (activeReport.system === 'sih' ? 'combinações de procedimento' : 'procedimentos');
+    const itemLabel = activeReport.id === 'sih-rd-fluxo' ? (activeView === 'detail' ? 'AIHs da rota' : 'rotas de origem e destino') : activeReport.system === 'srag' ? (activeView === 'detail' ? 'faixas etárias' : 'semanas epidemiológicas') : activeReport.system === 'sim' ? (activeView === 'detail' ? 'categorias de causa básica' : 'semanas') : activeReport.system === 'sinan' ? (activeView === 'detail' ? 'unidades e municípios de residência' : 'semanas epidemiológicas') : activeReport.tableMode === 'flat' ? 'lançamentos' : activeReport.tableMode === 'occupancy' ? (activeView === 'summary' ? 'estabelecimentos' : activeView === 'detail' ? 'AIHs' : 'serviços profissionais') : activeView === 'summary' ? 'estabelecimentos' : (activeReport.system === 'sih' ? 'combinações de procedimento' : 'procedimentos');
     $('reportTableHint').textContent = `${formatNumber(rows.length)} de ${formatNumber(allRows.length)} ${itemLabel} · página ${formatNumber(tablePage)} de ${formatNumber(pageCount)} · filtre ou ordene pelos cabeçalhos`;
     renderTablePagination(rows.length, pageCount);
     const locationParts = [activeResult.municipality || 'Todos os municípios', activeResult.state || stateNames[activeResult.uf] || activeResult.uf];
@@ -1215,15 +1339,15 @@
     const fileSummary = activeMonths.length > 1 ? `${formatNumber(activeMonths.length)} competências consultadas` : activeResult.file || '';
     if (activeReport.id === 'sih-rd-fluxo' && activeView === 'detail' && activeResult.detailSubtitle) locationParts.push(activeResult.detailSubtitle);
     $('reportSubtitle').textContent = `${formatCompetencies(activeMonths, activeYear)} · ${locationParts.join(' · ')} · ${fileSummary}`;
-    $('reportTitle').textContent = activeReport.id === 'sih-rd-fluxo' && activeView === 'detail' ? (activeResult.detailTitle || 'AIHs da rota') : activeReport.tableMode === 'flat' || activeView === 'summary' ? activeReport.summaryTitle : activeView === 'services' ? `Serviços profissionais · AIH ${activeAih}` : `${activeReport.detailTitlePrefix} · ${activeResult.establishmentName || `CNES ${activeCnes}`}`;
+    $('reportTitle').textContent = activeReport.system === 'srag' ? (activeView === 'detail' ? `Faixas etárias · ${activeResult.establishmentName || 'semana epidemiológica'}` : activeReport.summaryTitle) : activeReport.system === 'sinan' ? (activeView === 'detail' ? `Unidades e residência · ${activeResult.establishmentName || 'semana epidemiológica'}` : activeReport.summaryTitle) : activeReport.system === 'sim' ? (activeView === 'detail' ? `Causas básicas · ${activeResult.establishmentName || 'CID-10'}` : activeReport.summaryTitle) : activeReport.id === 'sih-rd-fluxo' && activeView === 'detail' ? (activeResult.detailTitle || 'AIHs da rota') : activeReport.tableMode === 'flat' || activeView === 'summary' ? activeReport.summaryTitle : activeView === 'services' ? `Serviços profissionais · AIH ${activeAih}` : `${activeReport.detailTitlePrefix} · ${activeResult.establishmentName || `CNES ${activeCnes}`}`;
     $('reportSearch').placeholder = activeView === 'summary' ? activeReport.tableSearchSummary : activeView === 'services' ? 'Buscar profissional, procedimento ou CNS' : activeReport.tableSearchDetail;
     renderKpis(rows, totals, metrics);
     const notes = $('reportNotes'); notes.replaceChildren();
     for (const note of activeResult.notes || []) {
       const line = document.createElement('p'); line.textContent = note; notes.append(line);
     }
-    $('backToSummary').hidden = (activeReport.tableMode === 'flat' && activeReport.id !== 'sih-rd-fluxo') || activeView === 'summary';
-    $('backToSummary').textContent = activeView === 'services' ? '← AIH' : activeReport.id === 'sih-rd-fluxo' ? '← Fluxo' : '← Estabelecimentos';
+    $('backToSummary').hidden = (activeReport.tableMode === 'flat' && activeReport.id !== 'sih-rd-fluxo' && !(['sinan','sim','srag'].includes(activeReport.system) && activeView === 'detail')) || activeView === 'summary';
+    $('backToSummary').textContent = activeView === 'services' ? '← AIH' : activeReport.id === 'sih-rd-fluxo' ? '← Fluxo' : activeReport.system === 'sim' ? '← Semanas' : ['srag','sinan'].includes(activeReport.system) ? '← Semanas epidemiológicas' : '← Estabelecimentos';
     resultPanel.hidden = false;
     empty.hidden = true;
     updateTableDefaultControls();
@@ -1326,7 +1450,7 @@
   }
 
   function restoreTableDefaults() {
-    const saved = reportDefaults.get(activeReport.id)?.table?.[activeView];
+    const saved = reportDefaults.get(activeReport.id)?.table?.[tablePreferenceView()];
     if (!saved || typeof saved !== 'object') return;
     $('reportSearch').value = typeof saved.search === 'string' ? saved.search.slice(0, 120) : '';
     const columns = tableColumns();
@@ -1344,7 +1468,7 @@
   }
 
   function updateTableDefaultControls() {
-    const saved = reportDefaults.get(activeReport.id)?.table?.[activeView];
+    const saved = reportDefaults.get(activeReport.id)?.table?.[tablePreferenceView()];
     $('tableDefaultActions').hidden = false;
     $('clearTableDefault').hidden = !saved;
     $('saveTableDefault').textContent = saved ? 'Atualizar padrão' : 'Salvar filtros como padrão';
@@ -1354,7 +1478,7 @@
     const button = $('saveTableDefault');
     button.disabled = true;
     try {
-      const data = await api({ action:'report_defaults_save', report:activeReport.id, scope:'table', view:activeView, settings:tableSettings() });
+      const data = await api({ action:'report_defaults_save', report:activeReport.id, scope:'table', view:tablePreferenceView(), settings:tableSettings() });
       reportDefaults.set(activeReport.id, data.defaults || {});
       updateTableDefaultControls();
       button.textContent = 'Padrão salvo';
@@ -1366,7 +1490,7 @@
     const button = $('clearTableDefault');
     button.disabled = true;
     try {
-      const data = await api({ action:'report_defaults_delete', report:activeReport.id, scope:'table', view:activeView });
+      const data = await api({ action:'report_defaults_delete', report:activeReport.id, scope:'table', view:tablePreferenceView() });
       reportDefaults.set(activeReport.id, data.defaults || {});
       updateTableDefaultControls();
     } catch (error) { showNotice(error.message || 'Não foi possível remover os filtros salvos.', 'error'); }
@@ -1698,7 +1822,11 @@
     const files = [...new Set(monthlyResults.flatMap((result) => result.files?.length ? result.files : result.file ? [result.file] : []))];
     const emptyMonths = monthlyResults.filter((result) => !(result.rows || []).length).map((result) => monthNames[result.month - 1]);
     const notes = [...new Set(monthlyResults.flatMap((result) => result.notes || []))];
-    if (emptyMonths.length) notes.push(`Sem registros compatíveis nos meses: ${emptyMonths.join(', ')} de ${year}.`);
+    if (emptyMonths.length && activeReport.system === 'sinan') {
+      for (const message of monthlyResults.filter((result) => !(result.rows || []).length).map((result) => result.emptyStateMessage).filter(Boolean)) {
+        if (!notes.includes(message)) notes.push(message);
+      }
+    } else if (emptyMonths.length) notes.push(`Sem registros compatíveis nos meses: ${emptyMonths.join(', ')} de ${year}.`);
     const combined = {
       ...first,
       year,
@@ -1707,7 +1835,8 @@
       rows,
       records:monthlyResults.reduce((total, result) => total + (Number(result.records) || 0), 0),
       files,
-      file:files.length === 1 ? files[0] : `${files.length} arquivos DATASUS`,
+      file:activeReport.remoteSource ? `${activeReport.systemCode} · CSV oficial` : files.length === 1 ? files[0] : `${files.length} arquivos DATASUS`,
+      emptyStateMessage:monthlyResults.filter((result) => !(result.rows || []).length).map((result) => result.emptyStateMessage).filter(Boolean).join(' '),
       notes,
       kpis:combineMonthlyKpis(monthlyResults, rows, months, year)
     };
@@ -1716,6 +1845,23 @@
   }
 
   async function tabulateReportMonth(view, cnes, aih, filters, year, month, monthIndex, monthCount) {
+    if (activeReport.remoteSource) {
+      setLoader(true, `Lendo arquivo oficial do ${activeReport.systemCode} · ${monthIndex + 1} de ${monthCount}`, `${monthNames[month - 1]} de ${year} · ${activeReport.system === 'sim' ? 'óbitos ocorridos em Belém' : activeReport.system === 'srag' ? 'casos por município de residência' : 'unidades notificadoras de Belém'}.`, null, true);
+      let job = await api({ action:'tabulate_start', predefinedReport:activeReport.id, view:view === 'detail' ? 'detail' : 'summary', uf:filters.uf, year, month, municipalityCode:filters.municipalityCode, municipalityName:filters.municipalityName, ...(activeReport.system === 'sinan' ? { cnesManagementCode:filters.cnesManagementCode, cnesNatureGroupCode:filters.cnesNatureGroupCode, ...(view === 'detail' ? { weekIndex:Number(cnes) } : {}) } : ['sim','srag'].includes(activeReport.system) && view === 'detail' ? { weekIndex:Number(cnes) } : {}) });
+      if (job.done && job.result) return stampMonthlyResult(job.result, year, month);
+      if (!job.job_id) throw new Error(`O TabulaSUS não retornou uma consulta válida ao ${activeReport.systemCode}.`);
+      const jobId = job.job_id;
+      while (true) {
+        setLoader(true, job.stage || 'Consultando os dados públicos', `${monthNames[month - 1]} de ${year} · ${job.message || job.stage || `Processando o arquivo anual do ${activeReport.systemCode}.`}`, null, true);
+        await new Promise((resolve) => setTimeout(resolve, 850));
+        job = await api({ action:'tabulate_status', job_id:jobId });
+        if (job.status === 'error') throw new Error(job.message || `Não foi possível consultar ${monthNames[month - 1]} de ${year} no SINAN.`);
+        if (job.status === 'done') {
+          if (!job.result?.ok) throw new Error(job.result?.error || `A consulta de ${monthNames[month - 1]} de ${year} não foi concluída.`);
+          return stampMonthlyResult(job.result, year, month);
+        }
+      }
+    }
     const filesByKind = await findOrDownloadReportFiles(year, month, filters.uf, view, monthCount > 1);
     const dbfPaths = {};
     const { kinds } = reportKindsForView(view);
@@ -1762,11 +1908,16 @@
     const year = Number(yearSelect.value) || activeYear;
     let requestedMonths = [...new Set((monthList == null ? (view === 'services' ? [activeMonth] : (reportMonths.length ? reportMonths : selectedMonths())) : monthList).map(Number).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b);
     if (!year || !requestedMonths.length) return;
+    const filters = selectedFilters();
+    if (activeReport.remoteSource && !/^\d{6}$/.test(filters.municipalityCode)) {
+      await openReportSetup(filters);
+      setAvailability(activeReport.system === 'sim' ? 'O recorte fixo de Belém não está disponível. Reabra o relatório.' : activeReport.system === 'srag' ? 'Selecione o município de residência para continuar.' : 'Selecione o município onde as notificações foram registradas para continuar.', 'error');
+      return;
+    }
     const requestedCount = requestedMonths.length;
     requestedMonths = allowedMonths(requestedMonths, year, selectedUf()).sort((a, b) => a - b);
     if (requestedCount > 1 && requestedMonths.length === 1) setSelectedMonths(requestedMonths);
     if (view === 'summary') reportMonths = [...requestedMonths];
-    const filters = selectedFilters();
     activeYear = year; activeMonths = requestedMonths; activeMonth = requestedMonths.at(-1); activeView = view; activeCnes = cnes; activeAih = aih;
     activeOriginCode = activeReport.id === 'sih-rd-fluxo' && view === 'detail' ? String(route?.originCode || '').replace(/\D/g, '').slice(0, 6) : '';
     activeDestinationCode = activeReport.id === 'sih-rd-fluxo' && view === 'detail' ? String(route?.destinationCode || '').replace(/\D/g, '').slice(0, 6) : '';
@@ -1787,10 +1938,13 @@
       setLoader(false); renderTable();
       for (const select of setupSelects) select.disabled = false;
       updateMonthPicker();
-      openButton.disabled = selectedMonths().length === 0; return;
+      updateOpenButton(); return;
     }
 
-    beginDownloadQueue(year, requestedMonths, view);
+    if (activeReport.remoteSource) {
+      downloadQueue.hidden = true;
+      downloadTasks.clear();
+    } else beginDownloadQueue(year, requestedMonths, view);
     try {
       const monthlyResults = [];
       for (const [index, month] of requestedMonths.entries()) {
@@ -1802,14 +1956,14 @@
       restoreTableDefaults();
       setLoader(false);
       renderTable();
-      setAvailability(`${formatCompetencies(requestedMonths, year)} · resultado pronto neste computador.`, 'good');
+      setAvailability(activeReport.remoteSource ? `${formatCompetencies(requestedMonths, year)} · consulta concluída com dados públicos do ${activeReport.systemCode}.` : `${formatCompetencies(requestedMonths, year)} · resultado pronto neste computador.`, 'good');
     } catch (error) {
       showReportFailure(error);
     } finally {
       for (const select of setupSelects) select.disabled = false;
       monthSelect.disabled = ![...monthSelect.options].some((option) => Number(option.value) >= 1 && Number(option.value) <= 12);
       updateMonthPicker();
-      openButton.disabled = monthSelect.disabled || selectedMonths().length === 0;
+      updateOpenButton();
     }
   }
 
@@ -1849,9 +2003,10 @@
   function setYears() {
     const current = new Date().getFullYear();
     yearSelect.replaceChildren();
-    for (let year = current; year >= 2008; year -= 1) yearSelect.add(new Option(String(year), String(year)));
+    const firstYear = activeReport.firstYear || (activeReport.remoteSource ? 2000 : 2008);
+    for (let year = current; year >= firstYear; year -= 1) yearSelect.add(new Option(String(year), String(year)));
     yearSelect.disabled = false;
-    yearSelect.value = String(linkedYear >= 2008 && linkedYear <= current ? linkedYear : current);
+    yearSelect.value = String(linkedYear >= firstYear && linkedYear <= current ? linkedYear : current);
   }
 
   async function generateConfiguredReport() {
@@ -1861,6 +2016,11 @@
       setAvailability('Escolha pelo menos uma competência disponível antes de gerar o relatório.', 'error');
       return;
     }
+    if (activeReport.remoteSource && !/^\d{6}$/.test(activeReport.fixedMunicipalityCode || municipalitySelect.value)) {
+      setAvailability(activeReport.system === 'sinan' ? 'O recorte fixo de Belém não está disponível. Reabra o relatório.' : activeReport.system === 'srag' ? 'Selecione o município de residência.' : 'Selecione o município onde as notificações foram registradas.', 'error');
+      if (!activeReport.fixedMunicipalityCode) municipalitySelect.focus();
+      return;
+    }
     reportMonths = months;
     if (setupDialog.open) setupDialog.close();
     setPageView('report', false);
@@ -1868,6 +2028,18 @@
     await runReport('summary', '', true, '', months);
   }
 
+  const catalogSearch = $('catalogSearch');
+  catalogSearch?.addEventListener('input', () => {
+    const query = catalogSearch.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+    let visible = 0;
+    for (const card of document.querySelectorAll('.predefined-card[data-report]')) {
+      const words = card.textContent.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+      card.hidden = Boolean(query && !words.includes(query));
+      if (!card.hidden) visible += 1;
+    }
+    $('catalogCount').textContent = `${visible} ${visible === 1 ? 'relatório' : 'relatórios'}`;
+    $('catalogNoResults').hidden = visible > 0;
+  });
   for (const reportCard of document.querySelectorAll('.predefined-card[data-report]')) {
     const activate = async () => {
       const preferredUf = selectedUf();
@@ -1880,6 +2052,7 @@
       const managerDefinition = filterDefinitions.manager;
       const preferredManagers = linkedManagerValues.length ? linkedManagerValues : linkedManagerCode ? [linkedManagerCode] : [];
       if (preferredManagers.length && managerDefinition) preferred[managerDefinition.field] = preferredManagers;
+      if (reportId.startsWith('sinan-') && savedGlobalLocation?.useMunicipalManager && savedGlobalMunicipality === '150140') preferred.cnesManagementCode = ['MUNICIPAL'];
       await openReportSetup(preferred);
     };
     reportCard.addEventListener('click', activate);
@@ -1923,11 +2096,12 @@
   municipalitySelect.addEventListener('change', () => {
     const preferred = selectedFilters();
     renderAdditionalFilterRows(preferred);
+    updateOpenButton();
   });
   monthSelect.addEventListener('change', () => {
     updateMonthPicker();
     updateScopeDescription();
-    openButton.disabled = selectedMonths().length === 0;
+    updateOpenButton();
   });
   monthPickerTrigger.addEventListener('click', () => {
     const opening = monthPickerMenu.hidden;
@@ -2046,7 +2220,7 @@
     if (hasExplicitScope || linkedYear || linkedMonths.length || !linkedReport) setUfOptions(linkedUf);
     setYears();
     updateScopeDescription();
-    if (!linkedReport && !(linkedYear && linkedMonths.length) && !linkedCnes) return;
+    if (!linkedReport && !(linkedYear && linkedMonths.length) && !linkedCnes) { setPageView('catalog', false); return; }
     if (linkedYear && linkedMonths.length) {
       setPageView('report', false);
       empty.hidden = true;

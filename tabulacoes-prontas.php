@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>Tabulações prontas · TabulaSUS</title>
-      <link rel="stylesheet" href="assets/app.css?v=19"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=29"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
+      <link rel="stylesheet" href="assets/app.css?v=20"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=47"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
   <script src="assets/sidebar.js?v=1" defer></script>
 </head>
 <body>
@@ -21,57 +21,66 @@
         <a class="nav-item" data-nav="sigtap" href="sigtap.php"><span class="nav-icon">▦</span>Explorar SIGTAP</a>
         <a class="nav-item" data-nav="saved" href="minhas-tabulacoes.php" id="savedTabulationsNav" hidden><span class="nav-icon">▧</span>Minhas Tabulações</a>
       </nav>
-      <div class="sidebar-foot"><span class="source-dot"></span><div><strong>SIA/SUS · SIH/SUS</strong><small>Relatórios prontos</small></div><span class="sidebar-version">v<?= htmlspecialchars(tabwin2_app_version(), ENT_QUOTES, 'UTF-8') ?></span></div>
+      <div class="sidebar-foot"><div><strong>Fontes oficiais</strong><small>Relatórios prontos</small></div><span class="sidebar-version">v<?= htmlspecialchars(tabwin2_app_version(), ENT_QUOTES, 'UTF-8') ?></span></div>
     </aside>
     <main class="main-content predefined-report-main" id="predefinedMain">
-      <header class="topbar"><div class="breadcrumb">Dados públicos <span>/</span> <strong>Tabulações prontas</strong></div><div class="top-tag"><span></span><b>SIA/SUS · SIH/SUS</b></div></header>
+      <header class="topbar"><div class="breadcrumb">Dados públicos <span>/</span> <strong>Tabulações prontas</strong></div><div class="top-tag"><b>Fontes oficiais</b></div></header>
       <section class="intro predefined-report-intro"><div class="eyebrow"><span class="eyebrow-line"></span> <span id="predefinedIntroLabel">RELATÓRIOS PRÉ-DEFINIDOS</span></div><h1 id="predefinedIntroTitle">Tabulações prontas para consultar.</h1><p id="predefinedIntroDescription">Escolha um relatório e informe a competência. Novas tabulações serão adicionadas a esta área.</p></section>
 
       <section class="predefined-catalog" id="predefinedCatalog" aria-labelledby="catalogTitle">
-        <div class="catalog-heading"><div><h2 id="catalogTitle">Disponíveis</h2><p>Relatórios preparados para abrir direto na análise.</p></div><span class="catalog-count">6 tabulações</span></div>
+        <div class="catalog-heading"><div><h2 id="catalogTitle">Relatórios</h2><p>Escolha a análise que precisa.</p></div><span class="catalog-count" id="catalogCount">11 relatórios</span></div>
+        <label class="catalog-search"><span aria-hidden="true">⌕</span><input id="catalogSearch" type="search" placeholder="Buscar relatório, assunto ou fonte" autocomplete="off" aria-label="Buscar tabulações prontas"></label>
+        <p class="catalog-no-results" id="catalogNoResults" hidden>Nenhum relatório corresponde à busca.</p>
         <div class="predefined-card-grid">
-          <article class="predefined-card" data-report="sia-pa-producao" role="button" tabindex="0" aria-label="Abrir tabulação: Produção ambulatorial por estabelecimento">
-            <div class="predefined-card-top"><span class="predefined-card-icon" aria-hidden="true"><span class="tile-motif"><i></i><i></i><i></i><i></i><i></i></span></span><span class="predefined-card-status"><i></i> Disponível</span></div>
-            <div class="predefined-card-content"><div class="predefined-card-eyebrow">SIA/SUS <span>·</span> AMBULATORIAL</div><h3>Produção ambulatorial por estabelecimento</h3><p>Valores apresentados e aprovados por estabelecimento, com detalhamento dos procedimentos SIGTAP.</p></div>
-            <div class="predefined-card-tags"><span>UF e município</span><span>Por competência</span><span>Detalhe SIGTAP</span></div>
-            <div class="predefined-card-footer"><span>Quantidade · valores · glosas</span><span class="button button-primary" aria-hidden="true">Abrir tabulação <span>→</span></span></div>
+          <article class="predefined-card" data-category="ambulatorial" data-report="sia-pa-producao" role="button" tabindex="0" aria-label="Abrir tabulação: Produção ambulatorial por estabelecimento">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Produção ambulatorial</div><h3>Produção por estabelecimento</h3><p>Compare o apresentado e o aprovado por unidade e abra a composição dos procedimentos.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SIA/SUS · SIGTAP</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
-          <article class="predefined-card" data-report="sih-rd-producao" role="button" tabindex="0" aria-label="Abrir tabulação: Produção hospitalar por estabelecimento">
-            <div class="predefined-card-top"><span class="predefined-card-icon" aria-hidden="true"><span class="tile-motif"><i></i><i></i><i></i><i></i><i></i></span></span><span class="predefined-card-status"><i></i> Disponível</span></div>
-            <div class="predefined-card-content"><div class="predefined-card-eyebrow">SIH/SUS <span>·</span> HOSPITALAR</div><h3>Produção hospitalar por estabelecimento</h3><p>AIHs e valores por hospital, com detalhamento do procedimento principal, complexidade e financiamento.</p></div>
-            <div class="predefined-card-tags"><span>UF e município</span><span>Por competência</span><span>MAC · FAEC</span></div>
-            <div class="predefined-card-footer"><span>AIHs · valores · SIGTAP</span><span class="button button-primary" aria-hidden="true">Abrir tabulação <span>→</span></span></div>
+          <article class="predefined-card" data-category="hospitalar" data-report="sih-rd-producao" role="button" tabindex="0" aria-label="Abrir tabulação: Produção hospitalar por estabelecimento">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Produção hospitalar</div><h3>Produção por estabelecimento</h3><p>Acompanhe AIHs e valores por hospital, com abertura dos procedimentos registrados.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SIH/SUS · SIGTAP</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
-          <article class="predefined-card" data-report="sih-rd-rejeicoes" role="button" tabindex="0" aria-label="Abrir tabulação: AIHs rejeitadas por estabelecimento">
-            <div class="predefined-card-top"><span class="predefined-card-icon" aria-hidden="true"><span class="tile-motif"><i></i><i></i><i></i><i></i><i></i></span></span><span class="predefined-card-status"><i></i> Disponível</span></div>
-            <div class="predefined-card-content"><div class="predefined-card-eyebrow">SIH/SUS <span>·</span> AIHs REJEITADAS</div><h3>AIHs rejeitadas por estabelecimento</h3><p>Quantidade e valores associados às AIHs rejeitadas por hospital, com os motivos registrados no processamento.</p></div>
-            <div class="predefined-card-tags"><span>UF e município</span><span>Por competência</span><span>Motivos SIH/ER</span></div>
-            <div class="predefined-card-footer"><span>AIHs · valores · motivos</span><span class="button button-primary" aria-hidden="true">Abrir tabulação <span>→</span></span></div>
+          <article class="predefined-card" data-category="hospitalar" data-report="sih-rd-rejeicoes" role="button" tabindex="0" aria-label="Abrir tabulação: AIHs rejeitadas por estabelecimento">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Produção hospitalar</div><h3>AIHs rejeitadas</h3><p>Localize rejeições por hospital e consulte os valores e motivos registrados.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SIH/RJ · SIH/ER</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
-          <article class="predefined-card" data-report="sih-sp-profissionais" role="button" tabindex="0" aria-label="Abrir tabulação: Serviços profissionais por AIH">
-            <div class="predefined-card-top"><span class="predefined-card-icon" aria-hidden="true"><span class="tile-motif"><i></i><i></i><i></i><i></i><i></i></span></span><span class="predefined-card-status"><i></i> Disponível</span></div>
-            <div class="predefined-card-content"><div class="predefined-card-eyebrow">SIH/SUS <span>·</span> SERVIÇOS PROFISSIONAIS</div><h3>Produção profissional por AIH</h3><p>Atos, procedimentos e valores por profissional executor, com consulta do CNS no cadastro oficial do CNES.</p></div>
-            <div class="predefined-card-tags"><span>AIH e período</span><span>Hospital e SIGTAP</span><span>Profissional · CNS · CBO</span></div>
-            <div class="predefined-card-footer"><span>Atos · valor profissional</span><span class="button button-primary" aria-hidden="true">Abrir tabulação <span>→</span></span></div>
+          <article class="predefined-card" data-category="hospitalar" data-report="sih-sp-profissionais" role="button" tabindex="0" aria-label="Abrir tabulação: Serviços profissionais por AIH">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Serviços profissionais</div><h3>Produção profissional por AIH</h3><p>Consulte atos, procedimentos e valores associados a cada profissional executor.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SIH/SP · CNES</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
-          <article class="predefined-card" data-report="sih-rd-ocupacao" role="button" tabindex="0" aria-label="Abrir tabulação: Ocupação de leitos por estabelecimento">
-            <div class="predefined-card-top"><span class="predefined-card-icon" aria-hidden="true"><span class="tile-motif"><i></i><i></i><i></i><i></i><i></i></span></span><span class="predefined-card-status"><i></i> Disponível</span></div>
-            <div class="predefined-card-content"><div class="predefined-card-eyebrow">SIH/SUS <span>·</span> OCUPAÇÃO DE LEITOS</div><h3>Ocupação de leitos por estabelecimento</h3><p>Leitos SUS do CNES, AIHs processadas e rejeitadas, diárias, ocupação e produção profissional por AIH.</p></div>
-            <div class="predefined-card-tags"><span>UF e município</span><span>Por competência</span><span>AIH · CNES · SP</span></div>
-            <div class="predefined-card-footer"><span>Leitos · diárias · AIHs</span><span class="button button-primary" aria-hidden="true">Abrir tabulação <span>→</span></span></div>
+          <article class="predefined-card" data-category="hospitalar" data-report="sih-rd-ocupacao" role="button" tabindex="0" aria-label="Abrir tabulação: Ocupação de leitos por estabelecimento">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Capacidade hospitalar</div><h3>Ocupação de leitos</h3><p>Relacione leitos, diárias e AIHs por hospital, com acesso às internações.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SIH/SUS · CNES</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
-          <article class="predefined-card" data-report="sih-rd-fluxo" role="button" tabindex="0" aria-label="Abrir tabulação: Fluxo de internações por origem e destino">
-            <div class="predefined-card-top"><span class="predefined-card-icon" aria-hidden="true"><span class="tile-motif"><i></i><i></i><i></i><i></i><i></i></span></span><span class="predefined-card-status"><i></i> Disponível</span></div>
-            <div class="predefined-card-content"><div class="predefined-card-eyebrow">SIH/SUS <span>·</span> FLUXO DE INTERNAÇÕES</div><h3>Origem e destino das internações</h3><p>Veja de quais municípios vêm as AIHs e em quais hospitais e municípios de internação elas são registradas.</p></div>
-            <div class="predefined-card-tags"><span>Município de residência</span><span>Município e hospital de destino</span><span>AIHs · valores</span></div>
-            <div class="predefined-card-footer"><span>Origem → destino</span><span class="button button-primary" aria-hidden="true">Abrir tabulação <span>→</span></span></div>
+          <article class="predefined-card" data-category="hospitalar" data-report="sih-rd-fluxo" role="button" tabindex="0" aria-label="Abrir tabulação: Fluxo de internações por origem e destino">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Fluxo assistencial</div><h3>Origem e destino das internações</h3><p>Veja de onde vêm os pacientes e em quais hospitais as AIHs são registradas.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SIH/SUS</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
+          <article class="predefined-card" data-category="vigilancia" data-report="sinan-dengue" role="button" tabindex="0" aria-label="Abrir tabulação: notificações de dengue em Belém">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Vigilância epidemiológica</div><h3>Notificações de dengue</h3><p>Consulte os registros por semana e detalhe unidades notificadoras, classificação e residência.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · CNES</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
+          <article class="predefined-card" data-category="vigilancia" data-report="sinan-chikungunya" role="button" tabindex="0" aria-label="Abrir tabulação: notificações de chikungunya em Belém">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Vigilância epidemiológica</div><h3>Notificações de chikungunya</h3><p>Consulte os registros por semana, unidade notificadora e município de residência.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · CNES</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
+          <article class="predefined-card" data-category="vigilancia" data-report="sinan-zika" role="button" tabindex="0" aria-label="Abrir tabulação: notificações de zika em Belém">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Vigilância epidemiológica</div><h3>Notificações de zika</h3><p>Consulte os registros por semana, inclusive de gestantes, com detalhe por unidade e residência.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · CNES</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
+          <article class="predefined-card" data-category="vigilancia" data-report="srag-semanal" role="button" tabindex="0" aria-label="Abrir tabulação: SRAG por semana epidemiológica">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Vigilância respiratória</div><h3>SRAG por semana epidemiológica</h3><p>Acompanhe casos graves por agente respiratório, UTI e óbitos, com detalhe por faixa etária.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SIVEP-Gripe · base semanal</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
+          <article class="predefined-card" data-category="mortalidade" data-report="sim-mortalidade" role="button" tabindex="0" aria-label="Abrir tabulação: Óbitos por semana">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Mortalidade</div><h3>Óbitos por semana</h3><p>Consulte os óbitos registrados e detalhe a causa básica, o capítulo CID-10 e a residência.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SIM · CID-10</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
         </div>
-        <p class="catalog-footnote"><span aria-hidden="true">▦</span> Mais relatórios prontos serão incluídos aqui.</p>
       </section>
 
       <section class="workspace report-workspace" id="reportWorkspace" aria-labelledby="reportWorkspaceTitle" hidden>
-        <div class="report-heading"><span class="report-mark" aria-hidden="true"><span class="tile-motif"><i></i><i></i><i></i><i></i><i></i></span></span><div class="report-heading-copy"><h2 id="reportWorkspaceTitle">Produção Ambulatorial · SIA/SUS</h2><p id="reportScopeDescription">Selecione um recorte para abrir o relatório.</p></div><div class="report-heading-actions"><button class="catalog-back-button" id="editReportCriteria" type="button">Alterar recorte</button><button class="catalog-back-button" id="backToCatalog" type="button">← Todas as tabulações</button></div><span class="report-scope"><i></i> DATASUS</span></div>
+        <div class="report-heading"><span class="report-mark" aria-hidden="true"><span class="tile-motif"><i></i><i></i><i></i><i></i><i></i></span></span><div class="report-heading-copy"><h2 id="reportWorkspaceTitle">Produção Ambulatorial · SIA/SUS</h2><p id="reportScopeDescription">Selecione um recorte para abrir o relatório.</p></div><div class="report-heading-actions"><button class="catalog-back-button" id="editReportCriteria" type="button">Alterar recorte</button><button class="catalog-back-button" id="backToCatalog" type="button">← Todas as tabulações</button></div><span class="report-scope">DATASUS</span></div>
         <p class="report-method-note" id="reportMethodNote"><strong>Como ler glosas e rejeições:</strong> glosas são a diferença positiva entre o apresentado e o aprovado. A base ambulatorial não traz um total independente de rejeições; esse indicador conta linhas apresentadas com quantidade aprovada igual a zero.</p>
         <div class="report-loader" id="reportLoader" hidden aria-live="polite" aria-busy="true">
           <span class="tile-motif tile-motif--large" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
@@ -85,7 +94,7 @@
 
         <section class="report-result" id="reportResult" hidden aria-live="polite">
           <div class="report-result-heading">
-            <div><div class="report-result-title-row"><span class="report-result-dot"></span><h3 id="reportTitle">Produção por estabelecimento</h3><span class="report-count" id="reportCount">0</span></div><p id="reportSubtitle"></p></div>
+            <div><div class="report-result-title-row"><h3 id="reportTitle">Produção por estabelecimento</h3><span class="report-count" id="reportCount">0</span></div><p id="reportSubtitle"></p></div>
             <div class="report-result-actions"><button class="button button-secondary" id="backToSummary" type="button" hidden>← Estabelecimentos</button><button class="button button-secondary" id="exportReport" type="button">Baixar CSV</button></div>
           </div>
           <div class="report-kpis" id="reportKpis"></div>
@@ -112,6 +121,6 @@
       <div class="setup-dialog-footer"><div class="setup-default-actions"><button type="button" id="saveSetupDefault">Salvar filtros como padrão</button><button type="button" id="clearSetupDefault" hidden>Remover padrão</button><span id="setupDefaultStatus" role="status"></span></div><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=46" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=62" defer></script>
 </body>
 </html>

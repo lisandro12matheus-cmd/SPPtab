@@ -10,7 +10,7 @@ tabwin2_page_security();
   <meta name="theme-color" content="#f4f7f8">
   <meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>TabulaSUS · DATASUS</title>
-  <link rel="stylesheet" href="assets/app.css?v=19">
+  <link rel="stylesheet" href="assets/app.css?v=20">
   <link rel="stylesheet" href="assets/file-selection.css?v=1">
   <link rel="stylesheet" href="assets/brand.css?v=1">
   <link rel="stylesheet" href="assets/launch.css?v=4">

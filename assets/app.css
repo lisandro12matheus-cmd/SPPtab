@@ -137,6 +137,17 @@
 }
 @media(prefers-reduced-motion:reduce){.sidebar,.sidebar-toggle,.sidebar-toggle-icon{transition:none}}
 
+/* Navegação lateral com ritmo mais aberto e divisórias discretas. */
+.sidebar .nav-label{margin-bottom:17px}
+.sidebar nav{gap:12px}
+.sidebar nav .nav-item{position:relative;min-height:46px;gap:13px;border-radius:10px;transition:background .15s ease,color .15s ease}
+.sidebar nav .nav-item:not([hidden]):not(:last-child)::after{position:absolute;right:12px;bottom:-7px;left:12px;height:1px;background:#e9eef2;content:"";pointer-events:none}
+.sidebar nav .nav-item:hover:not(.active){background:#f7f9fb;color:#345b70}
+.sidebar nav .nav-item.active{background:#eaf2ff;color:#1d63bc}
+.sidebar nav .nav-icon{flex:0 0 18px;width:18px}
+@media(min-width:761px){.app-shell.sidebar-collapsed>.sidebar nav{gap:8px}.app-shell.sidebar-collapsed>.sidebar nav .nav-item{min-height:44px}.app-shell.sidebar-collapsed>.sidebar nav .nav-item::after{display:none}}
+@media(max-width:760px){.app-shell:not(.sidebar-mobile-expanded)>.sidebar nav{gap:8px}.app-shell:not(.sidebar-mobile-expanded)>.sidebar nav .nav-item{min-height:43px}.app-shell:not(.sidebar-mobile-expanded)>.sidebar nav .nav-item::after{display:none}}
+
 /* Fundo escuro e difuso para destacar o mapa sem perder a leitura dos estados. */
 .location-step-screen .map-panel{background:radial-gradient(ellipse at 52% 48%,rgba(58,104,172,.28),rgba(29,52,82,.18) 44%,transparent 74%),linear-gradient(145deg,#101d30 0%,#192d48 54%,#111f33 100%);border-color:#2a4262}
 .location-step-screen .map-panel:after{content:"";position:absolute;z-index:0;inset:12% 15% 16%;pointer-events:none;background:radial-gradient(ellipse,rgba(87,145,231,.3) 0%,rgba(54,99,164,.12) 45%,transparent 74%);filter:blur(42px);opacity:.9}
