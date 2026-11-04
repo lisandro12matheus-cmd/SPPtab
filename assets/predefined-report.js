@@ -226,6 +226,17 @@
     summaryTitle:'Óbitos por semana', countMetric:'deaths', countLabel:'ÓBITOS NÃO FETAIS',
     tableSearchSummary:'Buscar semana', tableSearchDetail:'Buscar causa básica ou capítulo CID-10'
   };
+  reportConfigurations['sim-mortalidade-infantil'] = {
+    id:'sim-mortalidade-infantil', system:'sim', systemCode:'SIM · SINASC', kind:'INFANTIL', remoteSource:true, tableMode:'flat', firstYear:2010,
+    systemLabel:'SIM · SINASC', sourceLabel:'óbitos e nascidos vivos em bases públicas', defaultUf:'PA', defaultMunicipalityCode:'150140',
+    workspaceTitle:'Mortalidade infantil', introLabel:'SAÚDE MATERNO-INFANTIL · SIM · SINASC', introTitle:'Mortalidade infantil.',
+    introDescription:'Óbitos antes de um ano, nascimentos e causas pelo município de residência.',
+    setupTitle:'Mortalidade infantil', setupDescription:'Escolha o município de residência e os meses. Para consultar a taxa anual, selecione os 12 meses de um ano anterior ao atual.',
+    emptyMessage:'Escolha município de residência e período para consultar óbitos infantis e nascidos vivos.', municipalityLabel:'MUNICÍPIO DE RESIDÊNCIA',
+    filterNote:'O recorte considera a residência da criança no SIM e a residência da mãe no SINASC, mesmo quando o óbito ou nascimento ocorreu em outro município.',
+    methodTitle:'Como interpretar este relatório:', methodText:' os óbitos não fetais antes de um ano são separados em 0–6, 7–27 e 28–364 dias. A taxa anual bruta usa óbitos do ano divididos por nascidos vivos do mesmo ano, multiplicados por mil. Dados recentes podem ser revistos.',
+    summaryTitle:'Mortalidade infantil', countMetric:'deaths', countLabel:'ÓBITOS < 1 ANO', tableSearchSummary:'Buscar causa básica ou CID-10', tableSearchDetail:'Buscar causa básica ou CID-10', filters:{}
+  };
   reportConfigurations['srag-semanal'] = {
     id:'srag-semanal', system:'srag', systemCode:'SIVEP-GRIPE', kind:'SRAG', remoteSource:true, tableMode:'flat', firstYear:2025,
     systemLabel:'SIVEP-Gripe · Vigilância', sourceLabel:'banco público de SRAG', defaultUf:'PA',
@@ -984,7 +995,7 @@
         if (activeReport.system === 'sinan') setAvailability('Unidades cadastradas em Belém · gestão e natureza jurídica do CNES são opcionais.', '');
         else if (activeReport.system === 'srag') setAvailability('Município de residência · escolha o mês do início dos sintomas.', '');
         else if (activeReport.system === 'sinasc') setAvailability('Município do nascimento · escolha o mês da ocorrência.', '');
-        else setAvailability('Óbitos ocorridos em Belém · escolha o mês da ocorrência.', '');
+        else setAvailability(activeReport.id === 'sim-mortalidade-infantil' ? 'Município de residência · escolha o mês do óbito e do nascimento.' : 'Óbitos ocorridos em Belém · escolha o mês da ocorrência.', '');
         updateOpenButton();
       }
     }
@@ -1148,7 +1159,19 @@
     const qtyIndex = metrics.findIndex((metric) => metric.id === activeReport.countMetric);
     const valueIndex = metrics.findIndex((metric) => metric.id === activeReport.valueMetric);
     let cards;
-    if (activeReport.system === 'sinasc') {
+    if (activeReport.id === 'sim-mortalidade-infantil') {
+      const sum = (field) => rows.reduce((total, row) => total + (Number(row[field]) || 0), 0);
+      const births = Number(activeResult.births) || 0;
+      const completeYear = activeMonths.length === 12 && activeYear < new Date().getFullYear() && births > 0;
+      cards = [
+        ['ÓBITOS < 1 ANO', formatNumber(sum('deaths'))],
+        ['0 A 6 DIAS', formatNumber(sum('early'))],
+        ['7 A 27 DIAS', formatNumber(sum('late'))],
+        ['28 A 364 DIAS', formatNumber(sum('post'))],
+        ['NASCIDOS VIVOS NO PERÍODO', formatNumber(births)],
+        ['TAXA ANUAL BRUTA · POR MIL', completeYear && rows.length === allRows.length ? formatNumber(sum('deaths') * 1000 / births, 1) : '—']
+      ];
+    } else if (activeReport.system === 'sinasc') {
       if (activeView === 'detail') {
         cards = [
           ['NASCIDOS VIVOS', { value:rows.length }],
@@ -1344,6 +1367,7 @@
     resultPanel.classList.toggle('is-sinan-detail', activeReport.system === 'sinan' && activeView === 'detail');
     resultPanel.classList.toggle('is-surveillance-full', activeView === 'full' && ['sinan','sim','srag','sinasc'].includes(activeReport.system));
     resultPanel.classList.toggle('is-sinasc-report', activeReport.system === 'sinasc');
+    resultPanel.classList.toggle('is-infant-report', activeReport.id === 'sim-mortalidade-infantil');
     resultPanel.classList.toggle('is-sinasc-detail', activeReport.system === 'sinasc' && activeView === 'detail');
     const rows = visibleRows();
     if (activeReport.system === 'sinasc') {
@@ -1393,7 +1417,7 @@
     }
 
     $('reportCount').textContent = formatNumber(rows.length);
-    const itemLabel = activeReport.system === 'sinasc' ? (activeView === 'detail' ? 'nascidos vivos' : 'estabelecimentos e meses') : activeReport.id === 'sih-rd-fluxo' ? (activeView === 'detail' ? 'AIHs da rota' : 'rotas de origem e destino') : activeReport.system === 'srag' ? (activeView === 'full' ? 'combinações de semana e faixa etária' : activeView === 'detail' ? 'faixas etárias' : 'semanas epidemiológicas') : activeReport.system === 'sim' ? (activeView === 'full' ? 'combinações de semana e causa básica' : activeView === 'detail' ? 'categorias de causa básica' : 'semanas') : activeReport.system === 'sinan' ? (activeView === 'full' ? 'combinações de semana, unidade e residência' : activeView === 'detail' ? 'unidades e municípios de residência' : 'semanas epidemiológicas') : activeReport.tableMode === 'flat' ? 'lançamentos' : activeReport.tableMode === 'occupancy' ? (activeView === 'summary' ? 'estabelecimentos' : activeView === 'detail' ? 'AIHs' : 'serviços profissionais') : activeView === 'summary' ? 'estabelecimentos' : (activeReport.system === 'sih' ? 'combinações de procedimento' : 'procedimentos');
+    const itemLabel = activeReport.id === 'sim-mortalidade-infantil' ? 'registros de óbitos infantis' : activeReport.system === 'sinasc' ? (activeView === 'detail' ? 'nascidos vivos' : 'estabelecimentos e meses') : activeReport.id === 'sih-rd-fluxo' ? (activeView === 'detail' ? 'AIHs da rota' : 'rotas de origem e destino') : activeReport.system === 'srag' ? (activeView === 'full' ? 'combinações de semana e faixa etária' : activeView === 'detail' ? 'faixas etárias' : 'semanas epidemiológicas') : activeReport.system === 'sim' ? (activeView === 'full' ? 'combinações de semana e causa básica' : activeView === 'detail' ? 'categorias de causa básica' : 'semanas') : activeReport.system === 'sinan' ? (activeView === 'full' ? 'combinações de semana, unidade e residência' : activeView === 'detail' ? 'unidades e municípios de residência' : 'semanas epidemiológicas') : activeReport.tableMode === 'flat' ? 'lançamentos' : activeReport.tableMode === 'occupancy' ? (activeView === 'summary' ? 'estabelecimentos' : activeView === 'detail' ? 'AIHs' : 'serviços profissionais') : activeView === 'summary' ? 'estabelecimentos' : (activeReport.system === 'sih' ? 'combinações de procedimento' : 'procedimentos');
     $('reportTableHint').textContent = `${formatNumber(rows.length)} de ${formatNumber(allRows.length)} ${itemLabel} · página ${formatNumber(tablePage)} de ${formatNumber(pageCount)} · filtre ou ordene pelos cabeçalhos`;
     renderTablePagination(rows.length, pageCount);
     const locationParts = [activeResult.municipality || 'Todos os municípios', activeResult.state || stateNames[activeResult.uf] || activeResult.uf];
@@ -1406,7 +1430,7 @@
     if (activeReport.id === 'sih-rd-fluxo' && activeView === 'detail' && activeResult.detailSubtitle) locationParts.push(activeResult.detailSubtitle);
     $('reportSubtitle').textContent = `${formatCompetencies(activeMonths, activeYear)} · ${locationParts.join(' · ')} · ${fileSummary}`;
     $('reportTitle').textContent = activeView === 'full' ? activeReport.summaryTitle : activeReport.system === 'sinasc' && activeView === 'detail' ? `Nascimentos · ${activeResult.establishmentName || `CNES ${activeCnes}`}` : activeReport.system === 'srag' ? (activeView === 'detail' ? `Faixas etárias · ${activeResult.establishmentName || 'semana epidemiológica'}` : activeReport.summaryTitle) : activeReport.system === 'sinan' ? (activeView === 'detail' ? `Unidades e residência · ${activeResult.establishmentName || 'semana epidemiológica'}` : activeReport.summaryTitle) : activeReport.system === 'sim' ? (activeView === 'detail' ? `Causas básicas · ${activeResult.establishmentName || 'CID-10'}` : activeReport.summaryTitle) : activeReport.id === 'sih-rd-fluxo' && activeView === 'detail' ? (activeResult.detailTitle || 'AIHs da rota') : activeReport.tableMode === 'flat' || activeView === 'summary' ? activeReport.summaryTitle : activeView === 'services' ? `Serviços profissionais · AIH ${activeAih}` : `${activeReport.detailTitlePrefix} · ${activeResult.establishmentName || `CNES ${activeCnes}`}`;
-    $('reportSearch').placeholder = activeReport.system === 'sinasc' ? (activeView === 'detail' ? 'Buscar residência, parto ou outro dado' : 'Buscar estabelecimento ou CNES') : activeView === 'summary' ? activeReport.tableSearchSummary : activeView === 'full' && activeReport.system === 'sinan' ? 'Buscar semana, unidade, CNES ou residência' : activeView === 'full' && activeReport.system === 'sim' ? 'Buscar semana, causa básica ou capítulo CID-10' : activeView === 'full' && activeReport.system === 'srag' ? 'Buscar semana ou faixa etária' : activeView === 'services' ? 'Buscar profissional, procedimento ou CNS' : activeReport.tableSearchDetail;
+    $('reportSearch').placeholder = activeReport.id === 'sim-mortalidade-infantil' ? activeReport.tableSearchDetail : activeReport.system === 'sinasc' ? (activeView === 'detail' ? 'Buscar residência, parto ou outro dado' : 'Buscar estabelecimento ou CNES') : activeView === 'summary' ? activeReport.tableSearchSummary : activeView === 'full' && activeReport.system === 'sinan' ? 'Buscar semana, unidade, CNES ou residência' : activeView === 'full' && activeReport.system === 'sim' ? 'Buscar semana, causa básica ou capítulo CID-10' : activeView === 'full' && activeReport.system === 'srag' ? 'Buscar semana ou faixa etária' : activeView === 'services' ? 'Buscar profissional, procedimento ou CNS' : activeReport.tableSearchDetail;
     renderKpis(rows, totals, metrics);
     const notes = $('reportNotes'); notes.replaceChildren();
     for (const note of activeResult.notes || []) {
@@ -1924,12 +1948,13 @@
       kpis:combineMonthlyKpis(monthlyResults, rows, months, year)
     };
     if (monthlyResults.some((result) => result.totalAIHs != null)) combined.totalAIHs = monthlyResults.reduce((total, result) => total + (Number(result.totalAIHs) || 0), 0);
+    if (activeReport.id === 'sim-mortalidade-infantil') combined.births = monthlyResults.reduce((total, result) => total + (Number(result.births) || 0), 0);
     return combined;
   }
 
   async function tabulateReportMonth(view, cnes, aih, filters, year, month, monthIndex, monthCount) {
     if (activeReport.remoteSource) {
-      setLoader(true, `Lendo arquivo oficial do ${activeReport.systemCode} · ${monthIndex + 1} de ${monthCount}`, `${monthNames[month - 1]} de ${year} · ${activeReport.system === 'sim' ? 'óbitos ocorridos em Belém' : activeReport.system === 'sinasc' ? 'nascidos vivos por estabelecimento' : activeReport.system === 'srag' ? 'casos por município de residência' : 'unidades notificadoras de Belém'}.`, null, true);
+      setLoader(true, `Lendo arquivo oficial do ${activeReport.systemCode} · ${monthIndex + 1} de ${monthCount}`, `${monthNames[month - 1]} de ${year} · ${activeReport.id === 'sim-mortalidade-infantil' ? 'óbitos e nascidos vivos por residência' : activeReport.system === 'sim' ? 'óbitos ocorridos em Belém' : activeReport.system === 'sinasc' ? 'nascidos vivos por estabelecimento' : activeReport.system === 'srag' ? 'casos por município de residência' : 'unidades notificadoras de Belém'}.`, null, true);
       let job = await api({ action:'tabulate_start', predefinedReport:activeReport.id, view, uf:filters.uf, year, month, municipalityCode:filters.municipalityCode, municipalityName:filters.municipalityName, ...(activeReport.system === 'sinasc' ? { sinascFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { establishmentCode:cnes } : {}) } : {}), ...(activeReport.system === 'sinan' ? { cnesManagementCode:filters.cnesManagementCode, cnesNatureGroupCode:filters.cnesNatureGroupCode, ...(view === 'detail' ? { weekIndex:Number(cnes) } : {}) } : ['sim','srag'].includes(activeReport.system) && view === 'detail' ? { weekIndex:Number(cnes) } : {}) });
       if (job.done && job.result) return stampMonthlyResult(job.result, year, month);
       if (!job.job_id) throw new Error(`O TabulaSUS não retornou uma consulta válida ao ${activeReport.systemCode}.`);

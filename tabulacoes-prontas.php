@@ -28,7 +28,7 @@
       <section class="intro predefined-report-intro"><div class="eyebrow"><span class="eyebrow-line"></span> <span id="predefinedIntroLabel">RELATÓRIOS PRÉ-DEFINIDOS</span></div><h1 id="predefinedIntroTitle">Tabulações prontas para consultar.</h1><p id="predefinedIntroDescription">Escolha um relatório e informe a competência. Novas tabulações serão adicionadas a esta área.</p></section>
 
       <section class="predefined-catalog" id="predefinedCatalog" aria-labelledby="catalogTitle">
-        <div class="catalog-heading"><div><h2 id="catalogTitle">Relatórios</h2><p>Escolha a análise que precisa.</p></div><span class="catalog-count" id="catalogCount">12 relatórios</span></div>
+        <div class="catalog-heading"><div><h2 id="catalogTitle">Relatórios</h2><p>Escolha a análise que precisa.</p></div><span class="catalog-count" id="catalogCount">13 relatórios</span></div>
         <label class="catalog-search"><span aria-hidden="true">⌕</span><input id="catalogSearch" type="search" placeholder="Buscar relatório, assunto ou fonte" autocomplete="off" aria-label="Buscar tabulações prontas"></label>
         <p class="catalog-no-results" id="catalogNoResults" hidden>Nenhum relatório corresponde à busca.</p>
         <div class="predefined-card-grid">
@@ -75,6 +75,10 @@
           <article class="predefined-card" data-category="mortalidade" data-report="sim-mortalidade" role="button" tabindex="0" aria-label="Abrir tabulação: Óbitos por semana">
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Mortalidade</div><h3>Óbitos por semana</h3><p>Consulte os óbitos registrados e detalhe a causa básica, o capítulo CID-10 e a residência.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SIM · CID-10</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
+          <article class="predefined-card" data-category="materno-infantil" data-report="sim-mortalidade-infantil" role="button" tabindex="0" aria-label="Abrir tabulação: Mortalidade infantil">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Saúde materno-infantil</div><h3>Mortalidade infantil</h3><p>Relacione óbitos antes de um ano, faixa de dias, causa básica e nascidos vivos do município de residência.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SIM · SINASC</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
           <article class="predefined-card" data-category="materno-infantil" data-report="sinasc-maternidades" role="button" tabindex="0" aria-label="Abrir tabulação: Nascimentos e perfil materno-infantil">
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Saúde materno-infantil</div><h3>Nascimentos e perfil materno-infantil</h3><p>Nascidos vivos, pré-natal, partos, prematuridade e baixo peso em uma tabela por estabelecimento.</p></div>

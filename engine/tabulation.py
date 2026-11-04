@@ -633,7 +633,7 @@ def write_tabulation_job(job_id: str, state: dict[str,Any]):
 
 def start_tabulation(payload: dict[str,Any]):
     payload=json.loads(json.dumps(payload))
-    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","srag-semanal","sinasc-maternidades"}:
+    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades"}:
         year=payload.get("year")
         month=payload.get("month")
         uf=str(payload.get("uf") or "").upper()
@@ -2123,6 +2123,122 @@ def _sim_cid_names():
     path=Path(__file__).parent/"data"/"cid10-three.json"
     try: return json.loads(path.read_text(encoding="utf-8"))
     except (OSError,ValueError): return {}
+
+def _public_health_date(raw: Any):
+    value=str(raw or "").strip()
+    try:
+        if re.fullmatch(r"\d{8}",value): return date(int(value[4:]),int(value[2:4]),int(value[:2]))
+        return date.fromisoformat(value[:10])
+    except (ValueError,TypeError): return None
+
+def _sim_infant_source(year: int, progress=None):
+    """One annual resident-based summary, shared by every municipality and month."""
+    target=cache_target("sim_infant",{"version":2,"year":year})
+    lifetime=24*3600 if year==date.today().year else 30*86400
+    with interprocess_lock(target.with_suffix(".lock")):
+        cached=cache_read(target)
+        if isinstance(cached,dict) and isinstance(cached.get("groups"),list) and time.time()-float(cached.get("fetched_at",0))<lifetime:
+            if progress: progress(48,f"Usando o resumo anual de mortalidade infantil {year}")
+            return cached
+        if progress: progress(3,f"Consultando óbitos infantis do SIM {year}")
+        archive,updated_at=_sinan_dengue_archive(year,"sim-mortalidade",progress)
+        groups=[]; scanned=0; ignored_age=0
+        try:
+            with zipfile.ZipFile(archive) as bundle:
+                expected=f"Mortalidade_Geral_{year}.csv"
+                matches=[item for item in bundle.infolist() if not item.is_dir() and item.filename.replace("\\","/").rsplit("/",1)[-1].casefold()==expected.casefold()]
+                if len(matches)!=1 or not 0<matches[0].file_size<=SINAN_DENGUE_CSV_MAX_BYTES: raise ValueError("O pacote do SIM não contém o CSV esperado.")
+                with bundle.open(matches[0]) as binary, io.TextIOWrapper(binary,encoding="latin1",newline="") as stream:
+                    reader=csv.reader(stream,delimiter=";")
+                    fields={name.lstrip("\ufeff").strip().upper():index for index,name in enumerate(next(reader))}
+                    if not {"DTOBITO","DTNASC","CODMUNRES","CAUSABAS","TIPOBITO"}.issubset(fields): raise ValueError("O CSV do SIM não contém os campos necessários à mortalidade infantil.")
+                    def field(row,key):
+                        pos=fields.get(key)
+                        return row[pos].strip() if pos is not None and pos<len(row) else ""
+                    for row in reader:
+                        scanned+=1
+                        if progress and scanned%50000==0: progress(min(48,31+int(17*binary.tell()/max(1,matches[0].file_size))),f"Lendo SIM {year} · {scanned:,} registros".replace(",","."))
+                        if field(row,"TIPOBITO")!="2": continue
+                        death=_public_health_date(field(row,"DTOBITO"))
+                        birth=_public_health_date(field(row,"DTNASC"))
+                        if death is None or death.year!=year: continue
+                        age=(death-birth).days if birth else None
+                        if age is None: ignored_age+=1; continue
+                        if age is None or not 0<=age<=364: continue
+                        residence=re.sub(r"\D","",field(row,"CODMUNRES"))[:6]
+                        if not re.fullmatch(r"\d{6}",residence): continue
+                        cid=re.sub(r"[^A-Z0-9]","",field(row,"CAUSABAS").upper())[:4] or "NI"
+                        sex={"1":"Masculino","M":"Masculino","2":"Feminino","F":"Feminino"}.get(field(row,"SEXO").upper(),"Não informado")
+                        race={"1":"Branca","2":"Preta","3":"Amarela","4":"Parda","5":"Indígena"}.get(field(row,"RACACOR"),"Não informada")
+                        place={"1":"Hospital","2":"Outro estabelecimento de saúde","3":"Domicílio","4":"Via pública","5":"Outro local","6":"Aldeia indígena"}.get(field(row,"LOCOCOR"),"Não informado")
+                        delivery={"1":"Vaginal","2":"Cesáreo"}.get(field(row,"PARTO"),"Não informado")
+                        care={"1":"Sim","2":"Não"}.get(field(row,"ASSISTMED"),"Não informado")
+                        weight=field(row,"PESO"); weight=int(weight) if weight.isdigit() and 200<=int(weight)<=8000 else None
+                        gestation=field(row,"SEMAGESTAC"); gestation=int(gestation) if gestation.isdigit() and 18<=int(gestation)<=45 else None
+                        mother_age=field(row,"IDADEMAE"); mother_age=int(mother_age) if mother_age.isdigit() and 10<=int(mother_age)<=60 else None
+                        establishment=re.sub(r"\D","",field(row,"CODESTAB"))[:7]
+                        occurrence=re.sub(r"\D","",field(row,"CODMUNOCOR"))[:6]
+                        groups.append({"municipalityCode":residence,"month":death.month,"causeCode":cid,"deaths":1,"early":int(age<=6),"late":int(7<=age<=27),"post":int(age>=28),"ageDays":age,"ageGroup":"0 a 6 dias" if age<=6 else "7 a 27 dias" if age<=27 else "28 a 364 dias","sex":sex,"race":race,"place":place,"delivery":delivery,"medicalCare":care,"birthWeight":weight,"gestationWeeks":gestation,"maternalAge":mother_age,"establishmentCode":establishment if len(establishment)==7 else "","occurrenceCode":occurrence if len(occurrence)==6 else ""})
+        finally: archive.unlink(missing_ok=True)
+        result={"fetched_at":time.time(),"updatedAt":updated_at,"groups":groups,"ignoredAge":ignored_age}
+        cache_write(target,result,max_bytes=80_000_000,keep=8)
+        return result
+
+def _sinasc_resident_births(year: int, progress=None):
+    target=cache_target("sinasc_resident_births",{"version":1,"year":year})
+    lifetime=24*3600 if year==date.today().year else 30*86400
+    with interprocess_lock(target.with_suffix(".lock")):
+        cached=cache_read(target)
+        if isinstance(cached,dict) and isinstance(cached.get("groups"),list) and time.time()-float(cached.get("fetched_at",0))<lifetime:
+            if progress: progress(90,f"Usando nascimentos por residência de {year}")
+            return cached
+        archive,updated_at=_sinasc_archive(year,progress)
+        groups={}; scanned=0
+        with zipfile.ZipFile(archive) as bundle:
+            expected=f"SINASC_{year}.csv"
+            matches=[item for item in bundle.infolist() if not item.is_dir() and item.filename.replace("\\","/").rsplit("/",1)[-1].casefold()==expected.casefold()]
+            if len(matches)!=1 or not 0<matches[0].file_size<=2*1024*1024*1024: raise ValueError("O pacote do SINASC não contém o CSV esperado.")
+            with bundle.open(matches[0]) as binary, io.TextIOWrapper(binary,encoding="latin1",newline="") as stream:
+                reader=csv.reader(stream,delimiter=";")
+                fields={name.lstrip("\ufeff").strip().upper():index for index,name in enumerate(next(reader))}
+                if not {"CODMUNRES","DTNASC"}.issubset(fields): raise ValueError("O CSV do SINASC não contém residência e data do nascimento.")
+                residence_index=fields["CODMUNRES"]; birth_index=fields["DTNASC"]
+                for row in reader:
+                    scanned+=1
+                    if progress and scanned%100000==0: progress(min(90,49+int(41*binary.tell()/max(1,matches[0].file_size))),f"Lendo SINASC {year} · {scanned:,} nascimentos".replace(",","."))
+                    if max(residence_index,birth_index)>=len(row): continue
+                    birth=_public_health_date(row[birth_index]); residence=re.sub(r"\D","",row[residence_index])[:6]
+                    if birth is None or birth.year!=year or not re.fullmatch(r"\d{6}",residence): continue
+                    key=(residence,birth.month)
+                    groups[key]=groups.get(key,0)+1
+        result={"fetched_at":time.time(),"updatedAt":updated_at,"groups":[{"municipalityCode":municipality,"month":month,"births":count} for (municipality,month),count in groups.items()]}
+        cache_write(target,result,max_bytes=5_000_000,keep=8)
+        return result
+
+def predefined_sim_infant_mortality(payload: dict[str,Any], progress=None):
+    year=payload.get("year"); month=payload.get("month"); uf=str(payload.get("uf") or "").upper(); municipality=str(payload.get("municipalityCode") or "")
+    if not isinstance(year,int) or not 2010<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12: raise ValueError("Selecione ano e mês válidos a partir de 2010.")
+    if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]: raise ValueError("Selecione um município de residência válido.")
+    if str(payload.get("view") or "full")!="full": raise ValueError("Selecione uma visão válida do relatório.")
+    sim=_sim_infant_source(year,progress)
+    sinasc=_sinasc_resident_births(year,progress)
+    cid_names=_sim_cid_names(); rows=[]
+    try: municipality_names=_sinan_ibge_municipalities()
+    except Exception: municipality_names={}
+    for item in sim["groups"]:
+        if item["municipalityCode"]!=municipality or item["month"]!=month: continue
+        cid=item["causeCode"]; cid3=cid[:3]
+        chapter=next((label for start,end,label in SIM_CID_CHAPTERS if start<=cid3<=end),"Não classificado")
+        occurrence=item.get("occurrenceCode") or ""
+        rows.append({**item,"causeName":cid_names.get(cid,cid_names.get(cid3,"Descrição CID não disponível")),"chapterName":chapter,"occurrenceName":municipality_names.get(occurrence,f"Município {occurrence}" if occurrence else "Não informado")})
+    rows.sort(key=lambda item:(item["ageDays"],item["causeCode"]))
+    births=sum(item["births"] for item in sinasc["groups"] if item["municipalityCode"]==municipality and item["month"]==month)
+    if progress: progress(98,"Preparando mortalidade infantil e nascidos vivos")
+    municipality_name=str(payload.get("municipalityName") or municipality)[:120]
+    return {"ok":True,"report":"sim-mortalidade-infantil","view":"full","flatTable":True,"file":"SIM · SINASC · CSV oficial","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES.get(uf,uf),"municipality":municipality_name,"municipalityCode":municipality,"rows":rows,"records":sum(item["deaths"] for item in rows),"births":births,"emptyStateMessage":f"Não há óbitos de menores de 1 ano com residência em {municipality_name} no mês {month:02d}/{year}.",
+        "columns":[{"id":"cause","label":"CAUSA BÁSICA · CID-10","kind":"primary","primaryField":"causeName","secondaryField":"causeCode","filterFields":["causeName","causeCode"],"sortField":"causeName","type":"text","sticky":True},{"id":"chapter","label":"CAPÍTULO","field":"chapterName","type":"text"},{"id":"ageGroup","label":"FAIXA ETÁRIA","field":"ageGroup","type":"text"},{"id":"ageDays","label":"IDADE EM DIAS","field":"ageDays","type":"number"},{"id":"sex","label":"SEXO","field":"sex","type":"text"},{"id":"race","label":"RAÇA/COR","field":"race","type":"text"},{"id":"birthWeight","label":"PESO AO NASCER · G","field":"birthWeight","type":"number"},{"id":"gestationWeeks","label":"GESTAÇÃO · SEMANAS","field":"gestationWeeks","type":"number"},{"id":"maternalAge","label":"IDADE DA MÃE","field":"maternalAge","type":"number"},{"id":"delivery","label":"TIPO DE PARTO","field":"delivery","type":"text"},{"id":"place","label":"LOCAL DO ÓBITO","field":"place","type":"text"},{"id":"occurrence","label":"MUNICÍPIO DO ÓBITO","field":"occurrenceName","type":"text"},{"id":"establishment","label":"CNES DO ÓBITO","field":"establishmentCode","type":"text"},{"id":"medicalCare","label":"ASSISTÊNCIA MÉDICA","field":"medicalCare","type":"text"},{"id":"deaths","label":"ÓBITOS","metricId":"deaths","type":"number","decimals":0}],
+        "metrics":[{"id":"deaths","label":"Óbitos < 1 ano","decimals":0}],
+        "notes":[f"SIM atualizado em {sim.get('updatedAt') or 'data não informada'}; SINASC atualizado em {sinasc.get('updatedAt') or 'data não informada'}. Óbitos pela residência da criança e nascidos vivos pela residência da mãe, independentemente do local de ocorrência.","Cada linha da tabela é um registro público não fetal do SIM, sem nome, documento ou datas exatas. Os campos de peso, gestação, idade da mãe, parto, local e assistência aparecem somente quando informados. A faixa etária usa a diferença entre data de nascimento e data do óbito; registros sem as duas datas válidas não entram no numerador.","A taxa por mil nascidos vivos é exibida somente para um ano completo anterior ao atual, sem filtros na tabela. Dados recentes são preliminares e podem ser revisados pelas fontes oficiais."],"cachedAt":time.time()}
 
 def predefined_sim_mortality(payload: dict[str,Any], progress=None):
     """Aggregate official SIM declarations by month and ICD-10 chapter for deaths occurring in Belém."""
@@ -4682,6 +4798,8 @@ def tabulate(payload, progress=None):
         return predefined_srag_weekly(payload,progress)
     if payload.get("predefinedReport")=="sim-mortalidade":
         return predefined_sim_mortality(payload,progress)
+    if payload.get("predefinedReport")=="sim-mortalidade-infantil":
+        return predefined_sim_infant_mortality(payload,progress)
     if payload.get("predefinedReport") in SINAN_AGRAVOS:
         return predefined_sinan_dengue(payload,progress)
     if payload.get("predefinedReport") in {"sia-pa-producao","sia-pa-belem"}:
