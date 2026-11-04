@@ -376,3 +376,16 @@
 @media(max-width:1300px){.predefined-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:900px){.predefined-card-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:520px){.predefined-card-grid{gap:17px}.predefined-card{min-height:238px;padding:24px 23px 29px;border-radius:18px}.predefined-card:after{top:22px;right:21px;width:38px;height:38px;background-size:32px}.predefined-card-eyebrow{font-size:9px}.predefined-card-content h3{max-width:none;margin-top:29px;font-size:17px}.predefined-card-content p{font-size:11.5px}.predefined-card-footer>.predefined-card-source{font-size:9px}.predefined-card-footer>.predefined-card-open{font-size:10px}.report-scope{font-size:9px}}
+.main-content.predefined-report-main.is-report-view{max-width:none}
+.report-result.is-surveillance-full .report-table-wrap{max-height:78vh}
+.report-result.is-surveillance-full .report-table th,.report-result.is-surveillance-full .report-table td{padding:13px 15px;font-size:11px}
+.report-result.is-surveillance-full .report-table th{font-size:9px}
+.report-result.is-surveillance-full .report-table .primary-cell{min-width:190px;max-width:220px}
+.report-result.is-surveillance-full .report-table td:nth-child(2),.report-result.is-surveillance-full .report-table td:nth-child(3){text-align:left;white-space:normal}
+.report-result.is-surveillance-full .report-table td:nth-child(2) .report-primary-label{max-width:none;overflow:visible;white-space:normal;text-overflow:clip;overflow-wrap:anywhere}
+.report-result.is-surveillance-full.is-sinan-report .report-table{min-width:2050px}
+.report-result.is-surveillance-full.is-sinan-report .report-table th:nth-child(2){min-width:270px}
+.report-result.is-surveillance-full.is-sinan-report .report-table th:nth-child(3){min-width:230px}
+.report-result.is-surveillance-full.is-sinan-report .report-table th:nth-child(n+4){min-width:125px}
+.report-result.is-surveillance-full:not(.is-sinan-report) .report-table{min-width:1320px}
+.report-result.is-surveillance-full:not(.is-sinan-report) .report-table th:nth-child(2){min-width:285px}

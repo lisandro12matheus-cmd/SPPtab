@@ -71,7 +71,7 @@ if (in_array($action, $preferenceActions, true)) {
     }
     $scope = (string) ($payload['scope'] ?? '');
     $view = (string) ($payload['view'] ?? 'summary');
-    if ($action !== 'report_defaults_get' && (!in_array($scope, ['setup', 'table'], true) || !in_array($view, ['summary', 'detail', 'services'], true))) {
+    if ($action !== 'report_defaults_get' && (!in_array($scope, ['setup', 'table'], true) || !in_array($view, ['summary', 'detail', 'full', 'services'], true))) {
         respond(['ok' => false, 'error' => 'Área de filtros inválida.'], 400);
     }
     if ($isCustomTable && $action !== 'report_defaults_get' && ($scope !== 'table' || $view !== 'summary')) {

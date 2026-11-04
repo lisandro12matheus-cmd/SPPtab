@@ -1753,7 +1753,7 @@ def predefined_sim_mortality(payload: dict[str,Any], progress=None):
     if str(payload.get("uf") or "").upper()!="PA" or str(payload.get("municipalityCode") or "")!="150140":
         raise ValueError("O relatório de mortalidade considera óbitos ocorridos em Belém.")
     view=str(payload.get("view") or "summary")
-    if view not in {"summary","detail"}: raise ValueError("Selecione uma visão válida do relatório de mortalidade.")
+    if view not in {"summary","detail","full"}: raise ValueError("Selecione uma visão válida do relatório de mortalidade.")
     week_index=payload.get("weekIndex") if view=="detail" else None
     if view=="detail" and (not isinstance(week_index,int) or not 1<=week_index<=53):
         raise ValueError("Selecione uma semana válida para detalhar.")
@@ -1812,17 +1812,17 @@ def predefined_sim_mortality(payload: dict[str,Any], progress=None):
             finally: archive.unlink(missing_ok=True)
             annual_rows=list(groups.values()); annual_details=list(details.values())
             cache_write(target,{"fetched_at":time.time(),"updatedAt":updated_at,"rows":annual_rows,"details":annual_details},max_bytes=20_000_000,keep=10)
-    cid_names=_sim_cid_names() if view=="detail" else {}
-    if view=="detail":
-        rows=sorted(({**row,"causeName":cid_names.get(row["causeCode"],"Descrição não disponível na tabela CID local")} for row in annual_details if row["month"]==month and row["week"]==week_index),key=lambda row:(-row["deaths"],row["causeCode"]))
+    cid_names=_sim_cid_names() if view in {"detail","full"} else {}
+    if view in {"detail","full"}:
+        rows=sorted(({**row,"weekName":f"Semana {row['week']:02d}","causeName":cid_names.get(row["causeCode"],"Descrição não disponível na tabela CID local")} for row in annual_details if row["month"]==month and (view=="full" or row["week"]==week_index)),key=lambda row:(row["week"],-row["deaths"],row["causeCode"]))
     else:
         rows=sorted(({**row,"weekName":f"Semana {row['week']:02d}"+(f" · {row['weekYear']}" if row["weekYear"]!=year else "")} for row in annual_rows if row["month"]==month),key=lambda row:(row["weekYear"],row["week"]))
     total=sum(row["deaths"] for row in rows)
     week_label=f"Semana {week_index:02d}" if week_index else None
     if progress: progress(98,"Preparando o painel de mortalidade")
     return {"ok":True,"report":"sim-mortalidade","view":view,"flatTable":True,"file":"SIM · CSV oficial","year":year,"month":month,"uf":"PA","state":"Pará","municipality":"Belém","municipalityCode":"150140","establishmentCode":str(week_index) if week_index else None,"establishmentName":week_label,"rows":rows,"records":total,"emptyStateMessage":f"O arquivo oficial do SIM ainda não apresenta óbitos ocorridos em Belém em {month:02d}/{year}. Os dados recentes podem ser preliminares.",
-        "columns":[{"id":"cause" if view=="detail" else "week","label":"CAUSA BÁSICA · CID-10" if view=="detail" else "SEMANA","kind":"primary","primaryField":"causeName" if view=="detail" else "weekName","secondaryField":"causeCode" if view=="detail" else None,"filterFields":["causeName","causeCode"] if view=="detail" else ["weekName","week"],"sortField":"causeName" if view=="detail" else "week","type":"text","sticky":True},*([{"id":"chapter","label":"CAPÍTULO · CID-10","field":"chapterName","type":"text"}] if view=="detail" else []),{"id":"deaths","label":"ÓBITOS NÃO FETAIS","metricId":"deaths","type":"number","decimals":0},{"id":"residents","label":"RESIDENTES EM BELÉM","metricId":"residents","type":"number","decimals":0},{"id":"otherResidents","label":"RESIDENTES DE OUTROS MUNICÍPIOS","metricId":"otherResidents","type":"number","decimals":0},{"id":"unknownResidence","label":"RESIDÊNCIA NÃO INFORMADA","metricId":"unknownResidence","type":"number","decimals":0},*([{"id":"detail","label":"DETALHAR","kind":"action","actionLabel":"Detalhar →"}] if view=="summary" else [])],
-        "metrics":[{"id":key,"label":label,"decimals":0} for key,label in (("deaths","Óbitos não fetais"),("residents","Residentes em Belém"),("otherResidents","Outros municípios"),("unknownResidence","Residência não informada"))],"kpis":[{"label":"ÓBITOS NÃO FETAIS","value":{"value":total}},{"label":"RESIDENTES EM BELÉM","value":{"value":sum(row["residents"] for row in rows)}},{"label":"OUTROS MUNICÍPIOS","value":{"value":sum(row["otherResidents"] for row in rows)}}],"notes":[f"Fonte: SIM, arquivo anual público atualizado em {updated_at or 'data não informada'}. Recorte por município de ocorrência do óbito; mês da data do óbito.","O painel usa somente registros não fetais (TIPOBITO = 2) do arquivo Mortalidade Geral. As semanas são calculadas pela data do óbito, de domingo a sábado, com a semana 1 contendo 4 de janeiro. O detalhamento mostra a causa básica por categoria de três caracteres e seu capítulo CID-10. As descrições CID vêm da definição oficial TAB_SIA. Dados preliminares podem ser revistos.","Semanas que atravessam dois meses aparecem em cada recorte com apenas os óbitos daquele mês. Residência não informada não entra nos grupos Belém ou outros municípios."],"cachedAt":time.time()}
+        "columns":[{"id":"cause" if view=="detail" else "week","label":"CAUSA BÁSICA · CID-10" if view=="detail" else "SEMANA","kind":"primary","primaryField":"causeName" if view=="detail" else "weekName","secondaryField":"causeCode" if view=="detail" else None,"filterFields":["causeName","causeCode"] if view=="detail" else ["weekName","week"],"sortField":"causeName" if view=="detail" else "week","type":"text","sticky":True},*([{"id":"cause","label":"CAUSA BÁSICA · CID-10","kind":"primary","primaryField":"causeName","secondaryField":"causeCode","filterFields":["causeName","causeCode"],"sortField":"causeName","type":"text"}] if view=="full" else []),*([{"id":"chapter","label":"CAPÍTULO · CID-10","field":"chapterName","type":"text"}] if view in {"detail","full"} else []),{"id":"deaths","label":"ÓBITOS NÃO FETAIS","metricId":"deaths","type":"number","decimals":0},{"id":"residents","label":"RESIDENTES EM BELÉM","metricId":"residents","type":"number","decimals":0},{"id":"otherResidents","label":"RESIDENTES DE OUTROS MUNICÍPIOS","metricId":"otherResidents","type":"number","decimals":0},{"id":"unknownResidence","label":"RESIDÊNCIA NÃO INFORMADA","metricId":"unknownResidence","type":"number","decimals":0},*([{"id":"detail","label":"DETALHAR","kind":"action","actionLabel":"Detalhar →"}] if view=="summary" else [])],
+        "metrics":[{"id":key,"label":label,"decimals":0} for key,label in (("deaths","Óbitos não fetais"),("residents","Residentes em Belém"),("otherResidents","Outros municípios"),("unknownResidence","Residência não informada"))],"kpis":[{"label":"ÓBITOS NÃO FETAIS","value":{"value":total}},{"label":"RESIDENTES EM BELÉM","value":{"value":sum(row["residents"] for row in rows)}},{"label":"OUTROS MUNICÍPIOS","value":{"value":sum(row["otherResidents"] for row in rows)}}],"notes":[f"Fonte: SIM, arquivo anual público atualizado em {updated_at or 'data não informada'}. Recorte por município de ocorrência do óbito; mês da data do óbito.","O painel usa somente registros não fetais (TIPOBITO = 2) do arquivo Mortalidade Geral. As semanas são calculadas pela data do óbito, de domingo a sábado, com a semana 1 contendo 4 de janeiro. A tabela detalhada mostra semana, causa básica por categoria de três caracteres e capítulo CID-10. As descrições CID vêm da definição oficial TAB_SIA. Dados preliminares podem ser revistos.","Semanas que atravessam dois meses aparecem em cada recorte com apenas os óbitos daquele mês. Residência não informada não entra nos grupos Belém ou outros municípios."],"cachedAt":time.time()}
 
 SRAG_METRICS=(
     ("cases","CASOS DE SRAG"),("influenza","INFLUENZA"),("covid","COVID-19"),
@@ -1940,17 +1940,17 @@ def _predefined_srag_weekly_impl(payload: dict[str,Any], progress=None):
         raise ValueError("Selecione um mês de 2025 em diante para o relatório de SRAG.")
     if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]:
         raise ValueError("Selecione um município de residência válido para o relatório de SRAG.")
-    if view not in {"summary","detail"}: raise ValueError("Selecione uma visão válida do relatório de SRAG.")
+    if view not in {"summary","detail","full"}: raise ValueError("Selecione uma visão válida do relatório de SRAG.")
     week=payload.get("weekIndex") if view=="detail" else None
     if view=="detail" and (not isinstance(week,int) or not 1<=week<=53): raise ValueError("Selecione uma semana epidemiológica para detalhar.")
     data=_srag_source(year,municipality,progress)
     if progress: progress(95,"Preparando a evolução semanal da SRAG")
-    source=data["ages"] if view=="detail" else data["weeks"]
-    rows=[dict(item) for item in source if item["month"]==month and (view!="detail" or item["week"]==week)]
-    rows.sort(key=(lambda item:next((index for index,(code,_) in enumerate(SRAG_AGE_GROUPS) if code==item["ageCode"]),99)) if view=="detail" else (lambda item:item["week"]))
+    source=data["ages"] if view in {"detail","full"} else data["weeks"]
+    rows=[{**item,"weekName":f"Semana epidemiológica {item['week']:02d}"} for item in source if item["month"]==month and (view!="detail" or item["week"]==week)]
+    rows.sort(key=(lambda item:(item["week"],next((index for index,(code,_) in enumerate(SRAG_AGE_GROUPS) if code==item["ageCode"]),99))) if view=="full" else (lambda item:next((index for index,(code,_) in enumerate(SRAG_AGE_GROUPS) if code==item["ageCode"]),99)) if view=="detail" else (lambda item:item["week"]))
     totals={key:sum(item[key] for item in rows) for key,_ in SRAG_METRICS}
     primary={"id":"age" if view=="detail" else "week","label":"FAIXA ETÁRIA" if view=="detail" else "SEMANA EPIDEMIOLÓGICA","kind":"primary","primaryField":"ageName" if view=="detail" else "weekName","sortField":"ageName" if view=="detail" else "week","type":"text","sticky":True}
-    columns=[primary,*({"id":key,"label":label,"metricId":key,"type":"number","decimals":0} for key,label in SRAG_METRICS)]
+    columns=[primary,*([{"id":"age","label":"FAIXA ETÁRIA","field":"ageName","sortField":"ageName","type":"text"}] if view=="full" else []),*({"id":key,"label":label,"metricId":key,"type":"number","decimals":0} for key,label in SRAG_METRICS)]
     if view=="summary": columns.append({"id":"detail","label":"DETALHAR","kind":"action","actionLabel":"Detalhar →"})
     municipality_name=_report_label(payload.get("municipalityName") or "")[:100] or f"Município {municipality}"
     notes=[f"Fonte: SIVEP-Gripe, banco público anual de {year}, publicado em {data['updatedAt']}. Recorte por município de residência ({municipality_name}, {uf}); mês e semana do início dos sintomas.",
@@ -2043,7 +2043,7 @@ def _predefined_sinan_dengue_impl(payload: dict[str,Any], progress=None):
     municipality=str(payload.get("municipalityCode") or "")
     municipality_name=_report_label(payload.get("municipalityName") or "")[:100]
     view=str(payload.get("view") or "summary")
-    if view not in {"summary","detail"}: raise ValueError("Selecione um agrupamento válido para o relatório do SINAN.")
+    if view not in {"summary","detail","full"}: raise ValueError("Selecione um agrupamento válido para o relatório do SINAN.")
     if not isinstance(year,int) or year<2000 or year>date.today().year: raise ValueError("Selecione um ano entre 2000 e o ano atual.")
     if not isinstance(month,int) or month<1 or month>12: raise ValueError("Selecione uma competência válida.")
     if uf!="PA" or municipality!="150140": raise ValueError("Este relatório mostra notificações registradas em unidades de Belém, no Pará.")
@@ -2072,7 +2072,7 @@ def _predefined_sinan_dengue_impl(payload: dict[str,Any], progress=None):
     management_labels={"MUNICIPAL":"Gestão municipal","ESTADUAL":"Gestão estadual","DUPLA":"Dupla gestão","NAO_INFORMADA":"Gestão não identificada"}
     nature_labels={"PUBLICO":"Natureza pública","PRIVADO":"Natureza privada","SEM_FINS_LUCRATIVOS":"Sem fins lucrativos","PESSOA_FISICA":"Pessoa física","OUTROS":"Outras naturezas","NAO_INFORMADA":"Natureza não identificada"}
     selected_units=[dict(item) for item in source_units if int(item.get("month",0))==month]
-    selected_details=[dict(item) for item in source_details if int(item.get("month",0))==month and int(item.get("week",0))==week_index] if view=="detail" else []
+    selected_details=[dict(item) for item in source_details if int(item.get("month",0))==month and (view=="full" or int(item.get("week",0))==week_index)] if view in {"detail","full"} else []
     cnes_codes=[str(item.get("unitCode") or "") for item in selected_units]
     unit_metadata,unit_unresolved,unit_lookup_failures=_sinan_cnes_unit_metadata(cnes_codes,year,month,progress)
     historical_classification_units=set(); current_classification_units=set()
@@ -2112,8 +2112,8 @@ def _predefined_sinan_dengue_impl(payload: dict[str,Any], progress=None):
             if unit is None: continue
             residence=str(item.get("residenceCode") or "")
             residence_name="Residência ignorada ou exterior" if residence=="999999" else municipality_names.get(residence,"Município de residência não identificado") if residence else "Residência não informada"
-            rows.append({**item,**unit,"residenceName":residence_name})
-        rows.sort(key=lambda item:(-item["notifications"],item["unitName"].casefold(),item["residenceName"].casefold()))
+            rows.append({**item,**unit,"weekName":f"Semana epidemiológica {int(item['week']):02d}","residenceName":residence_name})
+        rows.sort(key=lambda item:(item["week"],-item["notifications"],item["unitName"].casefold(),item["residenceName"].casefold()))
     month_names=("","janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro")
     monthly_counts=defaultdict(int)
     for item in source_rows: monthly_counts[int(item.get("month",0))]+=int(item.get("notifications",0))
@@ -2151,11 +2151,12 @@ def _predefined_sinan_dengue_impl(payload: dict[str,Any], progress=None):
         "ok":True,"report":report_id,"view":view,"flatTable":True,"file":"SINAN · CSV oficial",
         "year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":"Belém","municipalityCode":municipality,"updatedAt":updated_at,"establishmentCode":str(week_index) if week_index else None,"establishmentName":f"Semana epidemiológica {week_index:02d}" if week_index else None,"emptyStateMessage":empty_state_message,
         "columns":[
-            {"id":"week" if view=="summary" else "unit","label":"SEMANA EPIDEMIOLÓGICA" if view=="summary" else "UNIDADE NOTIFICADORA","kind":"primary","primaryField":"weekName" if view=="summary" else "unitName","secondaryField":"unitCode" if view=="detail" else None,"secondaryPrefix":"CNES " if view=="detail" else "","filterFields":["weekName","week"] if view=="summary" else ["unitName","unitCode"],"sortField":"week" if view=="summary" else "unitName","type":"text","sticky":True},
-            *([{"id":"residence","label":"MUNICÍPIO DE RESIDÊNCIA","field":"residenceName","type":"text","filterFields":["residenceName","residenceCode"]}] if view=="detail" else []),
+            {"id":"week" if view!="detail" else "unit","label":"SEMANA EPIDEMIOLÓGICA" if view!="detail" else "UNIDADE NOTIFICADORA","kind":"primary","primaryField":"weekName" if view!="detail" else "unitName","secondaryField":"unitCode" if view=="detail" else None,"secondaryPrefix":"CNES " if view=="detail" else "","filterFields":["weekName","week"] if view!="detail" else ["unitName","unitCode"],"sortField":"week" if view!="detail" else "unitName","type":"text","sticky":True},
+            *([{"id":"unit","label":"UNIDADE NOTIFICADORA","kind":"primary","primaryField":"unitName","secondaryField":"unitCode","secondaryPrefix":"CNES ","filterFields":["unitName","unitCode"],"sortField":"unitName","type":"text"}] if view=="full" else []),
+            *([{"id":"residence","label":"MUNICÍPIO DE RESIDÊNCIA","field":"residenceName","type":"text","filterFields":["residenceName","residenceCode"]}] if view in {"detail","full"} else []),
             {"id":"notifications","label":"NOTIFICAÇÕES","metricId":"notifications","type":"number","decimals":0},
             *({"id":key,"label":label,"metricId":key,"type":"number","decimals":0} for key,label in additional_metrics),
-            *([{"id":"neighborhood","label":"BAIRRO DA UNIDADE","field":"neighborhood","type":"text"},{"id":"management","label":"TIPO DE GESTÃO · CNES","field":"managementName","type":"text"},{"id":"nature","label":"NATUREZA JURÍDICA · CNES","field":"natureGroupName","type":"text"}] if view=="detail" else []),
+            *([{"id":"neighborhood","label":"BAIRRO DA UNIDADE","field":"neighborhood","type":"text"},{"id":"management","label":"TIPO DE GESTÃO · CNES","field":"managementName","type":"text"},{"id":"nature","label":"NATUREZA JURÍDICA · CNES","field":"natureGroupName","type":"text"}] if view in {"detail","full"} else []),
             *([{"id":"detail","label":"DETALHAR","kind":"action","actionLabel":"Detalhar →"}] if view=="summary" else []),
         ],
         "metrics":[
@@ -2168,7 +2169,7 @@ def _predefined_sinan_dengue_impl(payload: dict[str,Any], progress=None):
         ],
         "records":total_month_records,"rows":rows,"notes":[
             f"Fonte: arquivo CSV anual oficial do SINAN · {source_mode}. Município notificante: {municipality_name or municipality} ({municipality}). Arquivo atualizado em {updated_at or 'data não informada'}.",
-            "Mês definido pela data de início dos sintomas (DT_SIN_PRI); semana epidemiológica informada no campo SEM_PRI do SINAN. A primeira tabela mostra a evolução semanal das unidades notificadoras de Belém. Detalhar abre as unidades e os municípios de residência registrados naquela semana. Semanas que atravessam dois meses aparecem em cada recorte com apenas os dias daquele mês.",
+            "Mês definido pela data de início dos sintomas (DT_SIN_PRI); semana epidemiológica informada no campo SEM_PRI do SINAN. A tabela detalhada reúne semana, unidade notificadora e município de residência. Semanas que atravessam dois meses aparecem em cada recorte com apenas os dias daquele mês.",
             "Nome, município cadastral e bairro da unidade vêm do CNES atual. Gestão e natureza jurídica usam primeiro o CNES da competência; quando não há registro histórico, o cadastro atual complementa a informação.",
             *( [f"A gestão e a natureza jurídica foram confirmadas no CNES da competência {year:04d}{month:02d} para {len(historical_classification_units)} unidade(s).".replace(",",".")] if historical_classification_units else [] ),
             *( [f"Gestão e natureza jurídica vieram do cadastro atual do CNES para {len(current_classification_units)} unidade(s), sem classificação histórica disponível para {year:04d}{month:02d}.".replace(",",".")] if current_classification_units else [] ),
