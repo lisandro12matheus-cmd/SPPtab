@@ -241,15 +241,15 @@
   reportConfigurations['sinasc-maternidades'] = {
     id:'sinasc-maternidades', system:'sinasc', systemCode:'SINASC', kind:'NASCIMENTOS', remoteSource:true, tableMode:'flat', firstYear:2010,
     systemLabel:'SINASC · NASCIDOS VIVOS', sourceLabel:'nascimentos públicos do SINASC', defaultUf:'PA', defaultMunicipalityCode:'150140',
-    workspaceTitle:'Perfil materno-infantil · SINASC', introLabel:'SAÚDE MATERNO-INFANTIL · SINASC', introTitle:'Perfil por maternidade.',
+    workspaceTitle:'Nascimentos e perfil materno-infantil · SINASC', introLabel:'SAÚDE MATERNO-INFANTIL · SINASC', introTitle:'Nascimentos e perfil materno-infantil.',
     introDescription:'Nascimentos, pré-natal, partos, prematuridade e baixo peso por estabelecimento.',
-    setupTitle:'Perfil materno-infantil por maternidade', setupDescription:'Escolha o município e o período dos nascimentos. Adicione recortes opcionais de residência, parto, pré-natal e perfil materno-infantil.',
+    setupTitle:'Nascimentos e perfil materno-infantil', setupDescription:'Escolha o município e o período dos nascimentos. Adicione recortes opcionais de residência, parto, pré-natal e perfil materno-infantil.',
     emptyMessage:'Escolha UF, município de ocorrência e ao menos um mês para consultar os nascidos vivos em estabelecimentos de saúde.',
     municipalityLabel:'MUNICÍPIO DO NASCIMENTO',
     filterNote:'Os filtros são opcionais e atuam antes dos totais. Use Ctrl ou Command para escolher várias opções no mesmo filtro; filtros diferentes são combinados. O município principal é o local do nascimento.',
-    methodTitle:'Como interpretar este relatório:', methodText:' cada linha representa uma maternidade no período selecionado. Os valores contam nascidos vivos, não partos. Percentuais usam apenas registros com o campo correspondente informado; dados preliminares podem ser revistos.',
-    summaryTitle:'Perfil materno-infantil por maternidade', countMetric:'births', countLabel:'NASCIDOS VIVOS',
-    tableSearchSummary:'Buscar maternidade ou CNES', tableSearchDetail:'Buscar residência, parto ou outro dado', filters:sinascFilterDefinitions
+    methodTitle:'Como interpretar este relatório:', methodText:' cada linha representa um estabelecimento no período selecionado. Os valores contam nascidos vivos, não partos. Percentuais usam apenas registros com o campo correspondente informado; dados preliminares podem ser revistos.',
+    summaryTitle:'Nascimentos e perfil materno-infantil', countMetric:'births', countLabel:'NASCIDOS VIVOS',
+    tableSearchSummary:'Buscar estabelecimento ou CNES', tableSearchDetail:'Buscar residência, parto ou outro dado', filters:sinascFilterDefinitions
   };
   const params = new URLSearchParams(location.search);
   const linkedReportId = params.get('relatorio') === 'sia-pa-belem' ? 'sia-pa-producao' : params.get('relatorio');
@@ -1350,7 +1350,7 @@
       const methodNote = $('reportMethodNote');
       const strong = document.createElement('strong'); strong.textContent = 'Como interpretar este relatório:';
       methodNote.replaceChildren(strong, document.createTextNode(activeView === 'detail'
-        ? ' cada linha mostra um nascido vivo da maternidade. O registro não identifica mãe ou bebê; campos ausentes aparecem como não informados.'
+        ? ' cada linha mostra um nascido vivo do estabelecimento. O registro não identifica mãe ou bebê; campos ausentes aparecem como não informados.'
         : activeReport.methodText));
     }
     const pageCount = Math.max(1, Math.ceil(rows.length / tablePageSize));
@@ -1393,7 +1393,7 @@
     }
 
     $('reportCount').textContent = formatNumber(rows.length);
-    const itemLabel = activeReport.system === 'sinasc' ? (activeView === 'detail' ? 'nascidos vivos' : 'maternidades e meses') : activeReport.id === 'sih-rd-fluxo' ? (activeView === 'detail' ? 'AIHs da rota' : 'rotas de origem e destino') : activeReport.system === 'srag' ? (activeView === 'full' ? 'combinações de semana e faixa etária' : activeView === 'detail' ? 'faixas etárias' : 'semanas epidemiológicas') : activeReport.system === 'sim' ? (activeView === 'full' ? 'combinações de semana e causa básica' : activeView === 'detail' ? 'categorias de causa básica' : 'semanas') : activeReport.system === 'sinan' ? (activeView === 'full' ? 'combinações de semana, unidade e residência' : activeView === 'detail' ? 'unidades e municípios de residência' : 'semanas epidemiológicas') : activeReport.tableMode === 'flat' ? 'lançamentos' : activeReport.tableMode === 'occupancy' ? (activeView === 'summary' ? 'estabelecimentos' : activeView === 'detail' ? 'AIHs' : 'serviços profissionais') : activeView === 'summary' ? 'estabelecimentos' : (activeReport.system === 'sih' ? 'combinações de procedimento' : 'procedimentos');
+    const itemLabel = activeReport.system === 'sinasc' ? (activeView === 'detail' ? 'nascidos vivos' : 'estabelecimentos e meses') : activeReport.id === 'sih-rd-fluxo' ? (activeView === 'detail' ? 'AIHs da rota' : 'rotas de origem e destino') : activeReport.system === 'srag' ? (activeView === 'full' ? 'combinações de semana e faixa etária' : activeView === 'detail' ? 'faixas etárias' : 'semanas epidemiológicas') : activeReport.system === 'sim' ? (activeView === 'full' ? 'combinações de semana e causa básica' : activeView === 'detail' ? 'categorias de causa básica' : 'semanas') : activeReport.system === 'sinan' ? (activeView === 'full' ? 'combinações de semana, unidade e residência' : activeView === 'detail' ? 'unidades e municípios de residência' : 'semanas epidemiológicas') : activeReport.tableMode === 'flat' ? 'lançamentos' : activeReport.tableMode === 'occupancy' ? (activeView === 'summary' ? 'estabelecimentos' : activeView === 'detail' ? 'AIHs' : 'serviços profissionais') : activeView === 'summary' ? 'estabelecimentos' : (activeReport.system === 'sih' ? 'combinações de procedimento' : 'procedimentos');
     $('reportTableHint').textContent = `${formatNumber(rows.length)} de ${formatNumber(allRows.length)} ${itemLabel} · página ${formatNumber(tablePage)} de ${formatNumber(pageCount)} · filtre ou ordene pelos cabeçalhos`;
     renderTablePagination(rows.length, pageCount);
     const locationParts = [activeResult.municipality || 'Todos os municípios', activeResult.state || stateNames[activeResult.uf] || activeResult.uf];
@@ -1406,14 +1406,14 @@
     if (activeReport.id === 'sih-rd-fluxo' && activeView === 'detail' && activeResult.detailSubtitle) locationParts.push(activeResult.detailSubtitle);
     $('reportSubtitle').textContent = `${formatCompetencies(activeMonths, activeYear)} · ${locationParts.join(' · ')} · ${fileSummary}`;
     $('reportTitle').textContent = activeView === 'full' ? activeReport.summaryTitle : activeReport.system === 'sinasc' && activeView === 'detail' ? `Nascimentos · ${activeResult.establishmentName || `CNES ${activeCnes}`}` : activeReport.system === 'srag' ? (activeView === 'detail' ? `Faixas etárias · ${activeResult.establishmentName || 'semana epidemiológica'}` : activeReport.summaryTitle) : activeReport.system === 'sinan' ? (activeView === 'detail' ? `Unidades e residência · ${activeResult.establishmentName || 'semana epidemiológica'}` : activeReport.summaryTitle) : activeReport.system === 'sim' ? (activeView === 'detail' ? `Causas básicas · ${activeResult.establishmentName || 'CID-10'}` : activeReport.summaryTitle) : activeReport.id === 'sih-rd-fluxo' && activeView === 'detail' ? (activeResult.detailTitle || 'AIHs da rota') : activeReport.tableMode === 'flat' || activeView === 'summary' ? activeReport.summaryTitle : activeView === 'services' ? `Serviços profissionais · AIH ${activeAih}` : `${activeReport.detailTitlePrefix} · ${activeResult.establishmentName || `CNES ${activeCnes}`}`;
-    $('reportSearch').placeholder = activeReport.system === 'sinasc' ? (activeView === 'detail' ? 'Buscar residência, parto ou outro dado' : 'Buscar maternidade ou CNES') : activeView === 'summary' ? activeReport.tableSearchSummary : activeView === 'full' && activeReport.system === 'sinan' ? 'Buscar semana, unidade, CNES ou residência' : activeView === 'full' && activeReport.system === 'sim' ? 'Buscar semana, causa básica ou capítulo CID-10' : activeView === 'full' && activeReport.system === 'srag' ? 'Buscar semana ou faixa etária' : activeView === 'services' ? 'Buscar profissional, procedimento ou CNS' : activeReport.tableSearchDetail;
+    $('reportSearch').placeholder = activeReport.system === 'sinasc' ? (activeView === 'detail' ? 'Buscar residência, parto ou outro dado' : 'Buscar estabelecimento ou CNES') : activeView === 'summary' ? activeReport.tableSearchSummary : activeView === 'full' && activeReport.system === 'sinan' ? 'Buscar semana, unidade, CNES ou residência' : activeView === 'full' && activeReport.system === 'sim' ? 'Buscar semana, causa básica ou capítulo CID-10' : activeView === 'full' && activeReport.system === 'srag' ? 'Buscar semana ou faixa etária' : activeView === 'services' ? 'Buscar profissional, procedimento ou CNS' : activeReport.tableSearchDetail;
     renderKpis(rows, totals, metrics);
     const notes = $('reportNotes'); notes.replaceChildren();
     for (const note of activeResult.notes || []) {
       const line = document.createElement('p'); line.textContent = note; notes.append(line);
     }
     $('backToSummary').hidden = activeView === 'full' || (activeReport.tableMode === 'flat' && activeReport.id !== 'sih-rd-fluxo' && !(['sinan','sim','srag','sinasc'].includes(activeReport.system) && activeView === 'detail')) || activeView === 'summary';
-    $('backToSummary').textContent = activeView === 'services' ? '← AIH' : activeReport.id === 'sih-rd-fluxo' ? '← Fluxo' : activeReport.system === 'sinasc' ? '← Maternidades' : activeReport.system === 'sim' ? '← Semanas' : ['srag','sinan'].includes(activeReport.system) ? '← Semanas epidemiológicas' : '← Estabelecimentos';
+    $('backToSummary').textContent = activeView === 'services' ? '← AIH' : activeReport.id === 'sih-rd-fluxo' ? '← Fluxo' : activeReport.system === 'sinasc' ? '← Estabelecimentos' : activeReport.system === 'sim' ? '← Semanas' : ['srag','sinan'].includes(activeReport.system) ? '← Semanas epidemiológicas' : '← Estabelecimentos';
     resultPanel.hidden = false;
     empty.hidden = true;
     updateTableDefaultControls();
@@ -1929,7 +1929,7 @@
 
   async function tabulateReportMonth(view, cnes, aih, filters, year, month, monthIndex, monthCount) {
     if (activeReport.remoteSource) {
-      setLoader(true, `Lendo arquivo oficial do ${activeReport.systemCode} · ${monthIndex + 1} de ${monthCount}`, `${monthNames[month - 1]} de ${year} · ${activeReport.system === 'sim' ? 'óbitos ocorridos em Belém' : activeReport.system === 'sinasc' ? 'nascidos vivos por maternidade' : activeReport.system === 'srag' ? 'casos por município de residência' : 'unidades notificadoras de Belém'}.`, null, true);
+      setLoader(true, `Lendo arquivo oficial do ${activeReport.systemCode} · ${monthIndex + 1} de ${monthCount}`, `${monthNames[month - 1]} de ${year} · ${activeReport.system === 'sim' ? 'óbitos ocorridos em Belém' : activeReport.system === 'sinasc' ? 'nascidos vivos por estabelecimento' : activeReport.system === 'srag' ? 'casos por município de residência' : 'unidades notificadoras de Belém'}.`, null, true);
       let job = await api({ action:'tabulate_start', predefinedReport:activeReport.id, view, uf:filters.uf, year, month, municipalityCode:filters.municipalityCode, municipalityName:filters.municipalityName, ...(activeReport.system === 'sinasc' ? { sinascFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { establishmentCode:cnes } : {}) } : {}), ...(activeReport.system === 'sinan' ? { cnesManagementCode:filters.cnesManagementCode, cnesNatureGroupCode:filters.cnesNatureGroupCode, ...(view === 'detail' ? { weekIndex:Number(cnes) } : {}) } : ['sim','srag'].includes(activeReport.system) && view === 'detail' ? { weekIndex:Number(cnes) } : {}) });
       if (job.done && job.result) return stampMonthlyResult(job.result, year, month);
       if (!job.job_id) throw new Error(`O TabulaSUS não retornou uma consulta válida ao ${activeReport.systemCode}.`);

@@ -76,8 +76,8 @@
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Mortalidade</div><h3>Óbitos por semana</h3><p>Consulte os óbitos registrados e detalhe a causa básica, o capítulo CID-10 e a residência.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SIM · CID-10</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
-          <article class="predefined-card" data-category="materno-infantil" data-report="sinasc-maternidades" role="button" tabindex="0" aria-label="Abrir tabulação: Perfil materno-infantil por maternidade">
-            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Saúde materno-infantil</div><h3>Perfil por maternidade</h3><p>Nascidos vivos, pré-natal, partos, prematuridade e baixo peso em uma tabela por estabelecimento.</p></div>
+          <article class="predefined-card" data-category="materno-infantil" data-report="sinasc-maternidades" role="button" tabindex="0" aria-label="Abrir tabulação: Nascimentos e perfil materno-infantil">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Saúde materno-infantil</div><h3>Nascimentos e perfil materno-infantil</h3><p>Nascidos vivos, pré-natal, partos, prematuridade e baixo peso em uma tabela por estabelecimento.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SINASC · CNES</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
         </div>
@@ -125,6 +125,6 @@
       <div class="setup-dialog-footer"><div class="setup-default-actions"><button type="button" id="saveSetupDefault">Salvar filtros como padrão</button><button type="button" id="clearSetupDefault" hidden>Remover padrão</button><span id="setupDefaultStatus" role="status"></span></div><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=67" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=68" defer></script>
 </body>
 </html>

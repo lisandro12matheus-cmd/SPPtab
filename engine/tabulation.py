@@ -648,7 +648,7 @@ def start_tabulation(payload: dict[str,Any]):
             if year<2010 or payload.get("view") not in {"full","detail"}:
                 raise ValueError("Selecione um ano e uma visão válidos para o SINASC.")
             if payload["view"]=="detail" and not re.fullmatch(r"\d{7}",str(payload.get("establishmentCode") or "")):
-                raise ValueError("Selecione uma maternidade válida para detalhar.")
+                raise ValueError("Selecione um estabelecimento válido para detalhar.")
         return _start_tabulation_locked(payload,[])
     raw_sources=payload.get("sources")
     has_multiple=isinstance(raw_sources,list) and len(raw_sources)>0
@@ -2041,7 +2041,7 @@ def predefined_sinasc_maternity(payload: dict[str,Any], progress=None):
         selected=list(filtered.values())
     else:
         selected=[dict(row) for row in data["groups"] if row["month"]==month and row["occurrenceCode"]==municipality]
-    if progress: progress(93,"Identificando as maternidades no CNES")
+    if progress: progress(93,"Identificando os estabelecimentos no CNES")
     names,lookup_failures=_sinasc_maternity_names([row["cnes"] for row in selected])
     for row in selected:
         row["name"]=names.get(row["cnes"]) or ("Estabelecimento sem CNES informado" if row["cnes"]=="0000000" else f"CNES {row['cnes']}")
@@ -2049,16 +2049,16 @@ def predefined_sinasc_maternity(payload: dict[str,Any], progress=None):
             row[result]=round(100*row[numerator]/row[denominator],1) if row[denominator] else None
     selected.sort(key=lambda row:(-row["births"],row["name"].casefold()))
     totals={key:sum(row[key] for row in selected) for key in SINASC_METRIC_KEYS}
-    columns=[{"id":"maternity","label":"MATERNIDADE · ESTABELECIMENTO","kind":"primary","primaryField":"name","secondaryField":"cnes","secondaryPrefix":"CNES ","filterFields":["name","cnes"],"sortField":"name","type":"text","sticky":True}]
+    columns=[{"id":"maternity","label":"ESTABELECIMENTO DO NASCIMENTO","kind":"primary","primaryField":"name","secondaryField":"cnes","secondaryPrefix":"CNES ","filterFields":["name","cnes"],"sortField":"name","type":"text","sticky":True}]
     for field,label in (("births","NASCIDOS VIVOS"),("cesarean","NASCIDOS POR CESÁREA"),("cesareanPct","CESÁREA %"),("vaginal","NASCIDOS POR PARTO VAGINAL"),("prenatal7","PRÉ-NATAL · 7+ CONSULTAS"),("prenatal7Pct","PRÉ-NATAL 7+ %"),("prenatal0to3","PRÉ-NATAL · 0 A 3"),("earlyPrenatal","INÍCIO ATÉ O 3º MÊS"),("premature","PREMATUROS"),("prematurePct","PREMATURIDADE %"),("lowWeight","BAIXO PESO"),("lowWeightPct","BAIXO PESO %"),("teenMothers","NASCIDOS DE MÃES < 20"),("mothers35","NASCIDOS DE MÃES ≥ 35"),("lowApgar5","APGAR 5º MIN < 7"),("anomalies","ANOMALIAS REGISTRADAS"),("localResidence","RESIDENTES DO MUNICÍPIO"),("outsideResidence","RESIDENTES DE FORA")):
         columns.append({"id":field,"label":label,"field":field,"metricId":field if not field.endswith("Pct") else None,"type":"percent" if field.endswith("Pct") else "number","decimals":1 if field.endswith("Pct") else 0})
     columns.append({"id":"detail","label":"DETALHAMENTO","kind":"action","actionLabel":"Detalhar →"})
     metrics=[{"id":column["metricId"],"label":column["label"],"decimals":0} for column in columns if column.get("metricId")]
     municipality_name=_report_label(payload.get("municipalityName") or "") or f"Município {municipality}"
     notes=[f"Fonte: SINASC, CSV anual oficial {year}, atualizado em {data['updatedAt']}. Município de ocorrência do nascimento: {municipality_name} ({municipality}).",
-        "Cada registro representa um nascido vivo, não um parto. Incluídos nascimentos em hospital ou outro estabelecimento de saúde; nascimentos domiciliares e outros locais ficam fora deste relatório por maternidade.",
+        "Cada registro representa um nascido vivo, não um parto. Incluídos nascimentos em hospital ou outro estabelecimento de saúde; nascimentos domiciliares e outros locais ficam fora deste relatório por estabelecimento.",
         "Percentuais usam somente registros com a informação correspondente preenchida: tipo de parto, consultas de pré-natal, idade gestacional ou peso. Pré-natal de 7+ consultas não mede sozinho a qualidade do cuidado. Quando o número exato de consultas não está disponível, utiliza-se a faixa registrada no SINASC.",
-        "Prematuridade: menos de 37 semanas. Baixo peso: menos de 2.500 g. Baixo Apgar: menos de 7 no 5º minuto. Nome da maternidade consultado no CNES atual; os demais dados são do SINASC no ano selecionado.",
+        "Prematuridade: menos de 37 semanas. Baixo peso: menos de 2.500 g. Baixo Apgar: menos de 7 no 5º minuto. Nome do estabelecimento consultado no CNES atual; os demais dados são do SINASC no ano selecionado.",
         *( [f"{totals['unknownResidence']} registro(s) não tinham município de residência identificável e não entram nas duas colunas de residência."] if totals["unknownResidence"] else [] ),
         *( [f"O CNES não respondeu para {lookup_failures} estabelecimento(s); seus códigos e indicadores foram preservados."] if lookup_failures else [] ),
         *( ["Este arquivo é uma prévia e os dados ainda podem ser revistos pela fonte oficial."] if year>=date.today().year-1 else [] )]
@@ -2070,13 +2070,13 @@ def predefined_sinasc_maternity(payload: dict[str,Any], progress=None):
 def predefined_sinasc_maternity_detail(payload: dict[str,Any], progress=None):
     source=predefined_sinasc_maternity({**payload,"view":"full"},progress)
     cnes=re.sub(r"\D","",str(payload.get("establishmentCode") or ""))
-    if not re.fullmatch(r"\d{7}",cnes): raise ValueError("Selecione uma maternidade válida para detalhar.")
+    if not re.fullmatch(r"\d{7}",cnes): raise ValueError("Selecione um estabelecimento válido para detalhar.")
     selected=next((row for row in source["rows"] if row["cnes"]==cnes),None)
-    if not selected: raise ValueError("Esta maternidade não tem nascimentos no período selecionado.")
+    if not selected: raise ValueError("Este estabelecimento não tem nascimentos no período selecionado.")
     year=source["year"]; month=source["month"]; municipality=source["municipalityCode"]
     target=cache_target("sinasc_maternity",{"version":5,"year":year,"uf":source["uf"]}).with_suffix(".sqlite3")
     selected_filters=_sinasc_selected_filters(payload)
-    if progress: progress(94,"Preparando os registros da maternidade")
+    if progress: progress(94,"Preparando os registros do estabelecimento")
     with sqlite3.connect(str(target)) as db:
         db.row_factory=sqlite3.Row
         records=[record for record in db.execute("SELECT * FROM births WHERE month=? AND occurrence=? AND cnes=? ORDER BY birth_date,rowid",(month,municipality,cnes)) if _sinasc_matches_filters(record,selected_filters)]
