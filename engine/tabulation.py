@@ -1821,7 +1821,7 @@ def _sinasc_archive(year: int, progress=None):
         return archive,updated_at
 
 def _sinasc_source(year: int, uf: str, progress=None):
-    target=cache_target("sinasc_maternity",{"version":3,"year":year,"uf":uf})
+    target=cache_target("sinasc_maternity",{"version":5,"year":year,"uf":uf})
     detail_target=target.with_suffix(".sqlite3")
     with interprocess_lock(target.with_suffix(".lock")):
         cached=cache_read(target)
@@ -1836,7 +1836,7 @@ def _sinasc_source(year: int, uf: str, progress=None):
         detail_db=None
         try:
             detail_db=sqlite3.connect(str(detail_temp))
-            detail_db.execute("CREATE TABLE births (month INTEGER, occurrence TEXT, cnes TEXT, birth_date TEXT, residence TEXT, sex TEXT, maternal_age TEXT, delivery TEXT, prenatal TEXT, prenatal_start TEXT, gestation TEXT, weight TEXT, apgar5 TEXT, anomaly TEXT)")
+            detail_db.execute("CREATE TABLE births (month INTEGER, occurrence TEXT, cnes TEXT, birth_date TEXT, residence TEXT, sex TEXT, maternal_age TEXT, delivery TEXT, prenatal TEXT, prenatal_start TEXT, gestation TEXT, weight TEXT, apgar1 TEXT, apgar5 TEXT, anomaly TEXT, anomaly_code TEXT, education TEXT, race TEXT, pregnancy TEXT, metrics TEXT)")
             with zipfile.ZipFile(archive) as bundle:
                 member=next(item for item in bundle.infolist() if item.filename.replace("\\","/").rsplit("/",1)[-1].casefold()==f"SINASC_{year}.csv".casefold())
                 with bundle.open(member) as binary, io.TextIOWrapper(binary,encoding="latin1",newline="") as stream:
@@ -1862,6 +1862,7 @@ def _sinasc_source(year: int, uf: str, progress=None):
                         if not re.fullmatch(r"\d{7}",code): code="0000000"; unassigned+=1
                         key=(birth_date.month,occurrence,code)
                         item=groups.setdefault(key,{"month":birth_date.month,"occurrenceCode":occurrence,"cnes":code,**{metric:0 for metric in SINASC_METRIC_KEYS}})
+                        previous={metric:item[metric] for metric in SINASC_METRIC_KEYS}
                         item["births"]+=1; included+=1
                         delivery=field(row,"PARTO")
                         if delivery in {"1","2"}:
@@ -1902,8 +1903,10 @@ def _sinasc_source(year: int, uf: str, progress=None):
                             if int(apgar)<7: item["lowApgar5"]+=1
                         if field(row,"IDANOMAL")=="1": item["anomalies"]+=1
                         residence=re.sub(r"\D","",field(row,"CODMUNRES"))[:6]
-                        item["localResidence" if residence==occurrence else "outsideResidence" if re.fullmatch(r"\d{6}",residence) else "unknownResidence"]+=1
-                        detail_db.execute("INSERT INTO births VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",(birth_date.month,occurrence,code,birth_date.isoformat(),residence,field(row,"SEXO"),field(row,"IDADEMAE"),delivery,prenatal if count is not None else f"faixa:{category}",prenatal_month,weeks if gestation is not None else f"faixa:{field(row,'GESTACAO')}",weight,field(row,"APGAR5"),field(row,"IDANOMAL")))
+                        residence_known=bool(re.fullmatch(r"\d{6}",residence) and residence[:2] in PREDEFINED_UF_CODES.values())
+                        item["localResidence" if residence==occurrence else "outsideResidence" if residence_known else "unknownResidence"]+=1
+                        metrics=json.dumps({metric:item[metric]-previous[metric] for metric in SINASC_METRIC_KEYS if item[metric]!=previous[metric]},separators=(",",":"))
+                        detail_db.execute("INSERT INTO births VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",(birth_date.month,occurrence,code,birth_date.isoformat(),residence,field(row,"SEXO"),field(row,"IDADEMAE"),delivery,prenatal if count is not None else f"faixa:{category}",prenatal_month,weeks if gestation is not None else f"faixa:{field(row,'GESTACAO')}",weight,field(row,"APGAR1"),field(row,"APGAR5"),field(row,"IDANOMAL"),field(row,"CODANOMAL")[:40],field(row,"ESCMAE2010"),field(row,"RACACORMAE"),field(row,"GRAVIDEZ"),metrics))
             detail_db.execute("CREATE INDEX births_scope ON births(month,occurrence,cnes)")
             detail_db.commit(); detail_db.close(); detail_db=None
             os.replace(detail_temp,detail_target)
@@ -1913,6 +1916,80 @@ def _sinasc_source(year: int, uf: str, progress=None):
         data={"fetched_at":time.time(),"updatedAt":updated_at,"groups":list(groups.values()),"scanned":scanned,"included":included,"unassigned":unassigned}
         cache_write(target,data,max_bytes=100_000_000,keep=8)
         return data
+
+SINASC_FILTER_VALUES={
+    "residenceOrigin":{"local","outside","unknown"},
+    "delivery":{"1","2","unknown"},
+    "prenatalBand":{"0","1-3","4-6","7+","unknown"},
+    "prenatalStart":{"1-3","4-6","7-9","unknown"},
+    "gestation":{"under22","22-27","28-31","32-36","37-41","42+","unknown"},
+    "weight":{"under1500","1500-2499","2500+","unknown"},
+    "maternalAge":{"under20","20-34","35+","unknown"},
+    "maternalEducation":{"0","1","2","3","4","5","unknown"},
+    "maternalRace":{"1","2","3","4","5","unknown"},
+    "apgar1":{"0-3","4-6","7-10","unknown"},
+    "apgar5":{"0-3","4-6","7-10","unknown"},
+    "anomaly":{"1","2","unknown"}
+}
+
+def _sinasc_selected_filters(payload):
+    submitted=payload.get("sinascFilters") or {}
+    if not isinstance(submitted,dict) or set(submitted)-set(SINASC_FILTER_VALUES)-{"residenceMunicipality"}:
+        raise ValueError("Os filtros do SINASC são inválidos.")
+    selected={}
+    for key,values in submitted.items():
+        if not isinstance(values,list) or len(values)>30 or any(not isinstance(value,str) for value in values):
+            raise ValueError("Os filtros do SINASC são inválidos.")
+        allowed=SINASC_FILTER_VALUES.get(key)
+        distinct=sorted(set(values))
+        if any(not (re.fullmatch(r"\d{6}",value) if key=="residenceMunicipality" else value in allowed) for value in distinct):
+            raise ValueError("Uma categoria selecionada não existe no SINASC.")
+        if distinct: selected[key]=set(distinct)
+    return selected
+
+def _sinasc_birth_categories(birth):
+    def number(key,minimum,maximum):
+        value=str(birth[key] or "")
+        return int(value) if value.isdigit() and minimum<=int(value)<=maximum else None
+    residence=str(birth["residence"] or "")
+    occurrence=str(birth["occurrence"] or "")
+    prenatal=str(birth["prenatal"] or "")
+    if prenatal.startswith("faixa:"):
+        prenatal_band={"1":"0","2":"1-3","3":"4-6","4":"7+"}.get(prenatal[6:],"unknown")
+    else:
+        count=number("prenatal",0,60)
+        prenatal_band="unknown" if count is None else "0" if count==0 else "1-3" if count<=3 else "4-6" if count<=6 else "7+"
+    start=number("prenatal_start",1,9)
+    gestation=str(birth["gestation"] or "")
+    if gestation.startswith("faixa:"):
+        gestation_band={"1":"under22","2":"22-27","3":"28-31","4":"32-36","5":"37-41","6":"42+"}.get(gestation[6:],"unknown")
+    else:
+        weeks=number("gestation",18,45)
+        gestation_band="unknown" if weeks is None else "under22" if weeks<22 else "22-27" if weeks<28 else "28-31" if weeks<32 else "32-36" if weeks<37 else "37-41" if weeks<42 else "42+"
+    weight=number("weight",100,8000)
+    age=number("maternal_age",10,60)
+    def apgar_band(key):
+        value=number(key,0,10)
+        return "unknown" if value is None else "0-3" if value<=3 else "4-6" if value<=6 else "7-10"
+    return {
+        "residenceOrigin":"local" if residence==occurrence else "outside" if re.fullmatch(r"\d{6}",residence) and residence[:2] in PREDEFINED_UF_CODES.values() else "unknown",
+        "residenceMunicipality":residence,
+        "delivery":birth["delivery"] if birth["delivery"] in {"1","2"} else "unknown",
+        "prenatalBand":prenatal_band,
+        "prenatalStart":"unknown" if start is None else "1-3" if start<=3 else "4-6" if start<=6 else "7-9",
+        "gestation":gestation_band,
+        "weight":"unknown" if weight is None else "under1500" if weight<1500 else "1500-2499" if weight<2500 else "2500+",
+        "maternalAge":"unknown" if age is None else "under20" if age<20 else "20-34" if age<35 else "35+",
+        "maternalEducation":birth["education"] if birth["education"] in {"0","1","2","3","4","5"} else "unknown",
+        "maternalRace":birth["race"] if birth["race"] in {"1","2","3","4","5"} else "unknown",
+        "apgar1":apgar_band("apgar1"),"apgar5":apgar_band("apgar5"),
+        "anomaly":birth["anomaly"] if birth["anomaly"] in {"1","2"} else "unknown"
+    }
+
+def _sinasc_matches_filters(birth,selected):
+    if not selected: return True
+    categories=_sinasc_birth_categories(birth)
+    return all(categories[key] in values for key,values in selected.items())
 
 def _sinasc_maternity_names(codes: list[str]):
     valid=sorted({code for code in codes if re.fullmatch(r"\d{7}",code) and code!="0000000"})
@@ -1949,8 +2026,21 @@ def predefined_sinasc_maternity(payload: dict[str,Any], progress=None):
     if not isinstance(year,int) or not 2010<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12: raise ValueError("Selecione um período válido para o SINASC, a partir de 2010.")
     if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]: raise ValueError("Selecione o município onde ocorreram os nascimentos.")
     if str(payload.get("view") or "full")!="full": raise ValueError("Selecione uma visão válida do relatório do SINASC.")
+    selected_filters=_sinasc_selected_filters(payload)
     data=_sinasc_source(year,uf,progress)
-    selected=[dict(row) for row in data["groups"] if row["month"]==month and row["occurrenceCode"]==municipality]
+    if selected_filters:
+        filtered={}
+        detail_target=cache_target("sinasc_maternity",{"version":5,"year":year,"uf":uf}).with_suffix(".sqlite3")
+        with sqlite3.connect(str(detail_target)) as db:
+            db.row_factory=sqlite3.Row
+            for birth in db.execute("SELECT * FROM births WHERE month=? AND occurrence=?",(month,municipality)):
+                if not _sinasc_matches_filters(birth,selected_filters): continue
+                code=birth["cnes"]
+                item=filtered.setdefault(code,{"month":month,"occurrenceCode":municipality,"cnes":code,**{metric:0 for metric in SINASC_METRIC_KEYS}})
+                for metric,increment in json.loads(birth["metrics"]).items(): item[metric]+=increment
+        selected=list(filtered.values())
+    else:
+        selected=[dict(row) for row in data["groups"] if row["month"]==month and row["occurrenceCode"]==municipality]
     if progress: progress(93,"Identificando as maternidades no CNES")
     names,lookup_failures=_sinasc_maternity_names([row["cnes"] for row in selected])
     for row in selected:
@@ -1972,8 +2062,10 @@ def predefined_sinasc_maternity(payload: dict[str,Any], progress=None):
         *( [f"{totals['unknownResidence']} registro(s) não tinham município de residência identificável e não entram nas duas colunas de residência."] if totals["unknownResidence"] else [] ),
         *( [f"O CNES não respondeu para {lookup_failures} estabelecimento(s); seus códigos e indicadores foram preservados."] if lookup_failures else [] ),
         *( ["Este arquivo é uma prévia e os dados ainda podem ser revistos pela fonte oficial."] if year>=date.today().year-1 else [] )]
+    if selected_filters: notes.insert(1,f"{len(selected_filters)} filtro(s) opcional(is) aplicado(s) aos registros antes de calcular os totais.")
+    empty_message="Nenhum nascimento corresponde aos filtros selecionados neste período. Ajuste ou remova um filtro para ampliar o recorte." if selected_filters else f"O arquivo oficial do SINASC de {year} ainda não apresenta nascimentos em estabelecimentos de {municipality_name} em {month:02d}/{year}. Isso pode refletir atraso de atualização; não confirma ausência de nascimentos."
     if progress: progress(98,"Concluindo o perfil materno-infantil")
-    return {"ok":True,"report":"sinasc-maternidades","view":"full","flatTable":True,"file":"SINASC · CSV oficial","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality,"updatedAt":data["updatedAt"],"rows":selected,"records":totals["births"],"columns":columns,"metrics":metrics,"kpis":[{"label":"NASCIDOS VIVOS","value":{"value":totals["births"]}},{"label":"UNIDADES COM REGISTROS","value":{"value":len(selected)}},{"label":"NASCIDOS POR CESÁREA · TIPO INFORMADO","value":{"value":round(100*totals["cesarean"]/totals["deliveryKnown"],1),"decimals":1,"suffix":"%"} if totals["deliveryKnown"] else {"text":"—"}},{"label":"BAIXO PESO · PESOS INFORMADOS","value":{"value":round(100*totals["lowWeight"]/totals["weightKnown"],1),"decimals":1,"suffix":"%"} if totals["weightKnown"] else {"text":"—"}}],"notes":notes,"emptyStateMessage":f"O arquivo oficial do SINASC de {year} ainda não apresenta nascimentos em estabelecimentos de {municipality_name} em {month:02d}/{year}. Isso pode refletir atraso de atualização; não confirma ausência de nascimentos.","cachedAt":time.time()}
+    return {"ok":True,"report":"sinasc-maternidades","view":"full","flatTable":True,"file":"SINASC · CSV oficial","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality,"updatedAt":data["updatedAt"],"rows":selected,"records":totals["births"],"columns":columns,"metrics":metrics,"kpis":[{"label":"NASCIDOS VIVOS","value":{"value":totals["births"]}},{"label":"UNIDADES COM REGISTROS","value":{"value":len(selected)}},{"label":"NASCIDOS POR CESÁREA · TIPO INFORMADO","value":{"value":round(100*totals["cesarean"]/totals["deliveryKnown"],1),"decimals":1,"suffix":"%"} if totals["deliveryKnown"] else {"text":"—"}},{"label":"BAIXO PESO · PESOS INFORMADOS","value":{"value":round(100*totals["lowWeight"]/totals["weightKnown"],1),"decimals":1,"suffix":"%"} if totals["weightKnown"] else {"text":"—"}}],"notes":notes,"emptyStateMessage":empty_message,"cachedAt":time.time()}
 
 def predefined_sinasc_maternity_detail(payload: dict[str,Any], progress=None):
     source=predefined_sinasc_maternity({**payload,"view":"full"},progress)
@@ -1982,32 +2074,46 @@ def predefined_sinasc_maternity_detail(payload: dict[str,Any], progress=None):
     selected=next((row for row in source["rows"] if row["cnes"]==cnes),None)
     if not selected: raise ValueError("Esta maternidade não tem nascimentos no período selecionado.")
     year=source["year"]; month=source["month"]; municipality=source["municipalityCode"]
-    target=cache_target("sinasc_maternity",{"version":3,"year":year,"uf":source["uf"]}).with_suffix(".sqlite3")
+    target=cache_target("sinasc_maternity",{"version":5,"year":year,"uf":source["uf"]}).with_suffix(".sqlite3")
+    selected_filters=_sinasc_selected_filters(payload)
     if progress: progress(94,"Preparando os registros da maternidade")
     with sqlite3.connect(str(target)) as db:
-        records=db.execute("SELECT birth_date,residence,sex,maternal_age,delivery,prenatal,prenatal_start,gestation,weight,apgar5,anomaly FROM births WHERE month=? AND occurrence=? AND cnes=? ORDER BY birth_date,rowid",(month,municipality,cnes)).fetchall()
+        db.row_factory=sqlite3.Row
+        records=[record for record in db.execute("SELECT * FROM births WHERE month=? AND occurrence=? AND cnes=? ORDER BY birth_date,rowid",(month,municipality,cnes)) if _sinasc_matches_filters(record,selected_filters)]
     try: residence_names=_sinan_ibge_municipalities()
     except (OSError,ValueError,TimeoutError,urllib.error.URLError): residence_names={}
     gestation_bands={"1":"Menos de 22","2":"22 a 27","3":"28 a 31","4":"32 a 36","5":"37 a 41","6":"42 ou mais"}
     prenatal_bands={"1":"Nenhuma","2":"1 a 3","3":"4 a 6","4":"7 ou mais"}
+    education_labels={"0":"Sem escolaridade","1":"Fundamental I","2":"Fundamental II","3":"Ensino médio","4":"Superior incompleto","5":"Superior completo"}
+    race_labels={"1":"Branca","2":"Preta","3":"Amarela","4":"Parda","5":"Indígena"}
+    pregnancy_labels={"1":"Única","2":"Dupla","3":"Tripla ou mais"}
     rows=[]
-    for index,(birth_date,residence,sex,age,delivery,prenatal,start,gestation,weight,apgar,anomaly) in enumerate(records,1):
-        residence_valid=bool(re.fullmatch(r"\d{6}",residence or ""))
+    for index,birth in enumerate(records,1):
+        birth_date=birth["birth_date"]; residence=birth["residence"]; sex=birth["sex"]; age=birth["maternal_age"]; delivery=birth["delivery"]
+        prenatal=birth["prenatal"]; start=birth["prenatal_start"]; gestation=birth["gestation"]; weight=birth["weight"]
+        apgar1=birth["apgar1"]; apgar5=birth["apgar5"]; anomaly=birth["anomaly"]
+        residence_valid=bool(re.fullmatch(r"\d{6}",residence or "") and residence[:2] in PREDEFINED_UF_CODES.values())
         gestation_label=gestation_bands.get(gestation[6:],"Não informado")+" semanas (faixa)" if gestation.startswith("faixa:") else f"{gestation} semanas" if gestation.isdigit() else "Não informado"
         prenatal_label=prenatal_bands.get(prenatal[6:],"Não informado")+" (faixa)" if prenatal.startswith("faixa:") else str(int(prenatal)) if prenatal.isdigit() else "Não informado"
-        rows.append({"sequence":index,"birthDate":date.fromisoformat(birth_date).strftime("%d/%m/%Y"),"birthDateSort":birth_date,"residenceCode":residence if residence_valid else "","residenceName":residence_names.get(residence,f"Município {residence}") if residence_valid else "Não informado","sex":{ "1":"Masculino","2":"Feminino"}.get(sex,"Não informado"),"maternalAge":int(age) if age.isdigit() and 10<=int(age)<=60 else None,"delivery":{ "1":"Vaginal","2":"Cesárea"}.get(delivery,"Não informado"),"prenatal":prenatal_label,"prenatalStart":f"{int(start)}º mês" if start.isdigit() and 1<=int(start)<=9 else "Não informado","gestation":gestation_label,"weight":int(weight) if weight.isdigit() and 100<=int(weight)<=8000 else None,"apgar5":int(apgar) if apgar.isdigit() and 0<=int(apgar)<=10 else None,"anomaly":{"1":"Sim","2":"Não"}.get(anomaly,"Não informado")})
+        birth_metrics=json.loads(birth["metrics"])
+        rows.append({"sequence":index,"birthDate":date.fromisoformat(birth_date).strftime("%d/%m/%Y"),"birthDateSort":birth_date,"residenceCode":residence if residence_valid else "","residenceName":residence_names.get(residence,f"Município {residence}") if residence_valid else "Não informado","sex":{"1":"Masculino","2":"Feminino"}.get(sex,"Não informado"),"maternalAge":int(age) if age.isdigit() and 10<=int(age)<=60 else None,"maternalEducation":education_labels.get(birth["education"],"Não informado"),"maternalRace":race_labels.get(birth["race"],"Não informado"),"pregnancy":pregnancy_labels.get(birth["pregnancy"],"Não informado"),"delivery":{"1":"Vaginal","2":"Cesárea"}.get(delivery,"Não informado"),"prenatal":prenatal_label,"prenatalStart":f"{int(start)}º mês" if start.isdigit() and 1<=int(start)<=9 else "Não informado","gestation":gestation_label,"weight":int(weight) if weight.isdigit() and 100<=int(weight)<=8000 else None,"apgar1":int(apgar1) if apgar1.isdigit() and 0<=int(apgar1)<=10 else None,"apgar5":int(apgar5) if apgar5.isdigit() and 0<=int(apgar5)<=10 else None,"anomaly":{"1":"Sim","2":"Não"}.get(anomaly,"Não informado"),"anomalyCode":birth["anomaly_code"] or "Não informado","isPremature":birth_metrics.get("premature",0),"isLowWeight":birth_metrics.get("lowWeight",0)})
     columns=[{"id":"sequence","label":"REGISTRO","field":"sequence","type":"number","decimals":0,"sticky":True},
         {"id":"birthDate","label":"DATA DO NASCIMENTO","field":"birthDate","sortField":"birthDateSort","type":"text"},
         {"id":"residence","label":"MUNICÍPIO DE RESIDÊNCIA","primaryField":"residenceName","secondaryField":"residenceCode","type":"text","filterFields":["residenceName","residenceCode"]},
         {"id":"sex","label":"SEXO DO NASCIDO VIVO","field":"sex","type":"text"},
         {"id":"maternalAge","label":"IDADE DA MÃE · ANOS","field":"maternalAge","type":"number","decimals":0},
+        {"id":"maternalEducation","label":"ESCOLARIDADE DA MÃE","field":"maternalEducation","type":"text"},
+        {"id":"maternalRace","label":"RAÇA/COR DA MÃE","field":"maternalRace","type":"text"},
+        {"id":"pregnancy","label":"TIPO DE GESTAÇÃO","field":"pregnancy","type":"text"},
         {"id":"delivery","label":"TIPO DE PARTO","field":"delivery","type":"text"},
         {"id":"prenatal","label":"CONSULTAS DE PRÉ-NATAL","field":"prenatal","type":"text"},
         {"id":"prenatalStart","label":"INÍCIO DO PRÉ-NATAL","field":"prenatalStart","type":"text"},
         {"id":"gestation","label":"IDADE GESTACIONAL","field":"gestation","type":"text"},
         {"id":"weight","label":"PESO AO NASCER · G","field":"weight","type":"number","decimals":0},
+        {"id":"apgar1","label":"APGAR · 1º MINUTO","field":"apgar1","type":"number","decimals":0},
         {"id":"apgar5","label":"APGAR · 5º MINUTO","field":"apgar5","type":"number","decimals":0},
-        {"id":"anomaly","label":"ANOMALIA REGISTRADA","field":"anomaly","type":"text"}]
+        {"id":"anomaly","label":"ANOMALIA REGISTRADA","field":"anomaly","type":"text"},
+        {"id":"anomalyCode","label":"CÓDIGO DA ANOMALIA · CID-10","field":"anomalyCode","type":"text"}]
     result={**source,"view":"detail","rows":rows,"records":len(rows),"columns":columns,"metrics":[],"establishmentCode":cnes,"establishmentName":selected["name"],"kpis":[{"label":"NASCIDOS VIVOS","value":{"value":len(rows)}},{"label":"NASCIDOS POR CESÁREA","value":{"value":sum(row["delivery"]=="Cesárea" for row in rows)}},{"label":"PREMATUROS","value":{"value":selected["premature"]}},{"label":"BAIXO PESO","value":{"value":selected["lowWeight"]}}],"notes":["Cada linha representa um nascido vivo no arquivo público do SINASC. Não são exibidos nomes, CPF, CNS ou outros identificadores pessoais.","Campos ausentes ou ignorados aparecem como não informados. Quando apenas a faixa de pré-natal ou gestação está disponível, ela é identificada na célula.",source["notes"][0],*(["Este arquivo é uma prévia e os dados ainda podem ser revistos pela fonte oficial."] if year>=date.today().year-1 else [])]}
     if progress: progress(98,"Concluindo o detalhamento dos nascimentos")
     return result

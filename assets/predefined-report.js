@@ -92,6 +92,21 @@
     cnesManagement:{ ...sihSpFilterDefinitions.cnesManagement, sourceLabel:'Cadastro atual do CNES' },
     cnesNatureGroup:{ ...sihSpFilterDefinitions.cnesNatureGroup, sourceLabel:'Cadastro atual do CNES' }
   };
+  const sinascFilterDefinitions = {
+    residenceOrigin:{ label:'Origem da residência', field:'residenceOrigin', nameField:'residenceOriginName', queryKey:'origem_residencia', sourceLabel:'SINASC · município de residência', options:[['local','Mesmo município'],['outside','Outro município'],['unknown','Não informado']] },
+    residenceMunicipality:{ label:'Município de residência na UF', field:'residenceMunicipality', nameField:'residenceMunicipalityName', queryKey:'municipio_residencia', sourceLabel:'SINASC · município de residência', searchable:true },
+    delivery:{ label:'Tipo de parto', field:'deliveryType', nameField:'deliveryTypeName', queryKey:'parto', sourceLabel:'SINASC · PARTO', options:[['1','Vaginal'],['2','Cesárea'],['unknown','Não informado']] },
+    prenatalBand:{ label:'Consultas de pré-natal', field:'prenatalBand', nameField:'prenatalBandName', queryKey:'prenatal', sourceLabel:'SINASC · CONSPRENAT / CONSULTAS', options:[['0','Nenhuma'],['1-3','1 a 3'],['4-6','4 a 6'],['7+','7 ou mais'],['unknown','Não informado']] },
+    prenatalStart:{ label:'Início do pré-natal', field:'prenatalStartBand', nameField:'prenatalStartBandName', queryKey:'inicio_prenatal', sourceLabel:'SINASC · MESPRENAT', options:[['1-3','1º ao 3º mês'],['4-6','4º ao 6º mês'],['7-9','7º ao 9º mês'],['unknown','Não informado']] },
+    gestation:{ label:'Semanas de gestação', field:'gestationBand', nameField:'gestationBandName', queryKey:'gestacao', sourceLabel:'SINASC · SEMAGESTAC / GESTACAO', options:[['under22','Menos de 22 semanas'],['22-27','22 a 27'],['28-31','28 a 31'],['32-36','32 a 36'],['37-41','37 a 41'],['42+','42 ou mais'],['unknown','Não informado']] },
+    weight:{ label:'Peso ao nascer', field:'weightBand', nameField:'weightBandName', queryKey:'peso', sourceLabel:'SINASC · PESO', options:[['under1500','Menos de 1.500 g'],['1500-2499','1.500 a 2.499 g'],['2500+','2.500 g ou mais'],['unknown','Não informado']] },
+    maternalAge:{ label:'Idade da mãe', field:'maternalAgeBand', nameField:'maternalAgeBandName', queryKey:'idade_mae', sourceLabel:'SINASC · IDADEMAE', options:[['under20','Menos de 20 anos'],['20-34','20 a 34 anos'],['35+','35 anos ou mais'],['unknown','Não informado']] },
+    maternalEducation:{ label:'Escolaridade da mãe', field:'maternalEducation', nameField:'maternalEducationName', queryKey:'escolaridade_mae', sourceLabel:'SINASC · ESCMAE2010', options:[['0','Sem escolaridade'],['1','Fundamental I'],['2','Fundamental II'],['3','Ensino médio'],['4','Superior incompleto'],['5','Superior completo'],['unknown','Não informado']] },
+    maternalRace:{ label:'Raça/cor da mãe', field:'maternalRace', nameField:'maternalRaceName', queryKey:'raca_mae', sourceLabel:'SINASC · RACACORMAE', options:[['1','Branca'],['2','Preta'],['3','Amarela'],['4','Parda'],['5','Indígena'],['unknown','Não informado']] },
+    apgar1:{ label:'Apgar no 1º minuto', field:'apgar1Band', nameField:'apgar1BandName', queryKey:'apgar1', sourceLabel:'SINASC · APGAR1', options:[['0-3','0 a 3'],['4-6','4 a 6'],['7-10','7 a 10'],['unknown','Não informado']] },
+    apgar5:{ label:'Apgar no 5º minuto', field:'apgar5Band', nameField:'apgar5BandName', queryKey:'apgar5', sourceLabel:'SINASC · APGAR5', options:[['0-3','0 a 3'],['4-6','4 a 6'],['7-10','7 a 10'],['unknown','Não informado']] },
+    anomaly:{ label:'Anomalia congênita registrada', field:'anomalyStatus', nameField:'anomalyStatusName', queryKey:'anomalia', sourceLabel:'SINASC · IDANOMAL', options:[['1','Sim'],['2','Não'],['unknown','Não informado']] }
+  };
   const sihOccupancyFilterDefinitions = {
     ...sihFilterDefinitions,
     specialty: { label:'Especialidade do leito', field:'ESPEC', nameField:'ESPECName', responseKey:'specialties', queryKey:'especialidade' }
@@ -228,13 +243,13 @@
     systemLabel:'SINASC · NASCIDOS VIVOS', sourceLabel:'nascimentos públicos do SINASC', defaultUf:'PA', defaultMunicipalityCode:'150140',
     workspaceTitle:'Perfil materno-infantil · SINASC', introLabel:'SAÚDE MATERNO-INFANTIL · SINASC', introTitle:'Perfil por maternidade.',
     introDescription:'Nascimentos, pré-natal, partos, prematuridade e baixo peso por estabelecimento.',
-    setupTitle:'Perfil materno-infantil por maternidade', setupDescription:'Escolha o município onde ocorreram os nascimentos e o mês. O arquivo anual oficial será preparado na primeira consulta.',
+    setupTitle:'Perfil materno-infantil por maternidade', setupDescription:'Escolha o município e o período dos nascimentos. Adicione recortes opcionais de residência, parto, pré-natal e perfil materno-infantil.',
     emptyMessage:'Escolha UF, município de ocorrência e ao menos um mês para consultar os nascidos vivos em estabelecimentos de saúde.',
     municipalityLabel:'MUNICÍPIO DO NASCIMENTO',
-    filterNote:'Os percentuais consideram apenas registros com o campo correspondente preenchido. O município selecionado é o local do nascimento; a residência da mãe aparece no resultado.',
+    filterNote:'Os filtros são opcionais e atuam antes dos totais. Use Ctrl ou Command para escolher várias opções no mesmo filtro; filtros diferentes são combinados. O município principal é o local do nascimento.',
     methodTitle:'Como interpretar este relatório:', methodText:' cada linha representa uma maternidade no período selecionado. Os valores contam nascidos vivos, não partos. Percentuais usam apenas registros com o campo correspondente informado; dados preliminares podem ser revistos.',
     summaryTitle:'Perfil materno-infantil por maternidade', countMetric:'births', countLabel:'NASCIDOS VIVOS',
-    tableSearchSummary:'Buscar maternidade ou CNES', tableSearchDetail:'Buscar maternidade ou CNES', filters:{}
+    tableSearchSummary:'Buscar maternidade ou CNES', tableSearchDetail:'Buscar residência, parto ou outro dado', filters:sinascFilterDefinitions
   };
   const params = new URLSearchParams(location.search);
   const linkedReportId = params.get('relatorio') === 'sia-pa-belem' ? 'sia-pa-producao' : params.get('relatorio');
@@ -408,7 +423,7 @@
     ufSelect.disabled = Boolean(activeReport.fixedUf);
     municipalitySelect.disabled = Boolean(activeReport.fixedMunicipalityCode);
     const optionalSection = document.querySelector('.setup-optional-section');
-    if (optionalSection) optionalSection.hidden = Boolean(activeReport.remoteSource && activeReport.system !== 'sinan');
+    if (optionalSection) optionalSection.hidden = Boolean(activeReport.remoteSource && !['sinan','sinasc'].includes(activeReport.system));
     const monthLabel = $('reportMonthLabel');
     if (monthLabel) {
       const qualifier = document.createElement('small');
@@ -881,13 +896,13 @@
       select.size = Math.min(6, Math.max(2, categories.length));
       select.setAttribute('aria-label', `${definition.label}. Segure Ctrl no Windows ou Command no Mac para selecionar várias categorias.`);
       select.setAttribute('aria-describedby', 'reportFilterNote');
-      if (type === 'professionalCbo') {
+      if (type === 'professionalCbo' || definition.searchable) {
         const search = document.createElement('input');
         search.className = 'setup-filter-search';
         search.type = 'search';
-        search.placeholder = 'Buscar pelo código ou nome do CBO…';
+        search.placeholder = type === 'professionalCbo' ? 'Buscar pelo código ou nome do CBO…' : 'Buscar município pelo nome ou código…';
         search.autocomplete = 'off';
-        search.setAttribute('aria-label', 'Buscar CBO pelo código ou nome');
+        search.setAttribute('aria-label', `Buscar ${definition.label.toLocaleLowerCase('pt-BR')}`);
         const selectedValues = new Set(preferredValues);
         const renderCboOptions = () => {
           const query = search.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
@@ -939,6 +954,7 @@
       let options = (data.municipalities || []).map((item) => ({ value: String(item.code || ''), label: String(item.name || '') })).filter((item) => /^\d{6}$/.test(item.value) && item.value.startsWith(stateCodes[uf]) && item.label);
       if (activeReport.fixedMunicipalityCode) options=options.filter((item) => item.value === activeReport.fixedMunicipalityCode);
       for (const item of options) municipalitySelect.add(new Option(item.label, item.value));
+      if (activeReport.system === 'sinasc') filterCategories.residenceMunicipality = options.map((item) => ({ value:item.value, label:`${item.label} · ${item.value}` }));
       if (activeReport.fixedMunicipalityCode && ![...municipalitySelect.options].some((option) => option.value === activeReport.fixedMunicipalityCode)) municipalitySelect.add(new Option('Belém · PA',activeReport.fixedMunicipalityCode));
       municipalitySelect.value = activeReport.fixedMunicipalityCode || ([...municipalitySelect.options].some((option) => option.value === preferredMunicipality) ? preferredMunicipality : '');
       municipalitySelect.disabled = Boolean(activeReport.fixedMunicipalityCode);
@@ -951,6 +967,9 @@
       municipalitySelect.title = activeReport.remoteSource ? 'A lista de municípios não foi carregada. Confira a conexão e reabra o recorte.' : 'A lista de municípios não foi carregada. O relatório continua disponível para toda a UF.';
       if (activeReport.remoteSource && !activeReport.fixedMunicipalityCode) setAvailability('Não foi possível carregar a lista de municípios. Confira a conexão e tente novamente.', 'error');
     });
+    if (activeReport.system === 'sinasc') {
+      for (const [type, definition] of Object.entries(filterDefinitions)) if (definition.options) filterCategories[type] = definition.options.map(([value,label]) => ({ value,label }));
+    }
     const categoryTask = activeReport.remoteSource && activeReport.system !== 'sinan' ? Promise.resolve() : api({ action: 'predefined_filter_options', report:activeReport.id, uf }).then((data) => {
       if (requestId !== filterRequest) return;
       for (const [type, definition] of Object.entries(filterDefinitions)) filterCategories[type] = data[definition.responseKey] || [];
@@ -1129,7 +1148,25 @@
     const qtyIndex = metrics.findIndex((metric) => metric.id === activeReport.countMetric);
     const valueIndex = metrics.findIndex((metric) => metric.id === activeReport.valueMetric);
     let cards;
-    if (activeResult.kpis) {
+    if (activeReport.system === 'sinasc') {
+      if (activeView === 'detail') {
+        cards = [
+          ['NASCIDOS VIVOS', { value:rows.length }],
+          ['NASCIDOS POR CESÁREA', { value:rows.filter((row) => row.delivery === 'Cesárea').length }],
+          ['PREMATUROS', { value:rows.reduce((sum, row) => sum + (Number(row.isPremature) || 0), 0) }],
+          ['BAIXO PESO', { value:rows.reduce((sum, row) => sum + (Number(row.isLowWeight) || 0), 0) }]
+        ];
+      } else {
+        const sum = (field) => rows.reduce((total, row) => total + (Number(row[field]) || 0), 0);
+        const share = (numerator, denominator) => denominator ? { value:Math.round(numerator * 1000 / denominator) / 10, decimals:1, suffix:'%' } : { text:'—' };
+        cards = [
+          ['NASCIDOS VIVOS', { value:sum('births') }],
+          ['UNIDADES COM REGISTROS', { value:new Set(rows.map((row) => row.cnes).filter(Boolean)).size }],
+          ['NASCIDOS POR CESÁREA · TIPO INFORMADO', share(sum('cesarean'), sum('deliveryKnown'))],
+          ['BAIXO PESO · PESOS INFORMADOS', share(sum('lowWeight'), sum('weightKnown'))]
+        ];
+      }
+    } else if (activeResult.kpis) {
       cards = activeResult.kpis.map((item) => [item.label, item.value]);
     } else if (activeReport.id === 'sih-rd-fluxo') {
       const outside = rows.reduce((sum, row) => sum + (row.outsideDestination ? Number(row.aihCount) || 0 : 0), 0);
@@ -1893,7 +1930,7 @@
   async function tabulateReportMonth(view, cnes, aih, filters, year, month, monthIndex, monthCount) {
     if (activeReport.remoteSource) {
       setLoader(true, `Lendo arquivo oficial do ${activeReport.systemCode} · ${monthIndex + 1} de ${monthCount}`, `${monthNames[month - 1]} de ${year} · ${activeReport.system === 'sim' ? 'óbitos ocorridos em Belém' : activeReport.system === 'sinasc' ? 'nascidos vivos por maternidade' : activeReport.system === 'srag' ? 'casos por município de residência' : 'unidades notificadoras de Belém'}.`, null, true);
-      let job = await api({ action:'tabulate_start', predefinedReport:activeReport.id, view, uf:filters.uf, year, month, municipalityCode:filters.municipalityCode, municipalityName:filters.municipalityName, ...(activeReport.system === 'sinasc' && view === 'detail' ? { establishmentCode:cnes } : {}), ...(activeReport.system === 'sinan' ? { cnesManagementCode:filters.cnesManagementCode, cnesNatureGroupCode:filters.cnesNatureGroupCode, ...(view === 'detail' ? { weekIndex:Number(cnes) } : {}) } : ['sim','srag'].includes(activeReport.system) && view === 'detail' ? { weekIndex:Number(cnes) } : {}) });
+      let job = await api({ action:'tabulate_start', predefinedReport:activeReport.id, view, uf:filters.uf, year, month, municipalityCode:filters.municipalityCode, municipalityName:filters.municipalityName, ...(activeReport.system === 'sinasc' ? { sinascFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { establishmentCode:cnes } : {}) } : {}), ...(activeReport.system === 'sinan' ? { cnesManagementCode:filters.cnesManagementCode, cnesNatureGroupCode:filters.cnesNatureGroupCode, ...(view === 'detail' ? { weekIndex:Number(cnes) } : {}) } : ['sim','srag'].includes(activeReport.system) && view === 'detail' ? { weekIndex:Number(cnes) } : {}) });
       if (job.done && job.result) return stampMonthlyResult(job.result, year, month);
       if (!job.job_id) throw new Error(`O TabulaSUS não retornou uma consulta válida ao ${activeReport.systemCode}.`);
       const jobId = job.job_id;

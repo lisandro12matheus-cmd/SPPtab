@@ -398,4 +398,5 @@
 .report-result.is-sinasc-detail .report-table{min-width:1700px}
 .report-result.is-sinasc-detail .report-table .primary-cell{min-width:95px;max-width:115px}
 .report-result.is-sinasc-detail .report-table th:nth-child(3){min-width:220px}
+.report-result.is-sinasc-detail .report-table td:nth-last-child(2){max-width:220px;white-space:normal;overflow-wrap:anywhere}
 @media(max-width:760px){.report-result.is-sinasc-report .report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.report-result.is-sinasc-report .report-kpi:last-child{grid-column:auto}}
