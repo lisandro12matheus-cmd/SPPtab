@@ -111,6 +111,7 @@
   const simMortalityFilterDefinitions = {
     residenceOrigin:{ label:'Residência em Belém ou em outro município', field:'residenceOrigin', nameField:'residenceOriginName', queryKey:'origem_residencia', sourceLabel:'SIM · CODMUNRES', options:[['local','Residente em Belém'],['outside','Residente em outro município'],['unknown','Residência não informada']] },
     residenceMunicipality:{ label:'Município de residência', field:'residenceMunicipality', nameField:'residenceMunicipalityName', queryKey:'municipio_residencia', sourceLabel:'SIM · CODMUNRES / IBGE', searchable:true },
+    naturalityMunicipality:{ label:'Município de nascimento', field:'naturalityMunicipality', nameField:'naturalityMunicipalityName', queryKey:'municipio_nascimento', sourceLabel:'SIM · CODMUNNATU / IBGE', searchable:true, searchPlaceholder:'Buscar município de nascimento…' },
     ageGroup:{ label:'Faixa etária', field:'ageGroup', nameField:'ageGroupName', queryKey:'faixa_etaria', sourceLabel:'SIM · IDADE', options:[['under1','Menor de 1 ano'],['1-17','1 a 17 anos'],['18-29','18 a 29 anos'],['30-59','30 a 59 anos'],['60+','60 anos ou mais'],['unknown','Não informado']] },
     sex:{ label:'Sexo', field:'sex', nameField:'sexName', queryKey:'sexo', sourceLabel:'SIM · SEXO', options:[['1','Masculino'],['2','Feminino'],['unknown','Ignorado / não informado']] },
     race:{ label:'Raça/cor', field:'race', nameField:'raceName', queryKey:'raca_cor', sourceLabel:'SIM · RACACOR', options:[['1','Branca'],['2','Preta'],['3','Amarela'],['4','Parda'],['5','Indígena'],['unknown','Ignorada / não informada']] },
@@ -118,7 +119,21 @@
     maritalStatus:{ label:'Situação conjugal', field:'maritalStatus', nameField:'maritalStatusName', queryKey:'situacao_conjugal', sourceLabel:'SIM · ESTCIV', options:[['1','Solteiro(a)'],['2','Casado(a)'],['3','Viúvo(a)'],['4','Separado(a) / divorciado(a)'],['5','União estável'],['unknown','Ignorada / não informada']] },
     deathPlace:{ label:'Local de ocorrência do óbito', field:'deathPlace', nameField:'deathPlaceName', queryKey:'local_obito', sourceLabel:'SIM · LOCOCOR', options:[['1','Hospital'],['2','Outro estabelecimento de saúde'],['3','Domicílio'],['4','Via pública'],['5','Outro local'],['6','Aldeia indígena'],['unknown','Ignorado / não informado']] },
     medicalAssistance:{ label:'Assistência médica durante a doença', field:'medicalAssistance', nameField:'medicalAssistanceName', queryKey:'assistencia_medica', sourceLabel:'SIM · ASSISTMED', options:[['1','Sim'],['2','Não'],['unknown','Ignorada / não informada']] },
-    necropsy:{ label:'Necropsia', field:'necropsy', nameField:'necropsyName', queryKey:'necropsia', sourceLabel:'SIM · NECROPSIA', options:[['1','Sim'],['2','Não'],['unknown','Ignorada / não informada']] }
+    necropsy:{ label:'Necropsia', field:'necropsy', nameField:'necropsyName', queryKey:'necropsia', sourceLabel:'SIM · NECROPSIA', options:[['1','Sim'],['2','Não'],['unknown','Ignorada / não informada']] },
+    certifier:{ label:'Tipo de atestante', field:'certifier', nameField:'certifierName', queryKey:'atestante', sourceLabel:'SIM · ATESTANTE', options:[['1','Médico assistente'],['2','Médico substituto'],['3','IML'],['4','SVO'],['5','Outro médico'],['unknown','Ignorado / não informado']] }
+  };
+  const simInfantMortalityFilterDefinitions = {
+    ageBand:{ label:'Faixa etária do óbito', field:'ageBand', nameField:'ageBandName', queryKey:'faixa_etaria', sourceLabel:'SIM · diferença entre nascimento e óbito', options:[['early','0 a 6 dias'],['late','7 a 27 dias'],['post','28 a 364 dias']] },
+    sex:{ label:'Sexo da criança', field:'sex', nameField:'sexName', queryKey:'sexo', sourceLabel:'SIM · SEXO', options:[['male','Masculino'],['female','Feminino'],['unknown','Ignorado / não informado']] },
+    race:{ label:'Raça/cor da criança', field:'race', nameField:'raceName', queryKey:'raca_cor', sourceLabel:'SIM · RACACOR', options:[['1','Branca'],['2','Preta'],['3','Amarela'],['4','Parda'],['5','Indígena'],['unknown','Ignorada / não informada']] },
+    causeGroup:{ label:'Causa básica · CID-10', field:'causeGroup', nameField:'causeGroupName', queryKey:'causa_basica', sourceLabel:'SIM · CAUSABAS / CID-10', responseKey:'simCauses', searchable:true, searchPlaceholder:'Buscar código ou causa básica…' },
+    birthWeightBand:{ label:'Peso ao nascer', field:'birthWeightBand', nameField:'birthWeightBandName', queryKey:'peso_nascimento', sourceLabel:'SIM · PESO', options:[['under1500','Menos de 1.500 g'],['1500-2499','1.500 a 2.499 g'],['2500+','2.500 g ou mais'],['unknown','Não informado']] },
+    gestationBand:{ label:'Semanas de gestação', field:'gestationBand', nameField:'gestationBandName', queryKey:'semanas_gestacao', sourceLabel:'SIM · SEMAGESTAC', options:[['under28','Menos de 28 semanas'],['28-31','28 a 31 semanas'],['32-36','32 a 36 semanas'],['37-41','37 a 41 semanas'],['42+','42 semanas ou mais'],['unknown','Não informado']] },
+    maternalAgeBand:{ label:'Idade da mãe', field:'maternalAgeBand', nameField:'maternalAgeBandName', queryKey:'idade_mae', sourceLabel:'SIM · IDADEMAE', options:[['under20','Menos de 20 anos'],['20-34','20 a 34 anos'],['35+','35 anos ou mais'],['unknown','Não informada']] },
+    delivery:{ label:'Tipo de parto', field:'delivery', nameField:'deliveryName', queryKey:'parto', sourceLabel:'SIM · PARTO', options:[['1','Vaginal'],['2','Cesáreo'],['unknown','Não informado']] },
+    deathPlace:{ label:'Local de ocorrência do óbito', field:'deathPlace', nameField:'deathPlaceName', queryKey:'local_obito', sourceLabel:'SIM · LOCOCOR', options:[['1','Hospital'],['2','Outro estabelecimento de saúde'],['3','Domicílio'],['4','Via pública'],['5','Outro local'],['6','Aldeia indígena'],['unknown','Ignorado / não informado']] },
+    medicalCare:{ label:'Assistência médica', field:'medicalCare', nameField:'medicalCareName', queryKey:'assistencia_medica', sourceLabel:'SIM · ASSISTMED', options:[['1','Sim'],['2','Não'],['unknown','Ignorada / não informada']] },
+    occurrenceMunicipality:{ label:'Município de ocorrência do óbito', field:'occurrenceMunicipality', nameField:'occurrenceMunicipalityName', queryKey:'municipio_obito', sourceLabel:'SIM · CODMUNOCOR / IBGE', searchable:true, searchPlaceholder:'Buscar município do óbito…' }
   };
   const sihOccupancyFilterDefinitions = {
     ...sihFilterDefinitions,
@@ -229,13 +244,13 @@
     };
   }
   reportConfigurations['sim-mortalidade'] = {
-    ...reportConfigurations['sinan-dengue'], id:'sim-mortalidade', system:'sim', systemCode:'SIM', kind:'MORTALIDADE', filters:simMortalityFilterDefinitions,
+    ...reportConfigurations['sinan-dengue'], id:'sim-mortalidade', system:'sim', systemCode:'SIM', kind:'MORTALIDADE', filters:simMortalityFilterDefinitions, fixedUf:'PA', fixedMunicipalityCode:'150140',
     systemLabel:'SIM · MORTALIDADE', sourceLabel:'declarações públicas do SIM', workspaceTitle:'Mortalidade · SIM',
     introLabel:'MORTALIDADE · SIM', introTitle:'Mortalidade por semana e causa.',
     introDescription:'Consulte os óbitos por causa básica, residência e características disponíveis na Declaração de Óbito.',
     setupTitle:'Mortalidade · Belém', setupDescription:'Escolha o período para consultar os óbitos ocorridos em Belém.',
     emptyMessage:'Escolha ao menos um mês para consultar a base pública do SIM.', municipalityLabel:'MUNICÍPIO DE OCORRÊNCIA',
-    filterNote:'Belém é o município fixo de ocorrência do óbito. Adicione filtros opcionais para residência, faixa etária, sexo, raça/cor, escolaridade e outras informações da declaração. Use Ctrl ou Command para selecionar várias categorias no mesmo filtro.',
+    filterNote:'Belém é o município fixo de ocorrência do óbito. “Local do óbito” indica a categoria do lugar; “estabelecimento de ocorrência” identifica a unidade CNES registrada na declaração. Adicione filtros opcionais para residência, nascimento, faixa etária, sexo, raça/cor, escolaridade e outros campos. Use Ctrl ou Command para selecionar várias categorias no mesmo filtro.',
     methodTitle:'Como interpretar este relatório:', methodText:' os totais são declarações de óbito não fetal do SIM. O recorte usa Belém como município de ocorrência; a residência pode ser filtrada por município. O detalhamento apresenta contagens agrupadas, sem nomes ou identificadores pessoais.',
     summaryTitle:'Óbitos por semana', countMetric:'deaths', countLabel:'ÓBITOS NÃO FETAIS',
     tableSearchSummary:'Buscar semana', tableSearchDetail:'Buscar residência, perfil ou estabelecimento'
@@ -247,9 +262,9 @@
     introDescription:'Óbitos antes de um ano, nascimentos e causas pelo município de residência.',
     setupTitle:'Mortalidade infantil', setupDescription:'Escolha o município de residência e os meses. Para consultar a taxa anual, selecione os 12 meses de um ano anterior ao atual.',
     emptyMessage:'Escolha município de residência e período para consultar óbitos infantis e nascidos vivos.', municipalityLabel:'MUNICÍPIO DE RESIDÊNCIA',
-    filterNote:'O recorte considera a residência da criança no SIM e a residência da mãe no SINASC, mesmo quando o óbito ou nascimento ocorreu em outro município.',
+    filterNote:'O município selecionado é a residência da criança. Adicione filtros opcionais para faixa etária, sexo, raça/cor, causa, peso ao nascer, gestação, idade materna, parto e local do óbito. “Local do óbito” é a categoria do lugar; o CNES de ocorrência identifica a unidade registrada. As opções seguem os campos disponíveis no SIM; use Ctrl ou Command para marcar várias categorias.',
     methodTitle:'Como interpretar este relatório:', methodText:' os óbitos não fetais antes de um ano são separados em 0–6, 7–27 e 28–364 dias. A taxa anual bruta usa óbitos do ano divididos por nascidos vivos do mesmo ano, multiplicados por mil. Dados recentes podem ser revistos.',
-    summaryTitle:'Mortalidade infantil', countMetric:'deaths', countLabel:'ÓBITOS < 1 ANO', tableSearchSummary:'Buscar causa básica ou CID-10', tableSearchDetail:'Buscar causa básica ou CID-10', filters:{}
+    summaryTitle:'Mortalidade infantil', countMetric:'deaths', countLabel:'ÓBITOS < 1 ANO', tableSearchSummary:'Buscar causa básica ou CID-10', tableSearchDetail:'Buscar causa básica ou CID-10', filters:simInfantMortalityFilterDefinitions
   };
   reportConfigurations['srag-semanal'] = {
     id:'srag-semanal', system:'srag', systemCode:'SIVEP-GRIPE', kind:'SRAG', remoteSource:true, tableMode:'flat', firstYear:2025,
@@ -448,7 +463,7 @@
     ufSelect.disabled = Boolean(activeReport.fixedUf);
     municipalitySelect.disabled = Boolean(activeReport.fixedMunicipalityCode);
     const optionalSection = document.querySelector('.setup-optional-section');
-    if (optionalSection) optionalSection.hidden = Boolean(activeReport.remoteSource && !['sinan','sinasc'].includes(activeReport.system));
+    if (optionalSection) optionalSection.hidden = Boolean(activeReport.remoteSource && !['sinan','sinasc'].includes(activeReport.system) && !['sim-mortalidade','sim-mortalidade-infantil'].includes(activeReport.id));
     const monthLabel = $('reportMonthLabel');
     if (monthLabel) {
       const qualifier = document.createElement('small');
@@ -927,7 +942,7 @@
         const search = document.createElement('input');
         search.className = 'setup-filter-search';
         search.type = 'search';
-        search.placeholder = type === 'professionalCbo' ? 'Buscar pelo código ou nome do CBO…' : 'Buscar município pelo nome ou código…';
+        search.placeholder = definition.searchPlaceholder || (type === 'professionalCbo' ? 'Buscar pelo código ou nome do CBO…' : 'Buscar município pelo nome ou código…');
         search.autocomplete = 'off';
         search.setAttribute('aria-label', `Buscar ${definition.label.toLocaleLowerCase('pt-BR')}`);
         const selectedValues = new Set(preferredValues);
@@ -996,33 +1011,37 @@
       municipalitySelect.title = activeReport.remoteSource ? 'A lista de municípios não foi carregada. Confira a conexão e reabra o recorte.' : 'A lista de municípios não foi carregada. O relatório continua disponível para toda a UF.';
       if (activeReport.remoteSource && !activeReport.fixedMunicipalityCode) setAvailability('Não foi possível carregar a lista de municípios. Confira a conexão e tente novamente.', 'error');
     });
-    if (activeReport.system === 'sinasc' || activeReport.id === 'sim-mortalidade') {
+    if (activeReport.system === 'sinasc' || activeReport.system === 'sim') {
       for (const [type, definition] of Object.entries(filterDefinitions)) if (definition.options) filterCategories[type] = definition.options.map(([value,label]) => ({ value,label }));
     }
-    const simResidenceTask = activeReport.id === 'sim-mortalidade'
+    const simMunicipalityTask = ['sim-mortalidade','sim-mortalidade-infantil'].includes(activeReport.id)
       ? api({ action:'municipalities_all' }).then((data) => {
           if (requestId !== filterRequest) return;
-          filterCategories.residenceMunicipality = (data.municipalities || []).map((item) => ({ value:String(item.code || ''), label:`${String(item.name || '')} · ${String(item.code || '')}` })).filter((item) => /^\d{6}$/.test(item.value) && item.label.trim());
+          const municipalities = (data.municipalities || []).map((item) => ({ value:String(item.code || ''), label:`${String(item.name || '')} · ${String(item.code || '')}` })).filter((item) => /^\d{6}$/.test(item.value) && item.label.trim());
+          if (activeReport.id === 'sim-mortalidade') {
+            filterCategories.residenceMunicipality = municipalities;
+            filterCategories.naturalityMunicipality = municipalities;
+          } else filterCategories.occurrenceMunicipality = municipalities;
         }).catch(() => {
           if (requestId !== filterRequest) return;
-          filterCategories.residenceMunicipality = [];
+          for (const type of ['residenceMunicipality','naturalityMunicipality','occurrenceMunicipality']) if (filterDefinitions[type]) filterCategories[type] = [];
         })
       : Promise.resolve();
-    const categoryTask = activeReport.remoteSource && activeReport.system !== 'sinan' ? Promise.resolve() : api({ action: 'predefined_filter_options', report:activeReport.id, uf }).then((data) => {
+    const categoryTask = activeReport.remoteSource && activeReport.system !== 'sinan' && activeReport.id !== 'sim-mortalidade-infantil' ? Promise.resolve() : api({ action: 'predefined_filter_options', report:activeReport.id, uf }).then((data) => {
       if (requestId !== filterRequest) return;
-      for (const [type, definition] of Object.entries(filterDefinitions)) filterCategories[type] = data[definition.responseKey] || [];
+      for (const [type, definition] of Object.entries(filterDefinitions)) if (definition.responseKey) filterCategories[type] = data[definition.responseKey] || [];
     }).catch(() => {
       if (requestId !== filterRequest) return;
-      for (const type of Object.keys(filterDefinitions)) filterCategories[type] = [];
+      for (const [type, definition] of Object.entries(filterDefinitions)) if (definition.responseKey) filterCategories[type] = [];
     });
-    await Promise.all([municipalityTask, categoryTask, simResidenceTask]);
+    await Promise.all([municipalityTask, categoryTask, simMunicipalityTask]);
     if (requestId === filterRequest) {
       renderAdditionalFilterRows(preferred);
       if (activeReport.remoteSource) {
         if (activeReport.system === 'sinan') setAvailability('Unidades cadastradas em Belém · gestão e natureza jurídica do CNES são opcionais.', '');
         else if (activeReport.system === 'srag') setAvailability('Município de residência · escolha o mês do início dos sintomas.', '');
         else if (activeReport.system === 'sinasc') setAvailability('Município do nascimento · escolha o mês da ocorrência.', '');
-        else setAvailability(activeReport.id === 'sim-mortalidade-infantil' ? 'Município de residência · escolha o mês do óbito e do nascimento.' : 'Óbitos ocorridos em Belém · escolha o mês da ocorrência.', '');
+        else setAvailability(activeReport.id === 'sim-mortalidade-infantil' ? 'Município de residência · filtros opcionais disponíveis · escolha o mês do óbito e do nascimento.' : 'Óbitos ocorridos em Belém · filtros opcionais disponíveis · escolha o mês da ocorrência.', '');
         updateOpenButton();
       }
     }
@@ -1196,7 +1215,7 @@
         ['7 A 27 DIAS', formatNumber(sum('late'))],
         ['28 A 364 DIAS', formatNumber(sum('post'))],
         ['NASCIDOS VIVOS NO PERÍODO', formatNumber(births)],
-        ['TAXA ANUAL BRUTA · POR MIL', completeYear && rows.length === allRows.length ? formatNumber(sum('deaths') * 1000 / births, 1) : '—']
+        ['TAXA ANUAL BRUTA · POR MIL', completeYear && !activeResult.hasFilters && rows.length === allRows.length ? formatNumber(sum('deaths') * 1000 / births, 1) : '—']
       ];
     } else if (activeReport.system === 'sinasc') {
       if (activeView === 'detail') {
@@ -1988,7 +2007,7 @@
   async function tabulateReportMonth(view, cnes, aih, filters, year, month, monthIndex, monthCount) {
     if (activeReport.remoteSource) {
       setLoader(true, `Lendo arquivo oficial do ${activeReport.systemCode} · ${monthIndex + 1} de ${monthCount}`, `${monthNames[month - 1]} de ${year} · ${activeReport.id === 'sim-mortalidade-infantil' ? 'óbitos e nascidos vivos por residência' : activeReport.system === 'sim' ? 'óbitos ocorridos em Belém' : activeReport.system === 'sinasc' ? 'nascidos vivos por estabelecimento' : activeReport.system === 'srag' ? 'casos por município de residência' : 'unidades notificadoras de Belém'}.`, null, true);
-      let job = await api({ action:'tabulate_start', predefinedReport:activeReport.id, view, uf:filters.uf, year, month, municipalityCode:filters.municipalityCode, municipalityName:filters.municipalityName, ...(activeReport.system === 'sinasc' ? { sinascFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { establishmentCode:cnes } : {}) } : {}), ...(activeReport.id === 'sim-mortalidade' ? { simFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { weekIndex:Number(cnes), causeCode:activeSimCauseCode } : {}) } : {}), ...(activeReport.system === 'sinan' ? { cnesManagementCode:filters.cnesManagementCode, cnesNatureGroupCode:filters.cnesNatureGroupCode, ...(view === 'detail' ? { weekIndex:Number(cnes) } : {}) } : ['sim','srag'].includes(activeReport.system) && view === 'detail' ? { weekIndex:Number(cnes) } : {}) });
+      let job = await api({ action:'tabulate_start', predefinedReport:activeReport.id, view, uf:filters.uf, year, month, municipalityCode:filters.municipalityCode, municipalityName:filters.municipalityName, ...(activeReport.system === 'sinasc' ? { sinascFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { establishmentCode:cnes } : {}) } : {}), ...(activeReport.id === 'sim-mortalidade' ? { simFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { weekIndex:Number(cnes), causeCode:activeSimCauseCode } : {}) } : {}), ...(activeReport.id === 'sim-mortalidade-infantil' ? { simInfantFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])) } : {}), ...(activeReport.system === 'sinan' ? { cnesManagementCode:filters.cnesManagementCode, cnesNatureGroupCode:filters.cnesNatureGroupCode, ...(view === 'detail' ? { weekIndex:Number(cnes) } : {}) } : ['sim','srag'].includes(activeReport.system) && view === 'detail' ? { weekIndex:Number(cnes) } : {}) });
       if (job.done && job.result) return stampMonthlyResult(job.result, year, month);
       if (!job.job_id) throw new Error(`O TabulaSUS não retornou uma consulta válida ao ${activeReport.systemCode}.`);
       const jobId = job.job_id;

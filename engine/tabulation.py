@@ -1303,6 +1303,11 @@ def predefined_filter_options(payload: dict[str,Any]):
         return predefined_sih_occupancy_filter_options(payload)
     if payload.get("report")=="sih-sp-profissionais":
         return predefined_sih_sp_filter_options(payload)
+    if payload.get("report")=="sim-mortalidade-infantil":
+        causes=_sim_cid_names()
+        sim_causes=[{"value":code,"label":f"{code} · {name}"} for code,name in sorted(causes.items()) if re.fullmatch(r"[A-Z]\d{2}",str(code)) and str(name).strip()]
+        sim_causes.append({"value":"NI","label":"Não informada · sem código CID-10"})
+        return {"ok":True,"simCauses":sim_causes}
     uf=str(payload.get("uf") or "").strip().upper()
     if uf not in PREDEFINED_UF_CODES:
         raise ValueError("Selecione uma unidade da Federação válida.")
@@ -2135,7 +2140,7 @@ def _public_health_date(raw: Any):
 
 def _sim_infant_source(year: int, progress=None):
     """One annual resident-based summary, shared by every municipality and month."""
-    target=cache_target("sim_infant",{"version":2,"year":year})
+    target=cache_target("sim_infant",{"version":3,"year":year})
     lifetime=24*3600 if year==date.today().year else 30*86400
     with interprocess_lock(target.with_suffix(".lock")):
         cached=cache_read(target)
@@ -2170,17 +2175,26 @@ def _sim_infant_source(year: int, progress=None):
                         residence=re.sub(r"\D","",field(row,"CODMUNRES"))[:6]
                         if not re.fullmatch(r"\d{6}",residence): continue
                         cid=re.sub(r"[^A-Z0-9]","",field(row,"CAUSABAS").upper())[:4] or "NI"
-                        sex={"1":"Masculino","M":"Masculino","2":"Feminino","F":"Feminino"}.get(field(row,"SEXO").upper(),"Não informado")
-                        race={"1":"Branca","2":"Preta","3":"Amarela","4":"Parda","5":"Indígena"}.get(field(row,"RACACOR"),"Não informada")
-                        place={"1":"Hospital","2":"Outro estabelecimento de saúde","3":"Domicílio","4":"Via pública","5":"Outro local","6":"Aldeia indígena"}.get(field(row,"LOCOCOR"),"Não informado")
-                        delivery={"1":"Vaginal","2":"Cesáreo"}.get(field(row,"PARTO"),"Não informado")
-                        care={"1":"Sim","2":"Não"}.get(field(row,"ASSISTMED"),"Não informado")
+                        sex_raw=field(row,"SEXO").upper(); sex_code="male" if sex_raw in {"1","M"} else "female" if sex_raw in {"2","F"} else "unknown"
+                        sex={"male":"Masculino","female":"Feminino"}.get(sex_code,"Não informado")
+                        race_raw=field(row,"RACACOR"); race_code=race_raw if race_raw in {"1","2","3","4","5"} else "unknown"
+                        race={"1":"Branca","2":"Preta","3":"Amarela","4":"Parda","5":"Indígena"}.get(race_code,"Não informada")
+                        place_raw=field(row,"LOCOCOR"); place_code=place_raw if place_raw in {"1","2","3","4","5","6"} else "unknown"
+                        place={"1":"Hospital","2":"Outro estabelecimento de saúde","3":"Domicílio","4":"Via pública","5":"Outro local","6":"Aldeia indígena"}.get(place_code,"Não informado")
+                        delivery_raw=field(row,"PARTO"); delivery_code=delivery_raw if delivery_raw in {"1","2"} else "unknown"
+                        delivery={"1":"Vaginal","2":"Cesáreo"}.get(delivery_code,"Não informado")
+                        care_raw=field(row,"ASSISTMED"); care_code=care_raw if care_raw in {"1","2"} else "unknown"
+                        care={"1":"Sim","2":"Não"}.get(care_code,"Não informado")
                         weight=field(row,"PESO"); weight=int(weight) if weight.isdigit() and 200<=int(weight)<=8000 else None
                         gestation=field(row,"SEMAGESTAC"); gestation=int(gestation) if gestation.isdigit() and 18<=int(gestation)<=45 else None
                         mother_age=field(row,"IDADEMAE"); mother_age=int(mother_age) if mother_age.isdigit() and 10<=int(mother_age)<=60 else None
+                        age_band="early" if age<=6 else "late" if age<=27 else "post"
+                        weight_band="unknown" if weight is None else "under1500" if weight<1500 else "1500-2499" if weight<2500 else "2500+"
+                        gestation_band="unknown" if gestation is None else "under28" if gestation<28 else "28-31" if gestation<=31 else "32-36" if gestation<=36 else "37-41" if gestation<=41 else "42+"
+                        maternal_age_band="unknown" if mother_age is None else "under20" if mother_age<20 else "20-34" if mother_age<35 else "35+"
                         establishment=re.sub(r"\D","",field(row,"CODESTAB"))[:7]
                         occurrence=re.sub(r"\D","",field(row,"CODMUNOCOR"))[:6]
-                        groups.append({"municipalityCode":residence,"month":death.month,"causeCode":cid,"deaths":1,"early":int(age<=6),"late":int(7<=age<=27),"post":int(age>=28),"ageDays":age,"ageGroup":"0 a 6 dias" if age<=6 else "7 a 27 dias" if age<=27 else "28 a 364 dias","sex":sex,"race":race,"place":place,"delivery":delivery,"medicalCare":care,"birthWeight":weight,"gestationWeeks":gestation,"maternalAge":mother_age,"establishmentCode":establishment if len(establishment)==7 else "","occurrenceCode":occurrence if len(occurrence)==6 else ""})
+                        groups.append({"municipalityCode":residence,"month":death.month,"causeCode":cid,"causeGroup":cid[:3] if re.fullmatch(r"[A-Z]\d{2}[A-Z0-9]?",cid) else "NI","deaths":1,"early":int(age<=6),"late":int(7<=age<=27),"post":int(age>=28),"ageDays":age,"ageBand":age_band,"ageGroup":"0 a 6 dias" if age<=6 else "7 a 27 dias" if age<=27 else "28 a 364 dias","sex":sex,"sexCode":sex_code,"race":race,"raceCode":race_code,"place":place,"placeCode":place_code,"delivery":delivery,"deliveryCode":delivery_code,"medicalCare":care,"medicalCareCode":care_code,"birthWeight":weight,"birthWeightBand":weight_band,"gestationWeeks":gestation,"gestationBand":gestation_band,"maternalAge":mother_age,"maternalAgeBand":maternal_age_band,"establishmentCode":establishment if len(establishment)==7 else "","occurrenceCode":occurrence if len(occurrence)==6 else ""})
         finally: archive.unlink(missing_ok=True)
         result={"fetched_at":time.time(),"updatedAt":updated_at,"groups":groups,"ignoredAge":ignored_age}
         cache_write(target,result,max_bytes=80_000_000,keep=8)
@@ -2217,18 +2231,44 @@ def _sinasc_resident_births(year: int, progress=None):
         cache_write(target,result,max_bytes=5_000_000,keep=8)
         return result
 
+def _sim_infant_selected_filters(payload: dict[str,Any]) -> dict[str,set[str]]:
+    allowed={
+        "ageBand":{"early","late","post"},"sex":{"male","female","unknown"},
+        "race":{"1","2","3","4","5","unknown"},"causeGroup":set(_sim_cid_names())|{"NI"},
+        "birthWeightBand":{"under1500","1500-2499","2500+","unknown"},
+        "gestationBand":{"under28","28-31","32-36","37-41","42+","unknown"},
+        "maternalAgeBand":{"under20","20-34","35+","unknown"},"delivery":{"1","2","unknown"},
+        "deathPlace":{"1","2","3","4","5","6","unknown"},"medicalCare":{"1","2","unknown"},
+        "occurrenceMunicipality":set(),
+    }
+    raw=payload.get("simInfantFilters") or {}
+    if not isinstance(raw,dict) or len(raw)>len(allowed): raise ValueError("Os filtros de mortalidade infantil são inválidos.")
+    selected={}
+    for key,values in raw.items():
+        if key not in allowed or not isinstance(values,list) or len(values)>6000: raise ValueError("A seleção de filtros da mortalidade infantil é inválida ou extensa demais.")
+        clean={str(value).strip() for value in values if str(value).strip()}
+        if key in {"occurrenceMunicipality"}:
+            if any(not re.fullmatch(r"\d{6}",value) for value in clean): raise ValueError("Selecione municípios válidos para o local do óbito.")
+        elif not clean.issubset(allowed[key]): raise ValueError("A seleção contém uma categoria inválida da mortalidade infantil.")
+        if clean: selected[key]=clean
+    return selected
+
 def predefined_sim_infant_mortality(payload: dict[str,Any], progress=None):
     year=payload.get("year"); month=payload.get("month"); uf=str(payload.get("uf") or "").upper(); municipality=str(payload.get("municipalityCode") or "")
     if not isinstance(year,int) or not 2010<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12: raise ValueError("Selecione ano e mês válidos a partir de 2010.")
     if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]: raise ValueError("Selecione um município de residência válido.")
     if str(payload.get("view") or "full")!="full": raise ValueError("Selecione uma visão válida do relatório.")
+    selected_filters=_sim_infant_selected_filters(payload)
     sim=_sim_infant_source(year,progress)
     sinasc=_sinasc_resident_births(year,progress)
     cid_names=_sim_cid_names(); rows=[]
     try: municipality_names=_sinan_ibge_municipalities()
     except Exception: municipality_names={}
+    def matches(item):
+        values={"ageBand":item.get("ageBand","unknown"),"sex":item.get("sexCode","unknown"),"race":item.get("raceCode","unknown"),"causeGroup":item.get("causeGroup","NI"),"birthWeightBand":item.get("birthWeightBand","unknown"),"gestationBand":item.get("gestationBand","unknown"),"maternalAgeBand":item.get("maternalAgeBand","unknown"),"delivery":item.get("deliveryCode","unknown"),"deathPlace":item.get("placeCode","unknown"),"medicalCare":item.get("medicalCareCode","unknown"),"occurrenceMunicipality":item.get("occurrenceCode","")}
+        return all(values[key] in values_selected for key,values_selected in selected_filters.items())
     for item in sim["groups"]:
-        if item["municipalityCode"]!=municipality or item["month"]!=month: continue
+        if item["municipalityCode"]!=municipality or item["month"]!=month or not matches(item): continue
         cid=item["causeCode"]; cid3=cid[:3]
         chapter=next((label for start,end,label in SIM_CID_CHAPTERS if start<=cid3<=end),"Não classificado")
         occurrence=item.get("occurrenceCode") or ""
@@ -2237,10 +2277,21 @@ def predefined_sim_infant_mortality(payload: dict[str,Any], progress=None):
     births=sum(item["births"] for item in sinasc["groups"] if item["municipalityCode"]==municipality and item["month"]==month)
     if progress: progress(98,"Preparando mortalidade infantil e nascidos vivos")
     municipality_name=str(payload.get("municipalityName") or municipality)[:120]
+    filter_labels={"ageBand":"Faixa etária do óbito","sex":"Sexo da criança","race":"Raça/cor da criança","causeGroup":"Causa básica · CID-10","birthWeightBand":"Peso ao nascer","gestationBand":"Semanas de gestação","maternalAgeBand":"Idade da mãe","delivery":"Tipo de parto","deathPlace":"Local do óbito","medicalCare":"Assistência médica","occurrenceMunicipality":"Município de ocorrência"}
+    filter_values={"ageBand":{"early":"0 a 6 dias","late":"7 a 27 dias","post":"28 a 364 dias"},"sex":{"male":"Masculino","female":"Feminino","unknown":"Ignorado / não informado"},"race":{"1":"Branca","2":"Preta","3":"Amarela","4":"Parda","5":"Indígena","unknown":"Ignorada / não informada"},"birthWeightBand":{"under1500":"Menos de 1.500 g","1500-2499":"1.500 a 2.499 g","2500+":"2.500 g ou mais","unknown":"Não informado"},"gestationBand":{"under28":"Menos de 28 semanas","28-31":"28 a 31 semanas","32-36":"32 a 36 semanas","37-41":"37 a 41 semanas","42+":"42 semanas ou mais","unknown":"Não informada"},"maternalAgeBand":{"under20":"Menos de 20 anos","20-34":"20 a 34 anos","35+":"35 anos ou mais","unknown":"Não informada"},"delivery":{"1":"Vaginal","2":"Cesáreo","unknown":"Não informado"},"deathPlace":{"1":"Hospital","2":"Outro estabelecimento de saúde","3":"Domicílio","4":"Via pública","5":"Outro local","6":"Aldeia indígena","unknown":"Ignorado / não informado"},"medicalCare":{"1":"Sim","2":"Não","unknown":"Ignorada / não informada"}}
+    applied_filters=[]
+    for key,values in selected_filters.items():
+        labels=[]
+        for value in sorted(values):
+            if key=="causeGroup": labels.append(f"{value} · {cid_names.get(value,'Não informada')}")
+            elif key=="occurrenceMunicipality": labels.append(municipality_names.get(value,f"Município {value}"))
+            else: labels.append(filter_values.get(key,{}).get(value,value))
+        applied_filters.append({"label":filter_labels[key],"value":", ".join(labels)})
     return {"ok":True,"report":"sim-mortalidade-infantil","view":"full","flatTable":True,"file":"SIM · SINASC · CSV oficial","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES.get(uf,uf),"municipality":municipality_name,"municipalityCode":municipality,"rows":rows,"records":sum(item["deaths"] for item in rows),"births":births,"emptyStateMessage":f"Não há óbitos de menores de 1 ano com residência em {municipality_name} no mês {month:02d}/{year}.",
         "columns":[{"id":"cause","label":"CAUSA BÁSICA · CID-10","kind":"primary","primaryField":"causeName","secondaryField":"causeCode","filterFields":["causeName","causeCode"],"sortField":"causeName","type":"text","sticky":True},{"id":"chapter","label":"CAPÍTULO","field":"chapterName","type":"text"},{"id":"ageGroup","label":"FAIXA ETÁRIA","field":"ageGroup","type":"text"},{"id":"ageDays","label":"IDADE EM DIAS","field":"ageDays","type":"number"},{"id":"sex","label":"SEXO","field":"sex","type":"text"},{"id":"race","label":"RAÇA/COR","field":"race","type":"text"},{"id":"birthWeight","label":"PESO AO NASCER · G","field":"birthWeight","type":"number"},{"id":"gestationWeeks","label":"GESTAÇÃO · SEMANAS","field":"gestationWeeks","type":"number"},{"id":"maternalAge","label":"IDADE DA MÃE","field":"maternalAge","type":"number"},{"id":"delivery","label":"TIPO DE PARTO","field":"delivery","type":"text"},{"id":"place","label":"LOCAL DO ÓBITO","field":"place","type":"text"},{"id":"occurrence","label":"MUNICÍPIO DO ÓBITO","field":"occurrenceName","type":"text"},{"id":"establishment","label":"CNES DO ÓBITO","field":"establishmentCode","type":"text"},{"id":"medicalCare","label":"ASSISTÊNCIA MÉDICA","field":"medicalCare","type":"text"},{"id":"deaths","label":"ÓBITOS","metricId":"deaths","type":"number","decimals":0}],
         "metrics":[{"id":"deaths","label":"Óbitos < 1 ano","decimals":0}],
-        "notes":[f"SIM atualizado em {sim.get('updatedAt') or 'data não informada'}; SINASC atualizado em {sinasc.get('updatedAt') or 'data não informada'}. Óbitos pela residência da criança e nascidos vivos pela residência da mãe, independentemente do local de ocorrência.","Cada linha da tabela é um registro público não fetal do SIM, sem nome, documento ou datas exatas. Os campos de peso, gestação, idade da mãe, parto, local e assistência aparecem somente quando informados. A faixa etária usa a diferença entre data de nascimento e data do óbito; registros sem as duas datas válidas não entram no numerador.","A taxa por mil nascidos vivos é exibida somente para um ano completo anterior ao atual, sem filtros na tabela. Dados recentes são preliminares e podem ser revisados pelas fontes oficiais."],"cachedAt":time.time()}
+        "hasFilters":bool(selected_filters),"filters":applied_filters,
+        "notes":[f"SIM atualizado em {sim.get('updatedAt') or 'data não informada'}; SINASC atualizado em {sinasc.get('updatedAt') or 'data não informada'}. Óbitos pela residência da criança e nascidos vivos pela residência da mãe, independentemente do local de ocorrência.","Cada linha da tabela é um registro público não fetal do SIM, sem nome, documento ou datas exatas. Os campos de peso, gestação, idade da mãe, parto, local e assistência aparecem somente quando informados. A faixa etária usa a diferença entre data de nascimento e data do óbito; registros sem as duas datas válidas não entram no numerador.","A taxa anual bruta por mil nascidos vivos só é mostrada para um ano completo anterior ao atual e sem filtros de mortalidade. A contagem de nascidos vivos é da população residente no município e período, mesmo quando filtros de perfil do óbito são aplicados. Dados recentes podem ser preliminares e revistos pelas fontes oficiais."],"cachedAt":time.time()}
 
 def _sim_mortality_age_group(value: Any) -> str:
     raw=re.sub(r"\D","",str(value or ""))
@@ -2257,18 +2308,18 @@ def _sim_mortality_age_group(value: Any) -> str:
 
 def _sim_mortality_selected_filters(payload: dict[str,Any]) -> dict[str,set[str]]:
     allowed={
-        "residenceOrigin":{"local","outside","unknown"},"residenceMunicipality":set(),
+        "residenceOrigin":{"local","outside","unknown"},"residenceMunicipality":set(),"naturalityMunicipality":set(),
         "ageGroup":{"under1","1-17","18-29","30-59","60+","unknown"},"sex":{"1","2","unknown"},
         "race":{"1","2","3","4","5","unknown"},"education":{"0","1","2","3","4","5","unknown"},
         "maritalStatus":{"1","2","3","4","5","unknown"},"deathPlace":{"1","2","3","4","5","6","unknown"},
-        "medicalAssistance":{"1","2","unknown"},"necropsy":{"1","2","unknown"}}
+        "medicalAssistance":{"1","2","unknown"},"necropsy":{"1","2","unknown"},"certifier":{"1","2","3","4","5","unknown"}}
     raw=payload.get("simFilters") or {}
     if not isinstance(raw,dict) or len(raw)>len(allowed): raise ValueError("Os filtros do SIM são inválidos.")
     selected={}
     for key,values in raw.items():
         if key not in allowed or not isinstance(values,list) or len(values)>6000: raise ValueError("A seleção de filtros do SIM é inválida ou extensa demais.")
         clean={str(value).strip() for value in values if str(value).strip()}
-        if key=="residenceMunicipality":
+        if key in {"residenceMunicipality","naturalityMunicipality"}:
             if any(not re.fullmatch(r"\d{6}",value) for value in clean): raise ValueError("Selecione códigos válidos de município de residência.")
         elif not clean.issubset(allowed[key]): raise ValueError("A seleção contém uma categoria SIM inválida.")
         if clean: selected[key]=clean
@@ -2359,7 +2410,7 @@ def predefined_sim_mortality(payload: dict[str,Any], progress=None):
             cache_write(target,{"fetched_at":time.time(),"updatedAt":updated_at,"profiles":profiles},max_bytes=48_000_000,keep=10)
 
     def matches(profile):
-        values={"residenceOrigin":"local" if profile["residenceCode"]=="150140" else "outside" if profile["residenceCode"] else "unknown","residenceMunicipality":profile["residenceCode"],"ageGroup":profile["ageGroup"],"sex":profile["sexCode"],"race":profile["raceCode"],"education":profile["educationCode"],"maritalStatus":profile["maritalCode"],"deathPlace":profile["deathPlaceCode"],"medicalAssistance":profile["medicalAssistanceCode"],"necropsy":profile["necropsyCode"]}
+        values={"residenceOrigin":"local" if profile["residenceCode"]=="150140" else "outside" if profile["residenceCode"] else "unknown","residenceMunicipality":profile["residenceCode"],"naturalityMunicipality":profile["naturalityCode"],"ageGroup":profile["ageGroup"],"sex":profile["sexCode"],"race":profile["raceCode"],"education":profile["educationCode"],"maritalStatus":profile["maritalCode"],"deathPlace":profile["deathPlaceCode"],"medicalAssistance":profile["medicalAssistanceCode"],"necropsy":profile["necropsyCode"],"certifier":profile["certifierCode"]}
         return all(values[key] in selected for key,selected in selected_filters.items())
     selected=[profile for profile in profiles if profile["month"]==month and matches(profile)]
     if view=="detail":
@@ -2436,9 +2487,9 @@ def predefined_sim_mortality(payload: dict[str,Any], progress=None):
         if view=="full": columns.extend([{"id":"cause","label":"CAUSA BÁSICA · CID-10","kind":"primary","primaryField":"causeName","secondaryField":"causeCode","filterFields":["causeName","causeCode"],"sortField":"causeName","type":"text"},{"id":"chapter","label":"CAPÍTULO · CID-10","field":"chapterName","type":"text"}])
         columns.extend([{"id":"deaths","label":"ÓBITOS NÃO FETAIS","metricId":"deaths","type":"number","decimals":0},{"id":"residents","label":"RESIDENTES EM BELÉM","metricId":"residents","type":"number","decimals":0},{"id":"otherResidents","label":"RESIDENTES DE OUTROS MUNICÍPIOS","metricId":"otherResidents","type":"number","decimals":0},{"id":"unknownResidence","label":"RESIDÊNCIA NÃO INFORMADA","metricId":"unknownResidence","type":"number","decimals":0},{"id":"detail","label":"DETALHAMENTO","kind":"action","actionType":"sim-detail","actionLabel":"Detalhar →"}])
     metric_labels=(("deaths","Óbitos não fetais"),("residents","Residentes em Belém"),("otherResidents","Residentes de outros municípios"),("unknownResidence","Residência não informada"))
-    filter_labels={"residenceOrigin":"Origem da residência","residenceMunicipality":"Município de residência","ageGroup":"Faixa etária","sex":"Sexo","race":"Raça/cor","education":"Escolaridade","maritalStatus":"Situação conjugal","deathPlace":"Local do óbito","medicalAssistance":"Assistência médica","necropsy":"Necropsia"}
-    filter_value_labels={"residenceOrigin":{"local":"Residente em Belém","outside":"Residente em outro município","unknown":"Residência não informada"},"ageGroup":{"under1":"Menor de 1 ano","1-17":"1 a 17 anos","18-29":"18 a 29 anos","30-59":"30 a 59 anos","60+":"60 anos ou mais","unknown":"Não informado"},"sex":{"1":"Masculino","2":"Feminino","unknown":"Ignorado / não informado"},"race":{"1":"Branca","2":"Preta","3":"Amarela","4":"Parda","5":"Indígena","unknown":"Ignorada / não informada"},"education":{"0":"Sem escolaridade","1":"Fundamental I","2":"Fundamental II","3":"Ensino médio","4":"Superior incompleto","5":"Superior completo","unknown":"Ignorada / não informada"},"maritalStatus":{"1":"Solteiro(a)","2":"Casado(a)","3":"Viúvo(a)","4":"Separado(a) / divorciado(a)","5":"União estável","unknown":"Ignorada / não informada"},"deathPlace":{"1":"Hospital","2":"Outro estabelecimento de saúde","3":"Domicílio","4":"Via pública","5":"Outro local","6":"Aldeia indígena","unknown":"Ignorado / não informado"},"medicalAssistance":{"1":"Sim","2":"Não","unknown":"Ignorada / não informada"},"necropsy":{"1":"Sim","2":"Não","unknown":"Ignorada / não informada"}}
-    filters=[{"label":filter_labels[key],"value":", ".join(filter_value_labels.get(key,{}).get(value,f"Código IBGE {value}" if key=="residenceMunicipality" else value) for value in sorted(values))} for key,values in selected_filters.items()]
+    filter_labels={"residenceOrigin":"Origem da residência","residenceMunicipality":"Município de residência","naturalityMunicipality":"Município de nascimento","ageGroup":"Faixa etária","sex":"Sexo","race":"Raça/cor","education":"Escolaridade","maritalStatus":"Situação conjugal","deathPlace":"Local do óbito","medicalAssistance":"Assistência médica","necropsy":"Necropsia","certifier":"Tipo de atestante"}
+    filter_value_labels={"residenceOrigin":{"local":"Residente em Belém","outside":"Residente em outro município","unknown":"Residência não informada"},"ageGroup":{"under1":"Menor de 1 ano","1-17":"1 a 17 anos","18-29":"18 a 29 anos","30-59":"30 a 59 anos","60+":"60 anos ou mais","unknown":"Não informado"},"sex":{"1":"Masculino","2":"Feminino","unknown":"Ignorado / não informado"},"race":{"1":"Branca","2":"Preta","3":"Amarela","4":"Parda","5":"Indígena","unknown":"Ignorada / não informada"},"education":{"0":"Sem escolaridade","1":"Fundamental I","2":"Fundamental II","3":"Ensino médio","4":"Superior incompleto","5":"Superior completo","unknown":"Ignorada / não informada"},"maritalStatus":{"1":"Solteiro(a)","2":"Casado(a)","3":"Viúvo(a)","4":"Separado(a) / divorciado(a)","5":"União estável","unknown":"Ignorada / não informada"},"deathPlace":{"1":"Hospital","2":"Outro estabelecimento de saúde","3":"Domicílio","4":"Via pública","5":"Outro local","6":"Aldeia indígena","unknown":"Ignorado / não informado"},"medicalAssistance":{"1":"Sim","2":"Não","unknown":"Ignorada / não informada"},"necropsy":{"1":"Sim","2":"Não","unknown":"Ignorada / não informada"},"certifier":{"1":"Médico assistente","2":"Médico substituto","3":"IML","4":"SVO","5":"Outro médico","unknown":"Ignorado / não informado"}}
+    filters=[{"label":filter_labels[key],"value":", ".join(filter_value_labels.get(key,{}).get(value,f"Código IBGE {value}" if key in {"residenceMunicipality","naturalityMunicipality"} else value) for value in sorted(values))} for key,values in selected_filters.items()]
     notes=[f"Fonte: SIM, arquivo anual público atualizado em {updated_at or 'data não informada'}. Recorte por município de ocorrência; competência pelo mês da data do óbito.","A tabela principal conta óbitos não fetais (TIPOBITO = 2). A semana epidemiológica é calculada pela data do óbito, de domingo a sábado. Dados recentes podem ser preliminares e revistos.","O detalhamento apresenta contagens agrupadas por residência e características disponíveis na declaração. Não exibe nomes, documentos ou datas individuais; campos ausentes são identificados como não informados.","O estabelecimento é o local de ocorrência registrado no SIM (CODESTAB), com nome consultado no CNES atual. Não significa necessariamente a unidade notificadora, e o cadastro pode diferir do histórico.","Residência não informada não entra nas contagens de Belém ou de outros municípios."]
     return {"ok":True,"report":"sim-mortalidade","view":view,"flatTable":True,"file":"SIM · CSV oficial","year":year,"month":month,"uf":"PA","state":"Pará","municipality":"Belém","municipalityCode":"150140","establishmentCode":str(week_index) if week_index else None,"establishmentName":week_label,"rows":rows,"records":total,"columns":columns,"metrics":[{"id":key,"label":label,"decimals":0} for key,label in metric_labels],"kpis":[{"label":"ÓBITOS NÃO FETAIS","value":{"value":total}},{"label":"RESIDENTES EM BELÉM","value":{"value":resident_total}},{"label":"OUTROS MUNICÍPIOS","value":{"value":other_total}},{"label":"RESIDÊNCIA NÃO INFORMADA","value":{"value":unknown_total}}],"filters":filters,"emptyStateMessage":f"Não há óbitos não fetais em Belém em {month:02d}/{year} com os filtros selecionados. Os dados recentes podem ser preliminares.","notes":notes,"cachedAt":time.time()}
 
