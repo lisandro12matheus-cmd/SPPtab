@@ -22,7 +22,7 @@ tabwin2_page_security();
 </head>
 <body>
   <div class="launch-splash" id="launchSplash" role="status" aria-live="polite">
-    <img class="launch-splash__logo" src="assets/tabulasus-logo.png?v=1" alt="TabulaSUS">
+    <img class="launch-splash__logo" src="assets/tabulasus-logo.png?v=2" alt="TabulaSUS">
     <div class="launch-splash__loader" aria-hidden="true">
       <span class="launch-splash__tile"></span><span class="launch-splash__tile"></span><span class="launch-splash__tile"></span>
       <span class="launch-splash__tile"></span><span class="launch-splash__tile"></span>
