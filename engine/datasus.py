@@ -350,6 +350,58 @@ def list_municipalities(uf: str) -> dict[str, Any]:
         raise SourceError(f"Não foi possível carregar os municípios do IBGE: {exc}") from exc
 
 
+def list_all_municipalities() -> dict[str, Any]:
+    """Return the searchable nationwide municipality list used by SIM residence filters."""
+    cache_folder = UPLOADS / ".cache" / "municipalities"
+    cache_folder.mkdir(parents=True, exist_ok=True)
+    cache_path = cache_folder / "brasil.json"
+    cached = None
+    try:
+        cached = json.loads(cache_path.read_text(encoding="utf-8"))
+        if not isinstance(cached, dict) or not isinstance(cached.get("municipalities"), list):
+            cached = None
+    except (OSError, ValueError, TypeError):
+        cached = None
+    if cached and time.time() - float(cached.get("fetched_at", 0)) < 30 * 86400:
+        return {"ok": True, "municipalities": cached["municipalities"], "source_mode": "cache"}
+
+    url = "https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome"
+    try:
+        request = urllib.request.Request(url, headers={"User-Agent": "TabulaSUS/1.0", "Accept": "application/json"})
+        with open_verified_https(request, "servicodados.ibge.gov.br", 20) as response:
+            body = response.read(16 * 1024 * 1024 + 1)
+            if len(body) > 16 * 1024 * 1024:
+                raise ValueError("O IBGE retornou uma resposta grande demais.")
+            if response.headers.get("Content-Encoding", "").lower() == "gzip" or body.startswith(b"\x1f\x8b"):
+                body = gzip.decompress(body)
+                if len(body) > 64 * 1024 * 1024:
+                    raise ValueError("A resposta compactada do IBGE ultrapassou o limite permitido.")
+            data = json.loads(body.decode("utf-8"))
+        if not isinstance(data, list):
+            raise ValueError("O IBGE não retornou a lista de municípios esperada.")
+        municipalities = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            ibge_id = str(item.get("id", ""))
+            name = item.get("nome")
+            if len(ibge_id) == 7 and ibge_id.isdigit() and isinstance(name, str) and name.strip():
+                municipalities.append({"code": ibge_id[:6], "ibge_id": ibge_id, "name": name.strip()})
+        if not municipalities:
+            raise ValueError("O IBGE não retornou municípios válidos.")
+        temporary = cache_path.with_suffix(".json.part")
+        try:
+            temporary.write_text(json.dumps({"fetched_at": time.time(), "municipalities": municipalities}, ensure_ascii=False), encoding="utf-8")
+            os.replace(temporary, cache_path)
+        except OSError:
+            temporary.unlink(missing_ok=True)
+        return {"ok": True, "municipalities": municipalities, "source_mode": "ibge"}
+    except Exception as exc:
+        if cached:
+            return {"ok": True, "municipalities": cached["municipalities"], "source_mode": "stale-cache"}
+        raise SourceError(f"Não foi possível carregar a lista de municípios do IBGE: {exc}") from exc
+
+
 def download_selected(system: str, year: int, month: int, requested_names: list[str], available: list[dict[str, Any]] | None = None, uf: str = "PA") -> dict[str, Any]:
     if available is None:
         available = select_files(system, year, month, uf)
@@ -468,6 +520,10 @@ def main() -> int:
         action = request.get("action")
         if action == "municipalities":
             output = list_municipalities(str(request.get("uf", "")).upper())
+            sys.stdout.write(json.dumps(output, ensure_ascii=True))
+            return 0
+        if action == "municipalities_all":
+            output = list_all_municipalities()
             sys.stdout.write(json.dumps(output, ensure_ascii=True))
             return 0
         system = request.get("system")

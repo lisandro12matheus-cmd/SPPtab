@@ -44,6 +44,7 @@
   let activeAih = '';
   let activeOriginCode = '';
   let activeDestinationCode = '';
+  let activeSimCauseCode = '';
   let activeYear = 0;
   let activeMonth = 0;
   let activeMonths = [];
@@ -106,6 +107,18 @@
     apgar1:{ label:'Apgar no 1º minuto', field:'apgar1Band', nameField:'apgar1BandName', queryKey:'apgar1', sourceLabel:'SINASC · APGAR1', options:[['0-3','0 a 3'],['4-6','4 a 6'],['7-10','7 a 10'],['unknown','Não informado']] },
     apgar5:{ label:'Apgar no 5º minuto', field:'apgar5Band', nameField:'apgar5BandName', queryKey:'apgar5', sourceLabel:'SINASC · APGAR5', options:[['0-3','0 a 3'],['4-6','4 a 6'],['7-10','7 a 10'],['unknown','Não informado']] },
     anomaly:{ label:'Anomalia congênita registrada', field:'anomalyStatus', nameField:'anomalyStatusName', queryKey:'anomalia', sourceLabel:'SINASC · IDANOMAL', options:[['1','Sim'],['2','Não'],['unknown','Não informado']] }
+  };
+  const simMortalityFilterDefinitions = {
+    residenceOrigin:{ label:'Residência em Belém ou em outro município', field:'residenceOrigin', nameField:'residenceOriginName', queryKey:'origem_residencia', sourceLabel:'SIM · CODMUNRES', options:[['local','Residente em Belém'],['outside','Residente em outro município'],['unknown','Residência não informada']] },
+    residenceMunicipality:{ label:'Município de residência', field:'residenceMunicipality', nameField:'residenceMunicipalityName', queryKey:'municipio_residencia', sourceLabel:'SIM · CODMUNRES / IBGE', searchable:true },
+    ageGroup:{ label:'Faixa etária', field:'ageGroup', nameField:'ageGroupName', queryKey:'faixa_etaria', sourceLabel:'SIM · IDADE', options:[['under1','Menor de 1 ano'],['1-17','1 a 17 anos'],['18-29','18 a 29 anos'],['30-59','30 a 59 anos'],['60+','60 anos ou mais'],['unknown','Não informado']] },
+    sex:{ label:'Sexo', field:'sex', nameField:'sexName', queryKey:'sexo', sourceLabel:'SIM · SEXO', options:[['1','Masculino'],['2','Feminino'],['unknown','Ignorado / não informado']] },
+    race:{ label:'Raça/cor', field:'race', nameField:'raceName', queryKey:'raca_cor', sourceLabel:'SIM · RACACOR', options:[['1','Branca'],['2','Preta'],['3','Amarela'],['4','Parda'],['5','Indígena'],['unknown','Ignorada / não informada']] },
+    education:{ label:'Escolaridade', field:'education', nameField:'educationName', queryKey:'escolaridade', sourceLabel:'SIM · ESC2010', options:[['0','Sem escolaridade'],['1','Fundamental I'],['2','Fundamental II'],['3','Ensino médio'],['4','Superior incompleto'],['5','Superior completo'],['unknown','Ignorada / não informada']] },
+    maritalStatus:{ label:'Situação conjugal', field:'maritalStatus', nameField:'maritalStatusName', queryKey:'situacao_conjugal', sourceLabel:'SIM · ESTCIV', options:[['1','Solteiro(a)'],['2','Casado(a)'],['3','Viúvo(a)'],['4','Separado(a) / divorciado(a)'],['5','União estável'],['unknown','Ignorada / não informada']] },
+    deathPlace:{ label:'Local de ocorrência do óbito', field:'deathPlace', nameField:'deathPlaceName', queryKey:'local_obito', sourceLabel:'SIM · LOCOCOR', options:[['1','Hospital'],['2','Outro estabelecimento de saúde'],['3','Domicílio'],['4','Via pública'],['5','Outro local'],['6','Aldeia indígena'],['unknown','Ignorado / não informado']] },
+    medicalAssistance:{ label:'Assistência médica durante a doença', field:'medicalAssistance', nameField:'medicalAssistanceName', queryKey:'assistencia_medica', sourceLabel:'SIM · ASSISTMED', options:[['1','Sim'],['2','Não'],['unknown','Ignorada / não informada']] },
+    necropsy:{ label:'Necropsia', field:'necropsy', nameField:'necropsyName', queryKey:'necropsia', sourceLabel:'SIM · NECROPSIA', options:[['1','Sim'],['2','Não'],['unknown','Ignorada / não informada']] }
   };
   const sihOccupancyFilterDefinitions = {
     ...sihFilterDefinitions,
@@ -216,15 +229,16 @@
     };
   }
   reportConfigurations['sim-mortalidade'] = {
-    ...reportConfigurations['sinan-dengue'], id:'sim-mortalidade', system:'sim', systemCode:'SIM', kind:'MORTALIDADE', filters:{},
+    ...reportConfigurations['sinan-dengue'], id:'sim-mortalidade', system:'sim', systemCode:'SIM', kind:'MORTALIDADE', filters:simMortalityFilterDefinitions,
     systemLabel:'SIM · MORTALIDADE', sourceLabel:'declarações públicas do SIM', workspaceTitle:'Mortalidade · SIM',
-    introLabel:'MORTALIDADE · SIM', introTitle:'Óbitos por semana.',
-    introDescription:'Acompanhe os óbitos não fetais por semana, causa básica, capítulo CID-10 e residência.',
+    introLabel:'MORTALIDADE · SIM', introTitle:'Mortalidade por semana e causa.',
+    introDescription:'Consulte os óbitos por causa básica, residência e características disponíveis na Declaração de Óbito.',
     setupTitle:'Mortalidade · Belém', setupDescription:'Escolha o período para consultar os óbitos ocorridos em Belém.',
     emptyMessage:'Escolha ao menos um mês para consultar a base pública do SIM.', municipalityLabel:'MUNICÍPIO DE OCORRÊNCIA',
-    methodTitle:'Como interpretar este relatório:', methodText:' os totais são declarações de óbito não fetal do SIM. Cada linha reúne semana do óbito, causa básica e capítulo CID-10. Belém é o município do óbito; a residência é apresentada em grupos.',
+    filterNote:'Belém é o município fixo de ocorrência do óbito. Adicione filtros opcionais para residência, faixa etária, sexo, raça/cor, escolaridade e outras informações da declaração. Use Ctrl ou Command para selecionar várias categorias no mesmo filtro.',
+    methodTitle:'Como interpretar este relatório:', methodText:' os totais são declarações de óbito não fetal do SIM. O recorte usa Belém como município de ocorrência; a residência pode ser filtrada por município. O detalhamento apresenta contagens agrupadas, sem nomes ou identificadores pessoais.',
     summaryTitle:'Óbitos por semana', countMetric:'deaths', countLabel:'ÓBITOS NÃO FETAIS',
-    tableSearchSummary:'Buscar semana', tableSearchDetail:'Buscar causa básica ou capítulo CID-10'
+    tableSearchSummary:'Buscar semana', tableSearchDetail:'Buscar residência, perfil ou estabelecimento'
   };
   reportConfigurations['sim-mortalidade-infantil'] = {
     id:'sim-mortalidade-infantil', system:'sim', systemCode:'SIM · SINASC', kind:'INFANTIL', remoteSource:true, tableMode:'flat', firstYear:2010,
@@ -921,14 +935,16 @@
           const query = search.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
           const matches = categories.filter((item) => `${item.value} ${item.label}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').includes(query));
           const matchValues = new Set(matches.map((item) => item.value));
-          const visible = [...matches, ...categories.filter((item) => selectedValues.has(item.value) && !matchValues.has(item.value))];
+          const resultLimit = categories.length > 300 ? (query.length >= 2 ? 300 : 100) : categories.length;
+          const visible = [...matches.slice(0, resultLimit), ...categories.filter((item) => selectedValues.has(item.value) && !matchValues.has(item.value))];
           select.replaceChildren(...visible.map((item) => new Option(item.label, item.value, false, selectedValues.has(item.value))));
           select.size = Math.min(6, Math.max(2, visible.length));
         };
         renderCboOptions();
         search.addEventListener('input', renderCboOptions);
         select.addEventListener('change', () => {
-          selectedValues.clear();
+          const visibleValues = new Set([...select.options].map((option) => option.value));
+          for (const value of visibleValues) selectedValues.delete(value);
           for (const option of select.selectedOptions) selectedValues.add(option.value);
           updateScopeDescription();
         });
@@ -980,9 +996,18 @@
       municipalitySelect.title = activeReport.remoteSource ? 'A lista de municípios não foi carregada. Confira a conexão e reabra o recorte.' : 'A lista de municípios não foi carregada. O relatório continua disponível para toda a UF.';
       if (activeReport.remoteSource && !activeReport.fixedMunicipalityCode) setAvailability('Não foi possível carregar a lista de municípios. Confira a conexão e tente novamente.', 'error');
     });
-    if (activeReport.system === 'sinasc') {
+    if (activeReport.system === 'sinasc' || activeReport.id === 'sim-mortalidade') {
       for (const [type, definition] of Object.entries(filterDefinitions)) if (definition.options) filterCategories[type] = definition.options.map(([value,label]) => ({ value,label }));
     }
+    const simResidenceTask = activeReport.id === 'sim-mortalidade'
+      ? api({ action:'municipalities_all' }).then((data) => {
+          if (requestId !== filterRequest) return;
+          filterCategories.residenceMunicipality = (data.municipalities || []).map((item) => ({ value:String(item.code || ''), label:`${String(item.name || '')} · ${String(item.code || '')}` })).filter((item) => /^\d{6}$/.test(item.value) && item.label.trim());
+        }).catch(() => {
+          if (requestId !== filterRequest) return;
+          filterCategories.residenceMunicipality = [];
+        })
+      : Promise.resolve();
     const categoryTask = activeReport.remoteSource && activeReport.system !== 'sinan' ? Promise.resolve() : api({ action: 'predefined_filter_options', report:activeReport.id, uf }).then((data) => {
       if (requestId !== filterRequest) return;
       for (const [type, definition] of Object.entries(filterDefinitions)) filterCategories[type] = data[definition.responseKey] || [];
@@ -990,7 +1015,7 @@
       if (requestId !== filterRequest) return;
       for (const type of Object.keys(filterDefinitions)) filterCategories[type] = [];
     });
-    await Promise.all([municipalityTask, categoryTask]);
+    await Promise.all([municipalityTask, categoryTask, simResidenceTask]);
     if (requestId === filterRequest) {
       renderAdditionalFilterRows(preferred);
       if (activeReport.remoteSource) {
@@ -1271,6 +1296,7 @@
       if (column.actionType === 'services') { button.dataset.aih = row.aih; button.dataset.cnes = row.cnes || activeCnes; button.dataset.action = 'services'; button.textContent = 'Serviços →'; }
       else if (column.actionType === 'flow-detail') { button.dataset.cnes = row.cnes || ''; button.dataset.originCode = row.originCode || ''; button.dataset.destinationCode = row.destinationCode || ''; button.dataset.action = 'flow-detail'; button.textContent = column.actionLabel || 'Detalhar →'; }
       else if (column.actionType === 'sinan-detail') { button.dataset.cnes = row.unitCode || ''; button.dataset.action = 'sinan-detail'; button.textContent = column.actionLabel || 'Detalhar →'; }
+      else if (column.actionType === 'sim-detail') { button.dataset.cnes = String(row.week || ''); button.dataset.week = String(row.week || ''); button.dataset.cause = String(row.causeCode || ''); button.dataset.action = 'sim-detail'; button.textContent = column.actionLabel || 'Detalhar →'; }
       else { button.dataset.cnes = row.code || row.cnes; button.dataset.action = 'detail'; button.textContent = column.actionLabel || 'Detalhar →'; }
       action.append(button); return action;
     }
@@ -1442,7 +1468,7 @@
       const line = document.createElement('p'); line.textContent = note; notes.append(line);
     }
     $('backToSummary').hidden = activeView === 'full' || (activeReport.tableMode === 'flat' && activeReport.id !== 'sih-rd-fluxo' && !(['sinan','sim','srag','sinasc'].includes(activeReport.system) && activeView === 'detail')) || activeView === 'summary';
-    $('backToSummary').textContent = activeView === 'services' ? '← AIH' : activeReport.id === 'sih-rd-fluxo' ? '← Fluxo' : activeReport.system === 'sinasc' ? '← Estabelecimentos' : activeReport.system === 'sim' ? '← Semanas' : ['srag','sinan'].includes(activeReport.system) ? '← Semanas epidemiológicas' : '← Estabelecimentos';
+    $('backToSummary').textContent = activeView === 'services' ? '← AIH' : activeReport.id === 'sih-rd-fluxo' ? '← Fluxo' : activeReport.system === 'sinasc' ? '← Estabelecimentos' : activeReport.system === 'sim' ? '← Resultados' : ['srag','sinan'].includes(activeReport.system) ? '← Semanas epidemiológicas' : '← Estabelecimentos';
     resultPanel.hidden = false;
     empty.hidden = true;
     updateTableDefaultControls();
@@ -1704,7 +1730,7 @@
 
   function resultKey(view, cnes, aih = '', months = activeMonths) {
     const filters = selectedFilters();
-    const route = activeReport.id === 'sih-rd-fluxo' && view === 'detail' ? [activeOriginCode, activeDestinationCode] : [];
+    const route = activeReport.id === 'sih-rd-fluxo' && view === 'detail' ? [activeOriginCode, activeDestinationCode] : activeReport.id === 'sim-mortalidade' && view === 'detail' ? [activeSimCauseCode] : [];
     return JSON.stringify([activeReport.id, activeYear, [...months], filters.uf, filters.municipalityCode, ...Object.values(filterDefinitions).map((definition) => filters[definition.field]), view, cnes || '', aih || '', ...route]);
   }
 
@@ -1712,7 +1738,7 @@
     return results.get(resultKey(view, cnes, aih, months));
   }
 
-  function routeUrl(view, cnes = '', aih = '', months = activeMonths) {
+  function routeUrl(view, cnes = '', aih = '', months = activeMonths, route = null) {
     const next = new URL(location.href);
     const filters = selectedFilters();
     for (const key of ['group','subgroup','form','complexity','financing','modality','registration','cbo','cid','service_class','habilitation','sex']) next.searchParams.delete(`sg_${key}`);
@@ -1735,7 +1761,9 @@
       next.searchParams.delete('origem');
       next.searchParams.delete('destino');
     }
-    history.pushState({ view, cnes, aih, originCode:activeOriginCode, destinationCode:activeDestinationCode }, '', next);
+    if (activeReport.id === 'sim-mortalidade' && view === 'detail' && route?.causeCode) next.searchParams.set('causa', route.causeCode);
+    else next.searchParams.delete('causa');
+    history.pushState({ view, cnes, aih, originCode:activeOriginCode, destinationCode:activeDestinationCode, causeCode:route?.causeCode || '' }, '', next);
   }
 
   function reportKindsForView(view) {
@@ -1960,7 +1988,7 @@
   async function tabulateReportMonth(view, cnes, aih, filters, year, month, monthIndex, monthCount) {
     if (activeReport.remoteSource) {
       setLoader(true, `Lendo arquivo oficial do ${activeReport.systemCode} · ${monthIndex + 1} de ${monthCount}`, `${monthNames[month - 1]} de ${year} · ${activeReport.id === 'sim-mortalidade-infantil' ? 'óbitos e nascidos vivos por residência' : activeReport.system === 'sim' ? 'óbitos ocorridos em Belém' : activeReport.system === 'sinasc' ? 'nascidos vivos por estabelecimento' : activeReport.system === 'srag' ? 'casos por município de residência' : 'unidades notificadoras de Belém'}.`, null, true);
-      let job = await api({ action:'tabulate_start', predefinedReport:activeReport.id, view, uf:filters.uf, year, month, municipalityCode:filters.municipalityCode, municipalityName:filters.municipalityName, ...(activeReport.system === 'sinasc' ? { sinascFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { establishmentCode:cnes } : {}) } : {}), ...(activeReport.system === 'sinan' ? { cnesManagementCode:filters.cnesManagementCode, cnesNatureGroupCode:filters.cnesNatureGroupCode, ...(view === 'detail' ? { weekIndex:Number(cnes) } : {}) } : ['sim','srag'].includes(activeReport.system) && view === 'detail' ? { weekIndex:Number(cnes) } : {}) });
+      let job = await api({ action:'tabulate_start', predefinedReport:activeReport.id, view, uf:filters.uf, year, month, municipalityCode:filters.municipalityCode, municipalityName:filters.municipalityName, ...(activeReport.system === 'sinasc' ? { sinascFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { establishmentCode:cnes } : {}) } : {}), ...(activeReport.id === 'sim-mortalidade' ? { simFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { weekIndex:Number(cnes), causeCode:activeSimCauseCode } : {}) } : {}), ...(activeReport.system === 'sinan' ? { cnesManagementCode:filters.cnesManagementCode, cnesNatureGroupCode:filters.cnesNatureGroupCode, ...(view === 'detail' ? { weekIndex:Number(cnes) } : {}) } : ['sim','srag'].includes(activeReport.system) && view === 'detail' ? { weekIndex:Number(cnes) } : {}) });
       if (job.done && job.result) return stampMonthlyResult(job.result, year, month);
       if (!job.job_id) throw new Error(`O TabulaSUS não retornou uma consulta válida ao ${activeReport.systemCode}.`);
       const jobId = job.job_id;
@@ -2034,6 +2062,10 @@
     activeYear = year; activeMonths = requestedMonths; activeMonth = requestedMonths.at(-1); activeView = view; activeCnes = cnes; activeAih = aih;
     activeOriginCode = activeReport.id === 'sih-rd-fluxo' && view === 'detail' ? String(route?.originCode || '').replace(/\D/g, '').slice(0, 6) : '';
     activeDestinationCode = activeReport.id === 'sih-rd-fluxo' && view === 'detail' ? String(route?.destinationCode || '').replace(/\D/g, '').slice(0, 6) : '';
+    const rawSimCauseCode = String(route?.causeCode || '').trim().toUpperCase();
+    activeSimCauseCode = activeReport.id === 'sim-mortalidade' && view === 'detail'
+      ? (rawSimCauseCode.normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('NAO INFORMADO') ? 'NI' : rawSimCauseCode.replace(/[^A-Z0-9]/g, '').slice(0, 3))
+      : '';
     resetTableViewState();
     $('reportSearch').value = '';
     showNotice('');
@@ -2043,7 +2075,7 @@
     const setupSelects = [ufSelect, municipalitySelect, yearSelect, monthSelect, addFilterSelect, ...addedFilterRows.querySelectorAll('select')];
     for (const select of setupSelects) select.disabled = true;
     updateMonthPicker();
-    if (updateUrl) routeUrl(view, cnes, aih, requestedMonths);
+    if (updateUrl) routeUrl(view, cnes, aih, requestedMonths, { causeCode:activeSimCauseCode });
     const cached = cachedResult(view, cnes, aih, requestedMonths);
     if (cached) {
       activeResult = cached; allRows = cached.rows || [];
@@ -2274,9 +2306,11 @@
   $('exportReport').addEventListener('click', exportCsv);
   $('reportRows').addEventListener('click', (event) => {
     const button = event.target.closest('.report-detail-button');
-    if (!button?.dataset.cnes) return;
+    if (!button) return;
     if (button.dataset.action === 'services' && button.dataset.aih) runReport('services', button.dataset.cnes, true, button.dataset.aih, [Number(button.dataset.month) || activeMonth]);
     else if (button.dataset.action === 'flow-detail') runReport('detail', button.dataset.cnes, true, '', reportMonths, { originCode:button.dataset.originCode, destinationCode:button.dataset.destinationCode });
+    else if (button.dataset.action === 'sim-detail' && button.dataset.week) runReport('detail', button.dataset.week, true, '', [Number(button.dataset.month) || activeMonth], { causeCode:button.dataset.cause || '' });
+    else if (!button.dataset.cnes) return;
     else runReport('detail', button.dataset.cnes, true, '', reportMonths);
   });
   $('backToSummary').addEventListener('click', () => {
@@ -2287,10 +2321,10 @@
       } else runReport('detail', activeCnes, true, '', reportMonths);
       return;
     }
-    const returnView = activeReport.system === 'sinasc' ? 'full' : 'summary';
+    const returnView = ['sinasc','sim'].includes(activeReport.system) ? 'full' : 'summary';
     const cached = cachedResult(returnView, '', '', reportMonths);
     if (cached) {
-      activeMonths = [...reportMonths]; activeMonth = activeMonths.at(-1) || activeMonth; activeOriginCode = ''; activeDestinationCode = ''; routeUrl(returnView, '', '', activeMonths); activeView = returnView; activeCnes = ''; activeAih = ''; activeResult = cached; allRows = cached.rows || []; $('reportSearch').value = ''; resetTableViewState(); restoreTableDefaults(); renderTable();
+      activeMonths = [...reportMonths]; activeMonth = activeMonths.at(-1) || activeMonth; activeOriginCode = ''; activeDestinationCode = ''; activeSimCauseCode = ''; routeUrl(returnView, '', '', activeMonths); activeView = returnView; activeCnes = ''; activeAih = ''; activeResult = cached; allRows = cached.rows || []; $('reportSearch').value = ''; resetTableViewState(); restoreTableDefaults(); renderTable();
     } else runReport(returnView, '', true, '', reportMonths);
   });
   window.addEventListener('popstate', async () => {
@@ -2301,6 +2335,7 @@
     const aih = (current.get('aih') || '').replace(/\D/g, '').slice(0, 13);
     const originCode = (current.get('origem') || '').replace(/\D/g, '').slice(0, 6);
     const destinationCode = (current.get('destino') || '').replace(/\D/g, '').slice(0, 6);
+    const causeCode = (current.get('causa') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
     const requestedId = current.get('relatorio') === 'sia-pa-belem' ? 'sia-pa-producao' : (current.get('relatorio') || 'sia-pa-producao');
     activateReport(reportConfigurations[requestedId] ? requestedId : 'sia-pa-producao');
     await loadReportDefaults(activeReport.id);
@@ -2323,7 +2358,7 @@
     const availableMonths = [...monthSelect.options].map((option) => Number(option.value)).filter((month) => month >= 1 && month <= 12);
     setMonthOptions([...new Set([...availableMonths, ...months])], months);
     reportMonths = [...months];
-    await runReport(aih ? 'services' : cnes ? 'detail' : defaultReportView(), cnes, false, aih, months, { originCode, destinationCode });
+    await runReport(aih ? 'services' : cnes ? 'detail' : defaultReportView(), cnes, false, aih, months, { originCode, destinationCode, causeCode });
   });
 
   async function init() {
@@ -2347,7 +2382,7 @@
         const availableMonths = [...monthSelect.options].map((option) => Number(option.value)).filter((month) => month >= 1 && month <= 12);
         setMonthOptions([...new Set([...availableMonths, ...linkedMonths])], linkedMonths);
         reportMonths = [...linkedMonths];
-        await runReport(linkedAih ? 'services' : linkedCnes ? 'detail' : defaultReportView(), linkedCnes, false, linkedAih, linkedMonths, { originCode:linkedOriginCode, destinationCode:linkedDestinationCode });
+        await runReport(linkedAih ? 'services' : linkedCnes ? 'detail' : defaultReportView(), linkedCnes, false, linkedAih, linkedMonths, { originCode:linkedOriginCode, destinationCode:linkedDestinationCode, causeCode:params.get('causa') || '' });
       } catch (error) {
         showReportFailure(error);
       }

@@ -49,7 +49,7 @@ register_shutdown_function(static function (): void {
 
 $action = $payload['action'] ?? '';
 $tabulationActions = ['catalog', 'delete_file', 'schema', 'preset_list', 'preset_save', 'preset_get', 'preset_delete', 'column_values', 'category_values', 'predefined_filter_options', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status'];
-$dataActions = ['competencies', 'files', 'download', 'municipalities'];
+$dataActions = ['competencies', 'files', 'download', 'municipalities', 'municipalities_all'];
 $preferenceActions = ['report_defaults_get', 'report_defaults_save', 'report_defaults_delete'];
 $sigtapActions = ['sigtap_catalog', 'sigtap_zip_prepare', 'sigtap_search', 'sigtap_column_values', 'sigtap_options', 'sigtap_detail', 'sigtap_aggregates', 'sigtap_compare'];
 if (!in_array($action, [...$dataActions, ...$tabulationActions, ...$preferenceActions, ...$sigtapActions], true)) {
@@ -134,6 +134,8 @@ if (in_array($action, $sigtapActions, true)) {
         respond(['ok' => false, 'error' => 'Selecione uma unidade da Federação válida.'], 400);
     }
     $payload['uf'] = $uf;
+} elseif ($action === 'municipalities_all') {
+    $payload['action'] = 'municipalities_all';
 } else {
     if (!in_array($payload['system'] ?? '', ['sia', 'sih'], true)) {
         respond(['ok' => false, 'error' => 'Selecione uma base válida.'], 400);

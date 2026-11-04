@@ -1620,6 +1620,8 @@ def _sinan_ibge_municipalities():
         names.update({str(code):_report_label(name) for code,name in cached["municipalities"].items() if re.fullmatch(r"\d{6}",str(code)) and _report_label(name)})
         if time.time()-float(cached.get("fetched_at",0))<30*86400:
             return names
+    if len(names)>=5000:
+        return names
     url="https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome"
     try:
         data=_sinan_json_request(url,"servicodados.ibge.gov.br",timeout=25,max_bytes=16*1024*1024)
@@ -2240,84 +2242,205 @@ def predefined_sim_infant_mortality(payload: dict[str,Any], progress=None):
         "metrics":[{"id":"deaths","label":"Óbitos < 1 ano","decimals":0}],
         "notes":[f"SIM atualizado em {sim.get('updatedAt') or 'data não informada'}; SINASC atualizado em {sinasc.get('updatedAt') or 'data não informada'}. Óbitos pela residência da criança e nascidos vivos pela residência da mãe, independentemente do local de ocorrência.","Cada linha da tabela é um registro público não fetal do SIM, sem nome, documento ou datas exatas. Os campos de peso, gestação, idade da mãe, parto, local e assistência aparecem somente quando informados. A faixa etária usa a diferença entre data de nascimento e data do óbito; registros sem as duas datas válidas não entram no numerador.","A taxa por mil nascidos vivos é exibida somente para um ano completo anterior ao atual, sem filtros na tabela. Dados recentes são preliminares e podem ser revisados pelas fontes oficiais."],"cachedAt":time.time()}
 
+def _sim_mortality_age_group(value: Any) -> str:
+    raw=re.sub(r"\D","",str(value or ""))
+    if len(raw)!=3 or raw[0]=="9": return "unknown"
+    unit=int(raw[0]); amount=int(raw[1:])
+    if unit in {1,2,3}: return "under1"
+    if unit==5: return "60+"
+    if unit!=4: return "unknown"
+    if amount<1: return "under1"
+    if amount<=17: return "1-17"
+    if amount<=29: return "18-29"
+    if amount<=59: return "30-59"
+    return "60+"
+
+def _sim_mortality_selected_filters(payload: dict[str,Any]) -> dict[str,set[str]]:
+    allowed={
+        "residenceOrigin":{"local","outside","unknown"},"residenceMunicipality":set(),
+        "ageGroup":{"under1","1-17","18-29","30-59","60+","unknown"},"sex":{"1","2","unknown"},
+        "race":{"1","2","3","4","5","unknown"},"education":{"0","1","2","3","4","5","unknown"},
+        "maritalStatus":{"1","2","3","4","5","unknown"},"deathPlace":{"1","2","3","4","5","6","unknown"},
+        "medicalAssistance":{"1","2","unknown"},"necropsy":{"1","2","unknown"}}
+    raw=payload.get("simFilters") or {}
+    if not isinstance(raw,dict) or len(raw)>len(allowed): raise ValueError("Os filtros do SIM são inválidos.")
+    selected={}
+    for key,values in raw.items():
+        if key not in allowed or not isinstance(values,list) or len(values)>6000: raise ValueError("A seleção de filtros do SIM é inválida ou extensa demais.")
+        clean={str(value).strip() for value in values if str(value).strip()}
+        if key=="residenceMunicipality":
+            if any(not re.fullmatch(r"\d{6}",value) for value in clean): raise ValueError("Selecione códigos válidos de município de residência.")
+        elif not clean.issubset(allowed[key]): raise ValueError("A seleção contém uma categoria SIM inválida.")
+        if clean: selected[key]=clean
+    return selected
+
+def _sim_mortality_category(value: Any, choices: set[str], aliases: dict[str,str] | None = None) -> str:
+    raw=str(value or "").strip().upper()
+    if aliases and raw in aliases: raw=aliases[raw]
+    return raw if raw in choices else "unknown"
+
 def predefined_sim_mortality(payload: dict[str,Any], progress=None):
-    """Aggregate official SIM declarations by month and ICD-10 chapter for deaths occurring in Belém."""
+    """Aggregate public SIM deaths by week/cause, with optional grouped profile details."""
     year=payload.get("year"); month=payload.get("month")
-    if not isinstance(year,int) or not 2000<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12:
-        raise ValueError("Selecione um ano e um mês válidos para o SIM.")
-    if str(payload.get("uf") or "").upper()!="PA" or str(payload.get("municipalityCode") or "")!="150140":
-        raise ValueError("O relatório de mortalidade considera óbitos ocorridos em Belém.")
-    view=str(payload.get("view") or "summary")
+    if not isinstance(year,int) or not 2000<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12: raise ValueError("Selecione um ano e um mês válidos para o SIM.")
+    if str(payload.get("uf") or "").upper()!="PA" or str(payload.get("municipalityCode") or "")!="150140": raise ValueError("O relatório de mortalidade considera óbitos ocorridos em Belém.")
+    view=str(payload.get("view") or "full")
     if view not in {"summary","detail","full"}: raise ValueError("Selecione uma visão válida do relatório de mortalidade.")
     week_index=payload.get("weekIndex") if view=="detail" else None
-    if view=="detail" and (not isinstance(week_index,int) or not 1<=week_index<=53):
-        raise ValueError("Selecione uma semana válida para detalhar.")
-    target=cache_target("sim_mortality",{"version":5,"year":year,"municipality":"150140"})
+    if view=="detail" and (not isinstance(week_index,int) or not 1<=week_index<=53): raise ValueError("Selecione uma semana válida para detalhar.")
+    cause_code=str(payload.get("causeCode") or "").strip().upper()
+    if cause_code in {"NÃO INFORMADO","NOINFORMADO"}: cause_code="NI"
+    if view=="detail" and cause_code and cause_code!="NI" and not re.fullmatch(r"[A-Z]\d{2}",cause_code): raise ValueError("A causa básica selecionada para detalhamento é inválida.")
+    selected_filters=_sim_mortality_selected_filters(payload)
+    target=cache_target("sim_mortality",{"version":6,"year":year,"municipality":"150140"})
     with interprocess_lock(target.with_suffix(".lock")):
         cached=cache_read(target)
         cache_lifetime=24*3600 if year==date.today().year else 30*86400
-        if isinstance(cached,dict) and isinstance(cached.get("rows"),list) and isinstance(cached.get("details"),list) and time.time()-float(cached.get("fetched_at",0))<cache_lifetime:
-            annual_rows=cached["rows"]; annual_details=cached["details"]; updated_at=cached.get("updatedAt")
+        if isinstance(cached,dict) and isinstance(cached.get("profiles"),list) and time.time()-float(cached.get("fetched_at",0))<cache_lifetime:
+            profiles=cached["profiles"]; updated_at=cached.get("updatedAt")
         else:
             if progress: progress(5,"Baixando declarações públicas do SIM")
             archive,updated_at=_sinan_dengue_archive(year,"sim-mortalidade",progress)
-            groups={}; details={}
-            jan_four=date(year,1,4)
-            first_sunday=jan_four-timedelta(days=(jan_four.weekday()+1)%7)
-            previous_jan_four=date(year-1,1,4)
-            previous_first_sunday=previous_jan_four-timedelta(days=(previous_jan_four.weekday()+1)%7)
-            next_jan_four=date(year+1,1,4)
-            next_first_sunday=next_jan_four-timedelta(days=(next_jan_four.weekday()+1)%7)
+            grouped={}
+            jan_four=date(year,1,4); first_sunday=jan_four-timedelta(days=(jan_four.weekday()+1)%7)
+            previous_first_sunday=(date(year-1,1,4)-timedelta(days=(date(year-1,1,4).weekday()+1)%7))
+            next_first_sunday=(date(year+1,1,4)-timedelta(days=(date(year+1,1,4).weekday()+1)%7))
             try:
                 with zipfile.ZipFile(archive) as bundle:
                     expected=f"Mortalidade_Geral_{year}.csv"
                     matches=[item for item in bundle.infolist() if not item.is_dir() and item.filename.replace("\\","/").rsplit("/",1)[-1].casefold()==expected.casefold()]
-                    if len(matches)!=1 or matches[0].file_size>SINAN_DENGUE_CSV_MAX_BYTES: raise ValueError("O pacote SIM não contém o CSV anual esperado.")
+                    if len(matches)!=1 or not 0<matches[0].file_size<=SINAN_DENGUE_CSV_MAX_BYTES: raise ValueError("O pacote SIM não contém o CSV anual esperado.")
                     with bundle.open(matches[0]) as binary, io.TextIOWrapper(binary,encoding="latin1",newline="") as stream:
                         reader=csv.DictReader(stream,delimiter=";")
+                        field_names={str(name or "").lstrip("\ufeff").strip().upper():name for name in (reader.fieldnames or [])}
                         required={"DTOBITO","CODMUNOCOR","CODMUNRES","CAUSABAS","TIPOBITO"}
-                        if not required.issubset(set(reader.fieldnames or [])): raise ValueError("O CSV do SIM não contém os campos necessários ao relatório.")
+                        if not required.issubset(field_names): raise ValueError("O CSV do SIM não contém os campos necessários ao relatório.")
+                        def field(item,key):
+                            actual=field_names.get(key)
+                            return str(item.get(actual) or "").strip() if actual else ""
                         for number,item in enumerate(reader,1):
                             if progress and number%50000==0: progress(min(88,32+int(54*binary.tell()/max(1,matches[0].file_size))),f"Lendo óbitos do SIM · {number:,} registros".replace(",","."))
-                            if re.sub(r"\D","",str(item.get("CODMUNOCOR") or ""))[:6]!="150140": continue
-                            raw=str(item.get("DTOBITO") or "").strip()
+                            if re.sub(r"\D","",field(item,"CODMUNOCOR"))[:6]!="150140": continue
+                            raw=field(item,"DTOBITO")
                             if re.fullmatch(r"\d{8}",raw): day,mo,yr=int(raw[:2]),int(raw[2:4]),int(raw[4:])
                             else:
                                 try: parsed=date.fromisoformat(raw[:10]); day,mo,yr=parsed.day,parsed.month,parsed.year
                                 except ValueError: continue
                             try: death_date=date(yr,mo,day)
                             except ValueError: continue
-                            if yr!=year: continue
-                            if str(item.get("TIPOBITO") or "").strip()!="2": continue
-                            cid=re.sub(r"[^A-Z0-9]","",str(item.get("CAUSABAS") or "").upper())[:3]
-                            chapter=next(((start,end,label) for start,end,label in SIM_CID_CHAPTERS if start<=cid<=end),None)
-                            index=SIM_CID_CHAPTERS.index(chapter)+1 if chapter else len(SIM_CID_CHAPTERS)+1
+                            if yr!=year or field(item,"TIPOBITO")!="2": continue
+                            cause=re.sub(r"[^A-Z0-9]","",field(item,"CAUSABAS").upper())[:3] or "NI"
+                            chapter=next(((start,end,label) for start,end,label in SIM_CID_CHAPTERS if start<=cause<=end),None)
+                            chapter_index=SIM_CID_CHAPTERS.index(chapter)+1 if chapter else len(SIM_CID_CHAPTERS)+1
                             week_anchor=previous_first_sunday if death_date<first_sunday else next_first_sunday if death_date>=next_first_sunday else first_sunday
                             week_year=year-1 if death_date<first_sunday else year+1 if death_date>=next_first_sunday else year
                             week=(death_date-week_anchor).days//7+1
                             if not 1<=week<=53: continue
-                            key=(mo,week)
-                            base={"deaths":0,"residents":0,"otherResidents":0,"unknownResidence":0}
-                            row=groups.setdefault(key,{"month":mo,"week":week,"weekYear":week_year,"code":str(week),"weekName":f"Semana epidemiológica {week:02d}"+(f" · {week_year}" if week_year!=year else ""),**base})
-                            detail=details.setdefault((mo,week,index,cid),{"month":mo,"week":week,"chapterIndex":index,"chapterName":chapter[2] if chapter else "Causa básica não classificada","causeCode":cid or "Não informado",**base})
-                            row["deaths"]+=1; detail["deaths"]+=1
-                            residence=re.sub(r"\D","",str(item.get("CODMUNRES") or ""))[:6]
-                            residence_key="residents" if residence=="150140" else "otherResidents" if re.fullmatch(r"\d{6}",residence) else "unknownResidence"
-                            row[residence_key]+=1; detail[residence_key]+=1
+                            residence=re.sub(r"\D","",field(item,"CODMUNRES")); residence=residence[:6] if len(residence)>=6 else ""
+                            if residence in {"000000","999999"}: residence=""
+                            naturality=re.sub(r"\D","",field(item,"CODMUNNATU")); naturality=naturality[:6] if len(naturality)>=6 and naturality[:6] not in {"000000","999999"} else ""
+                            establishment_raw=re.sub(r"\D","",field(item,"CODESTAB"))
+                            establishment=establishment_raw if len(establishment_raw) in {7,8} else ""
+                            sex=_sim_mortality_category(field(item,"SEXO"),{"1","2"},{"M":"1","F":"2","0":"unknown","9":"unknown","I":"unknown"})
+                            race=_sim_mortality_category(field(item,"RACACOR"),{"1","2","3","4","5"})
+                            education=_sim_mortality_category(field(item,"ESC2010"),{"0","1","2","3","4","5"})
+                            marital=_sim_mortality_category(field(item,"ESTCIV"),{"1","2","3","4","5"})
+                            death_place=_sim_mortality_category(field(item,"LOCOCOR"),{"1","2","3","4","5","6"})
+                            assistance=_sim_mortality_category(field(item,"ASSISTMED"),{"1","2"})
+                            necropsy=_sim_mortality_category(field(item,"NECROPSIA"),{"1","2"})
+                            certifier=_sim_mortality_category(field(item,"ATESTANTE"),{"1","2","3","4","5"})
+                            age_group=_sim_mortality_age_group(field(item,"IDADE"))
+                            occupation=re.sub(r"\D","",field(item,"OCUP")); occupation=occupation if len(occupation)==6 and occupation not in {"000000","999999"} else ""
+                            key=(mo,week,week_year,cause,chapter_index,residence,naturality,age_group,sex,race,education,marital,death_place,establishment,assistance,necropsy,certifier,occupation)
+                            grouped[key]=grouped.get(key,0)+1
             finally: archive.unlink(missing_ok=True)
-            annual_rows=list(groups.values()); annual_details=list(details.values())
-            cache_write(target,{"fetched_at":time.time(),"updatedAt":updated_at,"rows":annual_rows,"details":annual_details},max_bytes=20_000_000,keep=10)
+            fields=("month","week","weekYear","causeCode","chapterIndex","residenceCode","naturalityCode","ageGroup","sexCode","raceCode","educationCode","maritalCode","deathPlaceCode","establishmentCode","medicalAssistanceCode","necropsyCode","certifierCode","occupationCode")
+            profiles=[{**dict(zip(fields,key)),"deaths":count} for key,count in grouped.items()]
+            cache_write(target,{"fetched_at":time.time(),"updatedAt":updated_at,"profiles":profiles},max_bytes=48_000_000,keep=10)
+
+    def matches(profile):
+        values={"residenceOrigin":"local" if profile["residenceCode"]=="150140" else "outside" if profile["residenceCode"] else "unknown","residenceMunicipality":profile["residenceCode"],"ageGroup":profile["ageGroup"],"sex":profile["sexCode"],"race":profile["raceCode"],"education":profile["educationCode"],"maritalStatus":profile["maritalCode"],"deathPlace":profile["deathPlaceCode"],"medicalAssistance":profile["medicalAssistanceCode"],"necropsy":profile["necropsyCode"]}
+        return all(values[key] in selected for key,selected in selected_filters.items())
+    selected=[profile for profile in profiles if profile["month"]==month and matches(profile)]
+    if view=="detail":
+        selected=[profile for profile in selected if profile["week"]==week_index and (not cause_code or profile["causeCode"]==cause_code)]
+        detail_fields=("month","week","weekYear","causeCode","chapterIndex","residenceCode","naturalityCode","ageGroup","sexCode","raceCode","educationCode","maritalCode","deathPlaceCode","establishmentCode","medicalAssistanceCode","necropsyCode","certifierCode","occupationCode")
+        detail_rows={}
+        for profile in selected:
+            key=tuple(profile[field] for field in detail_fields); detail_rows[key]=detail_rows.get(key,0)+profile["deaths"]
+        selected=[{**dict(zip(detail_fields,key)),"deaths":count} for key,count in detail_rows.items()]
+    elif view in {"summary","full"}:
+        grouped={}
+        for profile in selected:
+            key=(profile["month"],profile["week"],profile["weekYear"])+( (profile["causeCode"],profile["chapterIndex"]) if view=="full" else ())
+            row=grouped.setdefault(key,{"month":key[0],"week":key[1],"weekYear":key[2],"deaths":0,"residents":0,"otherResidents":0,"unknownResidence":0})
+            if view=="full": row.update({"causeCode":key[3],"chapterIndex":key[4]})
+            row["deaths"]+=profile["deaths"]
+            residence_key="residents" if profile["residenceCode"]=="150140" else "otherResidents" if profile["residenceCode"] else "unknownResidence"
+            row[residence_key]+=profile["deaths"]
+        selected=list(grouped.values())
+
     cid_names=_sim_cid_names() if view in {"detail","full"} else {}
-    if view in {"detail","full"}:
-        rows=sorted(({**row,"weekName":f"Semana {row['week']:02d}","causeName":cid_names.get(row["causeCode"],"Descrição não disponível na tabela CID local")} for row in annual_details if row["month"]==month and (view=="full" or row["week"]==week_index)),key=lambda row:(row["week"],-row["deaths"],row["causeCode"]))
+    rows=[]
+    if view in {"summary","full"}:
+        for item in selected:
+            cause=item.get("causeCode","")
+            chapter=next((label for start,end,label in SIM_CID_CHAPTERS if start<=cause<=end),"Causa básica não classificada") if cause and cause!="NI" else "Causa básica não classificada"
+            row={**item,"code":str(item["week"]),"weekName":f"Semana {item['week']:02d}"+(f" · {item['weekYear']}" if item["weekYear"]!=year else "")}
+            if view=="full": row.update({"causeCode":"Não informado" if cause=="NI" else cause,"causeName":cid_names.get(cause,"Descrição não disponível na tabela CID local"),"chapterName":chapter})
+            rows.append(row)
+        rows.sort(key=lambda row:(row["weekYear"],row["week"],-row["deaths"],row.get("causeCode","")))
     else:
-        rows=sorted(({**row,"weekName":f"Semana {row['week']:02d}"+(f" · {row['weekYear']}" if row["weekYear"]!=year else "")} for row in annual_rows if row["month"]==month),key=lambda row:(row["weekYear"],row["week"]))
+        try: municipalities=_sinan_ibge_municipalities()
+        except Exception: municipalities={}
+        establishment_lookup={item["establishmentCode"]:(item["establishmentCode"] if len(item["establishmentCode"])==7 else item["establishmentCode"][1:] if len(item["establishmentCode"])==8 and item["establishmentCode"].startswith("0") else "") for item in selected if item["establishmentCode"]}
+        establishment_codes=sorted({code for code in establishment_lookup.values() if code})
+        if progress: progress(92,"Completando nomes de municípios e unidades do CNES")
+        try: establishment_names,_=_sinasc_maternity_names(establishment_codes)
+        except Exception: establishment_names={}
+        labels={
+            "ageGroup":{"under1":"Menor de 1 ano","1-17":"1 a 17 anos","18-29":"18 a 29 anos","30-59":"30 a 59 anos","60+":"60 anos ou mais","unknown":"Não informado"},
+            "sexCode":{"1":"Masculino","2":"Feminino","unknown":"Ignorado / não informado"},"raceCode":{"1":"Branca","2":"Preta","3":"Amarela","4":"Parda","5":"Indígena","unknown":"Ignorada / não informada"},
+            "educationCode":{"0":"Sem escolaridade","1":"Fundamental I","2":"Fundamental II","3":"Ensino médio","4":"Superior incompleto","5":"Superior completo","unknown":"Ignorada / não informada"},
+            "maritalCode":{"1":"Solteiro(a)","2":"Casado(a)","3":"Viúvo(a)","4":"Separado(a) / divorciado(a)","5":"União estável","unknown":"Ignorada / não informada"},
+            "deathPlaceCode":{"1":"Hospital","2":"Outro estabelecimento de saúde","3":"Domicílio","4":"Via pública","5":"Outro local","6":"Aldeia indígena","unknown":"Ignorado / não informado"},
+            "medicalAssistanceCode":{"1":"Sim","2":"Não","unknown":"Ignorada / não informada"},"necropsyCode":{"1":"Sim","2":"Não","unknown":"Ignorada / não informada"},
+            "certifierCode":{"1":"Médico assistente","2":"Médico substituto","3":"IML","4":"SVO","5":"Outro médico","unknown":"Ignorado / não informado"}}
+        for item in selected:
+            residence=item["residenceCode"]; naturality=item["naturalityCode"]; establishment=item["establishmentCode"]; cause=item["causeCode"]
+            chapter=next((label for start,end,label in SIM_CID_CHAPTERS if start<=cause<=end),"Causa básica não classificada") if cause!="NI" else "Causa básica não classificada"
+            rows.append({**item,"causeName":cid_names.get(cause,"Descrição não disponível na tabela CID local"),"causeCode":"Não informado" if cause=="NI" else cause,"chapterName":chapter,
+                "residenceName":municipalities.get(residence,"Residência não informada" if not residence else f"Município {residence}"),"naturalityName":municipalities.get(naturality,"Não informado" if not naturality else f"Município {naturality}"),
+                "ageGroupName":labels["ageGroup"].get(item["ageGroup"],"Não informado"),"sexName":labels["sexCode"].get(item["sexCode"],"Ignorado / não informado"),"raceName":labels["raceCode"].get(item["raceCode"],"Ignorada / não informada"),
+                "educationName":labels["educationCode"].get(item["educationCode"],"Ignorada / não informada"),"maritalStatusName":labels["maritalCode"].get(item["maritalCode"],"Ignorada / não informada"),
+                "deathPlaceName":labels["deathPlaceCode"].get(item["deathPlaceCode"],"Ignorado / não informado"),"establishmentName":establishment_names.get(establishment_lookup.get(establishment,"")) or (f"CNES {establishment}" if establishment else "Não informado"),
+                "medicalAssistanceName":labels["medicalAssistanceCode"].get(item["medicalAssistanceCode"],"Ignorada / não informada"),"necropsyName":labels["necropsyCode"].get(item["necropsyCode"],"Ignorada / não informada"),
+                "certifierName":labels["certifierCode"].get(item["certifierCode"],"Ignorado / não informado"),"occupationName":f"CBO {item['occupationCode']}" if item["occupationCode"] else "Não informado"})
+        rows.sort(key=lambda row:(row["residenceName"].casefold(),row["ageGroupName"],row["sexName"],row["causeCode"]))
+
+    if view=="detail":
+        for row in rows:
+            row["weekName"]=f"Semana {row['week']:02d}"
+            row["residents"]=row["deaths"] if row["residenceCode"]=="150140" else 0
+            row["otherResidents"]=row["deaths"] if row["residenceCode"] and row["residenceCode"]!="150140" else 0
+            row["unknownResidence"]=row["deaths"] if not row["residenceCode"] else 0
     total=sum(row["deaths"] for row in rows)
-    week_label=f"Semana {week_index:02d}" if week_index else None
+    resident_total=sum(row.get("residents",0) for row in rows); other_total=sum(row.get("otherResidents",0) for row in rows); unknown_total=sum(row.get("unknownResidence",0) for row in rows)
     if progress: progress(98,"Preparando o painel de mortalidade")
-    return {"ok":True,"report":"sim-mortalidade","view":view,"flatTable":True,"file":"SIM · CSV oficial","year":year,"month":month,"uf":"PA","state":"Pará","municipality":"Belém","municipalityCode":"150140","establishmentCode":str(week_index) if week_index else None,"establishmentName":week_label,"rows":rows,"records":total,"emptyStateMessage":f"O arquivo oficial do SIM ainda não apresenta óbitos ocorridos em Belém em {month:02d}/{year}. Os dados recentes podem ser preliminares.",
-        "columns":[{"id":"cause" if view=="detail" else "week","label":"CAUSA BÁSICA · CID-10" if view=="detail" else "SEMANA","kind":"primary","primaryField":"causeName" if view=="detail" else "weekName","secondaryField":"causeCode" if view=="detail" else None,"filterFields":["causeName","causeCode"] if view=="detail" else ["weekName","week"],"sortField":"causeName" if view=="detail" else "week","type":"text","sticky":True},*([{"id":"cause","label":"CAUSA BÁSICA · CID-10","kind":"primary","primaryField":"causeName","secondaryField":"causeCode","filterFields":["causeName","causeCode"],"sortField":"causeName","type":"text"}] if view=="full" else []),*([{"id":"chapter","label":"CAPÍTULO · CID-10","field":"chapterName","type":"text"}] if view in {"detail","full"} else []),{"id":"deaths","label":"ÓBITOS NÃO FETAIS","metricId":"deaths","type":"number","decimals":0},{"id":"residents","label":"RESIDENTES EM BELÉM","metricId":"residents","type":"number","decimals":0},{"id":"otherResidents","label":"RESIDENTES DE OUTROS MUNICÍPIOS","metricId":"otherResidents","type":"number","decimals":0},{"id":"unknownResidence","label":"RESIDÊNCIA NÃO INFORMADA","metricId":"unknownResidence","type":"number","decimals":0},*([{"id":"detail","label":"DETALHAR","kind":"action","actionLabel":"Detalhar →"}] if view=="summary" else [])],
-        "metrics":[{"id":key,"label":label,"decimals":0} for key,label in (("deaths","Óbitos não fetais"),("residents","Residentes em Belém"),("otherResidents","Outros municípios"),("unknownResidence","Residência não informada"))],"kpis":[{"label":"ÓBITOS NÃO FETAIS","value":{"value":total}},{"label":"RESIDENTES EM BELÉM","value":{"value":sum(row["residents"] for row in rows)}},{"label":"OUTROS MUNICÍPIOS","value":{"value":sum(row["otherResidents"] for row in rows)}}],"notes":[f"Fonte: SIM, arquivo anual público atualizado em {updated_at or 'data não informada'}. Recorte por município de ocorrência do óbito; mês da data do óbito.","O painel usa somente registros não fetais (TIPOBITO = 2) do arquivo Mortalidade Geral. As semanas são calculadas pela data do óbito, de domingo a sábado, com a semana 1 contendo 4 de janeiro. A tabela detalhada mostra semana, causa básica por categoria de três caracteres e capítulo CID-10. As descrições CID vêm da definição oficial TAB_SIA. Dados preliminares podem ser revistos.","Semanas que atravessam dois meses aparecem em cada recorte com apenas os óbitos daquele mês. Residência não informada não entra nos grupos Belém ou outros municípios."],"cachedAt":time.time()}
+    week_label=f"Semana {week_index:02d}"+(f" · {cause_code}" if cause_code and cause_code!="NI" else "") if view=="detail" else None
+    if view=="detail":
+        columns=[{"id":"cause","label":"CAUSA BÁSICA · CID-10","kind":"primary","primaryField":"causeName","secondaryField":"causeCode","filterFields":["causeName","causeCode"],"sortField":"causeName","type":"text","sticky":True},{"id":"residence","label":"MUNICÍPIO DE RESIDÊNCIA","kind":"primary","primaryField":"residenceName","secondaryField":"residenceCode","secondaryPrefix":"IBGE ","filterFields":["residenceName","residenceCode"],"sortField":"residenceName","type":"text"}]
+        columns.extend([{"id":"naturality","label":"MUNICÍPIO DE NASCIMENTO","field":"naturalityName","type":"text"},{"id":"ageGroup","label":"FAIXA ETÁRIA","field":"ageGroupName","type":"text"},{"id":"sex","label":"SEXO","field":"sexName","type":"text"},{"id":"race","label":"RAÇA/COR","field":"raceName","type":"text"},{"id":"education","label":"ESCOLARIDADE","field":"educationName","type":"text"},{"id":"maritalStatus","label":"SITUAÇÃO CONJUGAL","field":"maritalStatusName","type":"text"},{"id":"deathPlace","label":"LOCAL DO ÓBITO","field":"deathPlaceName","type":"text"},{"id":"establishment","label":"ESTABELECIMENTO DE OCORRÊNCIA","kind":"primary","primaryField":"establishmentName","secondaryField":"establishmentCode","secondaryPrefix":"CNES ","filterFields":["establishmentName","establishmentCode"],"type":"text"},{"id":"medicalAssistance","label":"ASSISTÊNCIA MÉDICA","field":"medicalAssistanceName","type":"text"},{"id":"necropsy","label":"NECROPSIA","field":"necropsyName","type":"text"},{"id":"certifier","label":"MÉDICO ATESTANTE","field":"certifierName","type":"text"},{"id":"occupation","label":"OCUPAÇÃO · CBO","field":"occupationName","type":"text"},{"id":"deaths","label":"ÓBITOS","metricId":"deaths","type":"number","decimals":0}])
+    else:
+        columns=[{"id":"week","label":"SEMANA","kind":"primary","primaryField":"weekName","filterFields":["weekName","week"],"sortField":"week","type":"text","sticky":True}]
+        if view=="full": columns.extend([{"id":"cause","label":"CAUSA BÁSICA · CID-10","kind":"primary","primaryField":"causeName","secondaryField":"causeCode","filterFields":["causeName","causeCode"],"sortField":"causeName","type":"text"},{"id":"chapter","label":"CAPÍTULO · CID-10","field":"chapterName","type":"text"}])
+        columns.extend([{"id":"deaths","label":"ÓBITOS NÃO FETAIS","metricId":"deaths","type":"number","decimals":0},{"id":"residents","label":"RESIDENTES EM BELÉM","metricId":"residents","type":"number","decimals":0},{"id":"otherResidents","label":"RESIDENTES DE OUTROS MUNICÍPIOS","metricId":"otherResidents","type":"number","decimals":0},{"id":"unknownResidence","label":"RESIDÊNCIA NÃO INFORMADA","metricId":"unknownResidence","type":"number","decimals":0},{"id":"detail","label":"DETALHAMENTO","kind":"action","actionType":"sim-detail","actionLabel":"Detalhar →"}])
+    metric_labels=(("deaths","Óbitos não fetais"),("residents","Residentes em Belém"),("otherResidents","Residentes de outros municípios"),("unknownResidence","Residência não informada"))
+    filter_labels={"residenceOrigin":"Origem da residência","residenceMunicipality":"Município de residência","ageGroup":"Faixa etária","sex":"Sexo","race":"Raça/cor","education":"Escolaridade","maritalStatus":"Situação conjugal","deathPlace":"Local do óbito","medicalAssistance":"Assistência médica","necropsy":"Necropsia"}
+    filter_value_labels={"residenceOrigin":{"local":"Residente em Belém","outside":"Residente em outro município","unknown":"Residência não informada"},"ageGroup":{"under1":"Menor de 1 ano","1-17":"1 a 17 anos","18-29":"18 a 29 anos","30-59":"30 a 59 anos","60+":"60 anos ou mais","unknown":"Não informado"},"sex":{"1":"Masculino","2":"Feminino","unknown":"Ignorado / não informado"},"race":{"1":"Branca","2":"Preta","3":"Amarela","4":"Parda","5":"Indígena","unknown":"Ignorada / não informada"},"education":{"0":"Sem escolaridade","1":"Fundamental I","2":"Fundamental II","3":"Ensino médio","4":"Superior incompleto","5":"Superior completo","unknown":"Ignorada / não informada"},"maritalStatus":{"1":"Solteiro(a)","2":"Casado(a)","3":"Viúvo(a)","4":"Separado(a) / divorciado(a)","5":"União estável","unknown":"Ignorada / não informada"},"deathPlace":{"1":"Hospital","2":"Outro estabelecimento de saúde","3":"Domicílio","4":"Via pública","5":"Outro local","6":"Aldeia indígena","unknown":"Ignorado / não informado"},"medicalAssistance":{"1":"Sim","2":"Não","unknown":"Ignorada / não informada"},"necropsy":{"1":"Sim","2":"Não","unknown":"Ignorada / não informada"}}
+    filters=[{"label":filter_labels[key],"value":", ".join(filter_value_labels.get(key,{}).get(value,f"Código IBGE {value}" if key=="residenceMunicipality" else value) for value in sorted(values))} for key,values in selected_filters.items()]
+    notes=[f"Fonte: SIM, arquivo anual público atualizado em {updated_at or 'data não informada'}. Recorte por município de ocorrência; competência pelo mês da data do óbito.","A tabela principal conta óbitos não fetais (TIPOBITO = 2). A semana epidemiológica é calculada pela data do óbito, de domingo a sábado. Dados recentes podem ser preliminares e revistos.","O detalhamento apresenta contagens agrupadas por residência e características disponíveis na declaração. Não exibe nomes, documentos ou datas individuais; campos ausentes são identificados como não informados.","O estabelecimento é o local de ocorrência registrado no SIM (CODESTAB), com nome consultado no CNES atual. Não significa necessariamente a unidade notificadora, e o cadastro pode diferir do histórico.","Residência não informada não entra nas contagens de Belém ou de outros municípios."]
+    return {"ok":True,"report":"sim-mortalidade","view":view,"flatTable":True,"file":"SIM · CSV oficial","year":year,"month":month,"uf":"PA","state":"Pará","municipality":"Belém","municipalityCode":"150140","establishmentCode":str(week_index) if week_index else None,"establishmentName":week_label,"rows":rows,"records":total,"columns":columns,"metrics":[{"id":key,"label":label,"decimals":0} for key,label in metric_labels],"kpis":[{"label":"ÓBITOS NÃO FETAIS","value":{"value":total}},{"label":"RESIDENTES EM BELÉM","value":{"value":resident_total}},{"label":"OUTROS MUNICÍPIOS","value":{"value":other_total}},{"label":"RESIDÊNCIA NÃO INFORMADA","value":{"value":unknown_total}}],"filters":filters,"emptyStateMessage":f"Não há óbitos não fetais em Belém em {month:02d}/{year} com os filtros selecionados. Os dados recentes podem ser preliminares.","notes":notes,"cachedAt":time.time()}
 
 SRAG_METRICS=(
     ("cases","CASOS DE SRAG"),("influenza","INFLUENZA"),("covid","COVID-19"),
