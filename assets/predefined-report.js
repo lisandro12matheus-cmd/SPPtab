@@ -589,6 +589,7 @@
 
   function setPageView(view, updateUrl = false) {
     const showReport = view === 'report';
+    if (showReport) document.dispatchEvent(new Event('tabulasus:panel-open'));
     catalogPanel.hidden = showReport;
     workspacePanel.hidden = !showReport;
     $('predefinedMain').classList.toggle('is-report-view', showReport);
@@ -631,6 +632,7 @@
   }
 
   async function openReportSetup(preferred = selectedFilters()) {
+    document.dispatchEvent(new Event('tabulasus:panel-open'));
     if (!setupDialog.open) setupDialog.showModal();
     $('setupDefaultStatus').textContent = '';
     $('saveSetupDefault').disabled = true;
@@ -1273,6 +1275,7 @@
       action.append(button); return action;
     }
     const cell = document.createElement('td');
+    cell.classList.add(column.metricId || ['number','currency','percent'].includes(column.type) ? 'report-number-column' : 'report-text-column');
     if (column.id === 'dimension:rejectionReason' || column.field === 'rejectionReason') cell.classList.add('report-rejection-reason-column');
     if (column.id === 'dimension:complexity') cell.classList.add('report-complexity-column');
     if (column.id === 'dimension:financing') cell.classList.add('report-financing-column');
@@ -1337,6 +1340,7 @@
     const header = $('reportHeader'); header.replaceChildren();
     for (const column of columns) {
       const th = document.createElement('th');
+      if (column.kind !== 'action') th.classList.add(column.metricId || ['number','currency','percent'].includes(column.type) ? 'report-number-column' : 'report-text-column');
       if (column.id === 'dimension:rejectionReason' || column.field === 'rejectionReason') th.classList.add('report-rejection-reason-column');
       if (column.id === 'dimension:complexity') th.classList.add('report-complexity-column');
       if (column.id === 'dimension:financing') th.classList.add('report-financing-column');
@@ -1359,6 +1363,7 @@
   function renderTable() {
     if (!activeResult) return;
     resultPanel.classList.toggle('is-flat-report', activeReport.tableMode === 'flat');
+    resultPanel.classList.toggle('is-professional-report', activeReport.id === 'sih-sp-profissionais');
     resultPanel.classList.toggle('is-flow-report', activeReport.id === 'sih-rd-fluxo');
     resultPanel.classList.toggle('is-flow-detail', activeReport.id === 'sih-rd-fluxo' && activeView === 'detail');
     resultPanel.classList.toggle('is-bed-occupancy-report', activeReport.tableMode === 'occupancy');

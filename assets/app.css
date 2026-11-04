@@ -154,6 +154,32 @@
 .location-step-screen .location-panel-heading,.location-step-screen .map-frame,.location-step-screen .map-caption{position:relative;z-index:1}
 .location-step-screen .location-step{color:#a9bdd8}
 .location-step-screen .location-panel-heading h3{color:#f0f5fc}
+
+/* Sidebar escuro em todas as áreas de trabalho. */
+.sidebar{background:#142238;border-right-color:#243a55;color:#edf4fd}
+.sidebar .brand{color:#f2f7ff}
+.sidebar .brand strong,.sidebar .brand strong span{color:#f2f7ff}
+.sidebar .brand small{color:#93abc7}
+.sidebar .brand-mark span:nth-child(1),.sidebar .brand-mark span:nth-child(4){background:#4591f4}
+.sidebar .brand-mark span:nth-child(2){background:#72a9f6}
+.sidebar .brand-mark span:nth-child(3),.sidebar .brand-mark span:nth-child(5){background:#a4c7fa}
+.sidebar .nav-label{color:#849ab5}
+.sidebar nav .nav-item{color:#c5d5e8}
+.sidebar nav .nav-item:not([hidden]):not(:last-child)::after{background:#273b56}
+.sidebar nav .nav-item:hover:not(.active){background:#203550;color:#f4f8ff}
+.sidebar nav .nav-item.active{background:#254b79;color:#fff}
+.sidebar nav .nav-item.disabled{color:#8195ad}
+.sidebar nav .nav-item small{color:#99afc8}
+.sidebar-toggle{border-color:#36506e;background:#1c304a;color:#d5e5f8}
+.sidebar-toggle:hover{border-color:#577fae;background:#29466a;color:#fff}
+.sidebar-toggle:focus-visible,.sidebar nav .nav-item:focus-visible{outline:3px solid #77aeff;outline-offset:2px}
+.sidebar .sidebar-foot{border-top-color:#2b405c}
+.sidebar .sidebar-foot strong{color:#e4eefb}
+.sidebar .sidebar-foot small,.sidebar .sidebar-version{color:#99aec8}
+.sidebar .nav-icon{display:inline-flex;align-items:center;justify-content:center}
+.sidebar .nav-icon svg{display:block;width:18px;height:18px;flex:none}
+@media(max-width:760px){.app-shell.sidebar-mobile-expanded>.sidebar{box-shadow:14px 0 36px rgba(7,16,29,.32)}}
+@media(max-width:760px){.app-shell:not(.sidebar-mobile-expanded)>.sidebar .sidebar-toggle-icon{transform:translateY(-1px) rotate(180deg)}.app-shell.sidebar-mobile-expanded>.sidebar .sidebar-toggle-icon{transform:translateY(-1px)}}
 .location-step-screen .map-credit{background:rgba(17,32,52,.78);border-color:rgba(184,207,238,.2);color:#c4d3e8}
 .location-step-screen .map-caption{border-color:rgba(196,214,239,.16);color:#b1c2da}
 .location-step-screen .map-key{color:#d4dfef}
