@@ -633,7 +633,7 @@ def write_tabulation_job(job_id: str, state: dict[str,Any]):
 
 def start_tabulation(payload: dict[str,Any]):
     payload=json.loads(json.dumps(payload))
-    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","srag-semanal"}:
+    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","srag-semanal","sinasc-maternidades"}:
         year=payload.get("year")
         month=payload.get("month")
         uf=str(payload.get("uf") or "").upper()
@@ -644,6 +644,11 @@ def start_tabulation(payload: dict[str,Any]):
             raise ValueError("Selecione uma competência válida.")
         if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]:
             raise ValueError("Selecione um município válido da unidade da Federação escolhida.")
+        if payload.get("predefinedReport")=="sinasc-maternidades":
+            if year<2010 or payload.get("view") not in {"full","detail"}:
+                raise ValueError("Selecione um ano e uma visão válidos para o SINASC.")
+            if payload["view"]=="detail" and not re.fullmatch(r"\d{7}",str(payload.get("establishmentCode") or "")):
+                raise ValueError("Selecione uma maternidade válida para detalhar.")
         return _start_tabulation_locked(payload,[])
     raw_sources=payload.get("sources")
     has_multiple=isinstance(raw_sources,list) and len(raw_sources)>0
@@ -1738,6 +1743,274 @@ def _sinan_dengue_source_rows(year: int, municipality: str, report_id: str="sina
         return grouped_rows,grouped_units,grouped_details,"CSV oficial",updated_at,invalid_onset,has_unit_field
 
 SIM_CID_CHAPTERS=(("A00","B99","Infecciosas e parasitárias"),("C00","D48","Neoplasias"),("D50","D89","Doenças do sangue"),("E00","E90","Endócrinas e metabólicas"),("F00","F99","Transtornos mentais"),("G00","G99","Sistema nervoso"),("H00","H59","Olhos"),("H60","H95","Ouvidos"),("I00","I99","Aparelho circulatório"),("J00","J99","Aparelho respiratório"),("K00","K93","Aparelho digestivo"),("L00","L99","Pele"),("M00","M99","Sistema osteomuscular"),("N00","N99","Aparelho geniturinário"),("O00","O99","Gravidez, parto e puerpério"),("P00","P96","Condições perinatais"),("Q00","Q99","Malformações congênitas"),("R00","R99","Sinais e causas mal definidas"),("S00","T98","Lesões e envenenamentos"),("V01","Y98","Causas externas"),("Z00","Z99","Fatores de saúde"),("U00","U99","Códigos especiais"))
+
+SINASC_METRIC_KEYS=("births","vaginal","cesarean","deliveryKnown","prenatal7","prenatal0to3","prenatalKnown","earlyPrenatal","premature","gestationKnown","lowWeight","weightKnown","teenMothers","mothers35","lowApgar5","apgarKnown","anomalies","localResidence","outsideResidence","unknownResidence")
+
+def _sinasc_archive_download(year: int, progress=None):
+    """Fetch one fixed annual CSV package from the official SINASC open-data host."""
+    folder=UPLOADS/".cache"/"sinasc-source"
+    folder.mkdir(parents=True,exist_ok=True)
+    for old in folder.glob("sinasc-*.part"):
+        try:
+            if time.time()-old.stat().st_mtime>86400: old.unlink(missing_ok=True)
+        except OSError: pass
+    expected_member=f"SINASC_{year}.csv"
+    def valid_archive(path):
+        try:
+            with zipfile.ZipFile(path) as bundle:
+                entries=bundle.infolist()
+                matches=[item for item in entries if not item.is_dir() and item.filename.replace("\\","/").rsplit("/",1)[-1].casefold()==expected_member.casefold()]
+                return len(entries)<=10 and len(matches)==1 and 0<matches[0].file_size<=2*1024*1024*1024
+        except (OSError,zipfile.BadZipFile,ValueError): return False
+    url=f"https://{SINAN_DENGUE_ARCHIVE_HOST}/ckan.saude.gov.br/SINASC/csv/SINASC_{year}_csv.zip"
+    request=urllib.request.Request(url,headers={"User-Agent":"TabulaSUS/1.0","Accept":"application/zip"})
+    fd,name=tempfile.mkstemp(prefix="sinasc-",suffix=".part",dir=str(folder)); os.close(fd)
+    temp=Path(name)
+    try:
+        with open_verified_https(request,SINAN_DENGUE_ARCHIVE_HOST,120) as response, temp.open("wb") as output:
+            size=int(response.headers.get("Content-Length") or 0)
+            modified=response.headers.get("Last-Modified")
+            try: updated_at=parsedate_to_datetime(modified).date().isoformat() if modified else date.today().isoformat()
+            except (TypeError,ValueError,OverflowError): updated_at=date.today().isoformat()
+            if size>256*1024*1024: raise ValueError("O arquivo anual do SINASC ultrapassa o limite seguro de download.")
+            if shutil.disk_usage(folder).free<(size or 128*1024*1024)+32*1024*1024: raise ValueError("Espaço insuficiente para baixar o SINASC.")
+            received=0
+            while True:
+                chunk=response.read(1024*1024)
+                if not chunk: break
+                received+=len(chunk)
+                if received>256*1024*1024 or (size and received>size): raise ValueError("O download do SINASC excedeu o tamanho esperado.")
+                output.write(chunk)
+                if progress: progress(min(35,5+int(30*received/max(size,received))),f"Baixando SINASC {year} · {received/1048576:.1f} MB"+(f" de {size/1048576:.1f} MB" if size else ""))
+        if size and received!=size: raise ValueError("O download do SINASC terminou incompleto.")
+        if not valid_archive(temp): raise ValueError("O pacote oficial do SINASC não contém o CSV esperado.")
+        result=temp
+        temp=None
+        return result,updated_at
+    except urllib.error.HTTPError as exc:
+        if exc.code==404: raise ValueError(f"O arquivo oficial do SINASC de {year} ainda não foi publicado.") from exc
+        raise ValueError(f"O servidor oficial do SINASC respondeu com HTTP {exc.code}.") from exc
+    except (OSError,TimeoutError,urllib.error.URLError) as exc:
+        raise ValueError(f"Não foi possível baixar o arquivo oficial do SINASC: {exc}") from exc
+    finally:
+        if temp is not None: temp.unlink(missing_ok=True)
+
+def _sinasc_archive(year: int, progress=None):
+    folder=UPLOADS/".cache"/"sinasc-source"
+    folder.mkdir(parents=True,exist_ok=True)
+    archive=folder/f"SINASC_{year}_csv.zip"
+    metadata=folder/f"SINASC_{year}_csv.json"
+    lifetime=24*3600 if year==date.today().year else 30*86400
+    with interprocess_lock(archive.with_suffix(".lock")):
+        stored=cache_read(metadata)
+        if archive.is_file() and zipfile.is_zipfile(archive) and time.time()-float((stored or {}).get("fetched_at",archive.stat().st_mtime))<lifetime:
+            if progress: progress(35,f"Usando o pacote oficial do SINASC {year} salvo neste computador")
+            return archive,str((stored or {}).get("updatedAt") or date.fromtimestamp(archive.stat().st_mtime).isoformat())
+        try: downloaded,updated_at=_sinasc_archive_download(year,progress)
+        except (OSError,ValueError,TimeoutError):
+            if not archive.is_file() or not zipfile.is_zipfile(archive): raise
+            if progress: progress(35,f"Usando a última cópia disponível do SINASC {year}")
+            return archive,str((stored or {}).get("updatedAt") or date.fromtimestamp(archive.stat().st_mtime).isoformat())
+        try:
+            os.replace(downloaded,archive)
+        except OSError:
+            if not archive.is_file() or not zipfile.is_zipfile(archive): raise
+            downloaded.unlink(missing_ok=True)
+            return archive,str((stored or {}).get("updatedAt") or date.fromtimestamp(archive.stat().st_mtime).isoformat())
+        cache_write(metadata,{"fetched_at":time.time(),"updatedAt":updated_at},max_bytes=10_000,keep=2)
+        return archive,updated_at
+
+def _sinasc_source(year: int, uf: str, progress=None):
+    target=cache_target("sinasc_maternity",{"version":3,"year":year,"uf":uf})
+    detail_target=target.with_suffix(".sqlite3")
+    with interprocess_lock(target.with_suffix(".lock")):
+        cached=cache_read(target)
+        lifetime=24*3600 if year==date.today().year else 30*86400
+        if isinstance(cached,dict) and isinstance(cached.get("groups"),list) and detail_target.is_file() and time.time()-float(cached.get("fetched_at",0))<lifetime:
+            if progress: progress(92,"Usando o resumo anual do SINASC salvo neste computador")
+            return cached
+        archive,updated_at=_sinasc_archive(year,progress)
+        groups={}; scanned=0; included=0; unassigned=0
+        detail_fd,detail_name=tempfile.mkstemp(prefix="sinasc-detail-",suffix=".sqlite3",dir=str(target.parent)); os.close(detail_fd)
+        detail_temp=Path(detail_name)
+        detail_db=None
+        try:
+            detail_db=sqlite3.connect(str(detail_temp))
+            detail_db.execute("CREATE TABLE births (month INTEGER, occurrence TEXT, cnes TEXT, birth_date TEXT, residence TEXT, sex TEXT, maternal_age TEXT, delivery TEXT, prenatal TEXT, prenatal_start TEXT, gestation TEXT, weight TEXT, apgar5 TEXT, anomaly TEXT)")
+            with zipfile.ZipFile(archive) as bundle:
+                member=next(item for item in bundle.infolist() if item.filename.replace("\\","/").rsplit("/",1)[-1].casefold()==f"SINASC_{year}.csv".casefold())
+                with bundle.open(member) as binary, io.TextIOWrapper(binary,encoding="latin1",newline="") as stream:
+                    reader=csv.reader(stream,delimiter=";")
+                    fields={name.lstrip("\ufeff").strip().upper():index for index,name in enumerate(next(reader))}
+                    required={"CODESTAB","CODMUNNASC","CODMUNRES","DTNASC","LOCNASC","PARTO","PESO","IDADEMAE"}
+                    if not required.issubset(fields): raise ValueError("O CSV oficial do SINASC não contém os campos essenciais do relatório.")
+                    def field(row,key):
+                        pos=fields.get(key)
+                        return row[pos].strip() if pos is not None and pos<len(row) else ""
+                    for row in reader:
+                        scanned+=1
+                        if progress and scanned%100000==0: progress(min(89,36+int(52*binary.tell()/max(1,member.file_size))),f"Lendo SINASC {year} · {scanned:,} registros".replace(",","."))
+                        occurrence=re.sub(r"\D","",field(row,"CODMUNNASC"))[:6]
+                        if not re.fullmatch(r"\d{6}",occurrence) or occurrence[:2]!=PREDEFINED_UF_CODES[uf]: continue
+                        if field(row,"LOCNASC") not in {"1","2"}: continue
+                        raw_date=field(row,"DTNASC")
+                        if not re.fullmatch(r"\d{8}",raw_date): continue
+                        try: birth_date=date(int(raw_date[4:]),int(raw_date[2:4]),int(raw_date[:2]))
+                        except ValueError: continue
+                        if birth_date.year!=year: continue
+                        code=re.sub(r"\D","",field(row,"CODESTAB"))
+                        if not re.fullmatch(r"\d{7}",code): code="0000000"; unassigned+=1
+                        key=(birth_date.month,occurrence,code)
+                        item=groups.setdefault(key,{"month":birth_date.month,"occurrenceCode":occurrence,"cnes":code,**{metric:0 for metric in SINASC_METRIC_KEYS}})
+                        item["births"]+=1; included+=1
+                        delivery=field(row,"PARTO")
+                        if delivery in {"1","2"}:
+                            item["deliveryKnown"]+=1; item["vaginal" if delivery=="1" else "cesarean"]+=1
+                        prenatal=field(row,"CONSPRENAT")
+                        count=int(prenatal) if re.fullmatch(r"\d{1,2}",prenatal) and int(prenatal)<=60 else None
+                        category=field(row,"CONSULTAS")
+                        if count is not None:
+                            item["prenatalKnown"]+=1
+                            if count>=7: item["prenatal7"]+=1
+                            if count<=3: item["prenatal0to3"]+=1
+                        elif category in {"1","2","3","4"}:
+                            item["prenatalKnown"]+=1
+                            if category=="4": item["prenatal7"]+=1
+                            if category in {"1","2"}: item["prenatal0to3"]+=1
+                        prenatal_month=field(row,"MESPRENAT")
+                        if re.fullmatch(r"\d{1,2}",prenatal_month) and 1<=int(prenatal_month)<=3: item["earlyPrenatal"]+=1
+                        weeks=field(row,"SEMAGESTAC")
+                        gestation=int(weeks) if re.fullmatch(r"\d{1,2}",weeks) and 18<=int(weeks)<=45 else None
+                        if gestation is not None:
+                            item["gestationKnown"]+=1
+                            if gestation<37: item["premature"]+=1
+                        elif field(row,"GESTACAO") in {"1","2","3","4","5","6"}:
+                            item["gestationKnown"]+=1
+                            if field(row,"GESTACAO") in {"1","2","3","4"}: item["premature"]+=1
+                        weight=field(row,"PESO")
+                        if re.fullmatch(r"\d{3,4}",weight) and 100<=int(weight)<=8000:
+                            item["weightKnown"]+=1
+                            if int(weight)<2500: item["lowWeight"]+=1
+                        age=field(row,"IDADEMAE")
+                        if re.fullmatch(r"\d{1,2}",age):
+                            age_value=int(age)
+                            if 10<=age_value<20: item["teenMothers"]+=1
+                            if 35<=age_value<=60: item["mothers35"]+=1
+                        apgar=field(row,"APGAR5")
+                        if re.fullmatch(r"\d{1,2}",apgar) and int(apgar)<=10:
+                            item["apgarKnown"]+=1
+                            if int(apgar)<7: item["lowApgar5"]+=1
+                        if field(row,"IDANOMAL")=="1": item["anomalies"]+=1
+                        residence=re.sub(r"\D","",field(row,"CODMUNRES"))[:6]
+                        item["localResidence" if residence==occurrence else "outsideResidence" if re.fullmatch(r"\d{6}",residence) else "unknownResidence"]+=1
+                        detail_db.execute("INSERT INTO births VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",(birth_date.month,occurrence,code,birth_date.isoformat(),residence,field(row,"SEXO"),field(row,"IDADEMAE"),delivery,prenatal if count is not None else f"faixa:{category}",prenatal_month,weeks if gestation is not None else f"faixa:{field(row,'GESTACAO')}",weight,field(row,"APGAR5"),field(row,"IDANOMAL")))
+            detail_db.execute("CREATE INDEX births_scope ON births(month,occurrence,cnes)")
+            detail_db.commit(); detail_db.close(); detail_db=None
+            os.replace(detail_temp,detail_target)
+        finally:
+            if detail_db is not None: detail_db.close()
+            if detail_temp.exists(): detail_temp.unlink(missing_ok=True)
+        data={"fetched_at":time.time(),"updatedAt":updated_at,"groups":list(groups.values()),"scanned":scanned,"included":included,"unassigned":unassigned}
+        cache_write(target,data,max_bytes=100_000_000,keep=8)
+        return data
+
+def _sinasc_maternity_names(codes: list[str]):
+    valid=sorted({code for code in codes if re.fullmatch(r"\d{7}",code) and code!="0000000"})
+    if not valid: return {},0
+    target=cache_target("sinasc_maternity_names",{"version":1})
+    now=time.time(); names={}; missing=[]; failed=0
+    with interprocess_lock(target.with_suffix(".lock")):
+        cached=cache_read(target)
+        entries=cached.get("names",{}) if isinstance(cached,dict) and isinstance(cached.get("names"),dict) else {}
+        for code in valid:
+            entry=entries.get(code,{})
+            if now-float(entry.get("checkedAt",0))<(30*86400 if entry.get("name") else 86400): names[code]=entry.get("name") or ""
+            else: missing.append(code)
+        def lookup(code):
+            data,ok=_cnes_open_data_json(f"/cnes/estabelecimentos/{code}")
+            if not ok: return code,"",False
+            if not isinstance(data,dict): return code,"",True
+            returned=re.sub(r"\D","",str(data.get("codigo_cnes") or data.get("co_cnes") or "")).zfill(7)
+            if returned!=code: return code,"",True
+            name=_report_label(data.get("nome_fantasia") or data.get("nome_razao_social") or "")[:180]
+            return code,name,True
+        if missing:
+            with ThreadPoolExecutor(max_workers=min(8,len(missing)),thread_name_prefix="sinasc-cnes") as executor:
+                for future in as_completed([executor.submit(lookup,code) for code in missing]):
+                    try: code,name,ok=future.result()
+                    except Exception: failed+=1; continue
+                    if not ok: failed+=1; continue
+                    entries[code]={"name":name,"checkedAt":now}; names[code]=name
+            cache_write(target,{"names":entries},max_bytes=2_000_000,keep=2)
+    return names,failed
+
+def predefined_sinasc_maternity(payload: dict[str,Any], progress=None):
+    year=payload.get("year"); month=payload.get("month"); uf=str(payload.get("uf") or "").upper(); municipality=str(payload.get("municipalityCode") or "")
+    if not isinstance(year,int) or not 2010<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12: raise ValueError("Selecione um período válido para o SINASC, a partir de 2010.")
+    if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]: raise ValueError("Selecione o município onde ocorreram os nascimentos.")
+    if str(payload.get("view") or "full")!="full": raise ValueError("Selecione uma visão válida do relatório do SINASC.")
+    data=_sinasc_source(year,uf,progress)
+    selected=[dict(row) for row in data["groups"] if row["month"]==month and row["occurrenceCode"]==municipality]
+    if progress: progress(93,"Identificando as maternidades no CNES")
+    names,lookup_failures=_sinasc_maternity_names([row["cnes"] for row in selected])
+    for row in selected:
+        row["name"]=names.get(row["cnes"]) or ("Estabelecimento sem CNES informado" if row["cnes"]=="0000000" else f"CNES {row['cnes']}")
+        for result,numerator,denominator in (("cesareanPct","cesarean","deliveryKnown"),("prenatal7Pct","prenatal7","prenatalKnown"),("prematurePct","premature","gestationKnown"),("lowWeightPct","lowWeight","weightKnown")):
+            row[result]=round(100*row[numerator]/row[denominator],1) if row[denominator] else None
+    selected.sort(key=lambda row:(-row["births"],row["name"].casefold()))
+    totals={key:sum(row[key] for row in selected) for key in SINASC_METRIC_KEYS}
+    columns=[{"id":"maternity","label":"MATERNIDADE · ESTABELECIMENTO","kind":"primary","primaryField":"name","secondaryField":"cnes","secondaryPrefix":"CNES ","filterFields":["name","cnes"],"sortField":"name","type":"text","sticky":True}]
+    for field,label in (("births","NASCIDOS VIVOS"),("cesarean","NASCIDOS POR CESÁREA"),("cesareanPct","CESÁREA %"),("vaginal","NASCIDOS POR PARTO VAGINAL"),("prenatal7","PRÉ-NATAL · 7+ CONSULTAS"),("prenatal7Pct","PRÉ-NATAL 7+ %"),("prenatal0to3","PRÉ-NATAL · 0 A 3"),("earlyPrenatal","INÍCIO ATÉ O 3º MÊS"),("premature","PREMATUROS"),("prematurePct","PREMATURIDADE %"),("lowWeight","BAIXO PESO"),("lowWeightPct","BAIXO PESO %"),("teenMothers","NASCIDOS DE MÃES < 20"),("mothers35","NASCIDOS DE MÃES ≥ 35"),("lowApgar5","APGAR 5º MIN < 7"),("anomalies","ANOMALIAS REGISTRADAS"),("localResidence","RESIDENTES DO MUNICÍPIO"),("outsideResidence","RESIDENTES DE FORA")):
+        columns.append({"id":field,"label":label,"field":field,"metricId":field if not field.endswith("Pct") else None,"type":"percent" if field.endswith("Pct") else "number","decimals":1 if field.endswith("Pct") else 0})
+    columns.append({"id":"detail","label":"DETALHAMENTO","kind":"action","actionLabel":"Detalhar →"})
+    metrics=[{"id":column["metricId"],"label":column["label"],"decimals":0} for column in columns if column.get("metricId")]
+    municipality_name=_report_label(payload.get("municipalityName") or "") or f"Município {municipality}"
+    notes=[f"Fonte: SINASC, CSV anual oficial {year}, atualizado em {data['updatedAt']}. Município de ocorrência do nascimento: {municipality_name} ({municipality}).",
+        "Cada registro representa um nascido vivo, não um parto. Incluídos nascimentos em hospital ou outro estabelecimento de saúde; nascimentos domiciliares e outros locais ficam fora deste relatório por maternidade.",
+        "Percentuais usam somente registros com a informação correspondente preenchida: tipo de parto, consultas de pré-natal, idade gestacional ou peso. Pré-natal de 7+ consultas não mede sozinho a qualidade do cuidado. Quando o número exato de consultas não está disponível, utiliza-se a faixa registrada no SINASC.",
+        "Prematuridade: menos de 37 semanas. Baixo peso: menos de 2.500 g. Baixo Apgar: menos de 7 no 5º minuto. Nome da maternidade consultado no CNES atual; os demais dados são do SINASC no ano selecionado.",
+        *( [f"{totals['unknownResidence']} registro(s) não tinham município de residência identificável e não entram nas duas colunas de residência."] if totals["unknownResidence"] else [] ),
+        *( [f"O CNES não respondeu para {lookup_failures} estabelecimento(s); seus códigos e indicadores foram preservados."] if lookup_failures else [] ),
+        *( ["Este arquivo é uma prévia e os dados ainda podem ser revistos pela fonte oficial."] if year>=date.today().year-1 else [] )]
+    if progress: progress(98,"Concluindo o perfil materno-infantil")
+    return {"ok":True,"report":"sinasc-maternidades","view":"full","flatTable":True,"file":"SINASC · CSV oficial","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality,"updatedAt":data["updatedAt"],"rows":selected,"records":totals["births"],"columns":columns,"metrics":metrics,"kpis":[{"label":"NASCIDOS VIVOS","value":{"value":totals["births"]}},{"label":"UNIDADES COM REGISTROS","value":{"value":len(selected)}},{"label":"NASCIDOS POR CESÁREA · TIPO INFORMADO","value":{"value":round(100*totals["cesarean"]/totals["deliveryKnown"],1),"decimals":1,"suffix":"%"} if totals["deliveryKnown"] else {"text":"—"}},{"label":"BAIXO PESO · PESOS INFORMADOS","value":{"value":round(100*totals["lowWeight"]/totals["weightKnown"],1),"decimals":1,"suffix":"%"} if totals["weightKnown"] else {"text":"—"}}],"notes":notes,"emptyStateMessage":f"O arquivo oficial do SINASC de {year} ainda não apresenta nascimentos em estabelecimentos de {municipality_name} em {month:02d}/{year}. Isso pode refletir atraso de atualização; não confirma ausência de nascimentos.","cachedAt":time.time()}
+
+def predefined_sinasc_maternity_detail(payload: dict[str,Any], progress=None):
+    source=predefined_sinasc_maternity({**payload,"view":"full"},progress)
+    cnes=re.sub(r"\D","",str(payload.get("establishmentCode") or ""))
+    if not re.fullmatch(r"\d{7}",cnes): raise ValueError("Selecione uma maternidade válida para detalhar.")
+    selected=next((row for row in source["rows"] if row["cnes"]==cnes),None)
+    if not selected: raise ValueError("Esta maternidade não tem nascimentos no período selecionado.")
+    year=source["year"]; month=source["month"]; municipality=source["municipalityCode"]
+    target=cache_target("sinasc_maternity",{"version":3,"year":year,"uf":source["uf"]}).with_suffix(".sqlite3")
+    if progress: progress(94,"Preparando os registros da maternidade")
+    with sqlite3.connect(str(target)) as db:
+        records=db.execute("SELECT birth_date,residence,sex,maternal_age,delivery,prenatal,prenatal_start,gestation,weight,apgar5,anomaly FROM births WHERE month=? AND occurrence=? AND cnes=? ORDER BY birth_date,rowid",(month,municipality,cnes)).fetchall()
+    try: residence_names=_sinan_ibge_municipalities()
+    except (OSError,ValueError,TimeoutError,urllib.error.URLError): residence_names={}
+    gestation_bands={"1":"Menos de 22","2":"22 a 27","3":"28 a 31","4":"32 a 36","5":"37 a 41","6":"42 ou mais"}
+    prenatal_bands={"1":"Nenhuma","2":"1 a 3","3":"4 a 6","4":"7 ou mais"}
+    rows=[]
+    for index,(birth_date,residence,sex,age,delivery,prenatal,start,gestation,weight,apgar,anomaly) in enumerate(records,1):
+        residence_valid=bool(re.fullmatch(r"\d{6}",residence or ""))
+        gestation_label=gestation_bands.get(gestation[6:],"Não informado")+" semanas (faixa)" if gestation.startswith("faixa:") else f"{gestation} semanas" if gestation.isdigit() else "Não informado"
+        prenatal_label=prenatal_bands.get(prenatal[6:],"Não informado")+" (faixa)" if prenatal.startswith("faixa:") else str(int(prenatal)) if prenatal.isdigit() else "Não informado"
+        rows.append({"sequence":index,"birthDate":date.fromisoformat(birth_date).strftime("%d/%m/%Y"),"birthDateSort":birth_date,"residenceCode":residence if residence_valid else "","residenceName":residence_names.get(residence,f"Município {residence}") if residence_valid else "Não informado","sex":{ "1":"Masculino","2":"Feminino"}.get(sex,"Não informado"),"maternalAge":int(age) if age.isdigit() and 10<=int(age)<=60 else None,"delivery":{ "1":"Vaginal","2":"Cesárea"}.get(delivery,"Não informado"),"prenatal":prenatal_label,"prenatalStart":f"{int(start)}º mês" if start.isdigit() and 1<=int(start)<=9 else "Não informado","gestation":gestation_label,"weight":int(weight) if weight.isdigit() and 100<=int(weight)<=8000 else None,"apgar5":int(apgar) if apgar.isdigit() and 0<=int(apgar)<=10 else None,"anomaly":{"1":"Sim","2":"Não"}.get(anomaly,"Não informado")})
+    columns=[{"id":"sequence","label":"REGISTRO","field":"sequence","type":"number","decimals":0,"sticky":True},
+        {"id":"birthDate","label":"DATA DO NASCIMENTO","field":"birthDate","sortField":"birthDateSort","type":"text"},
+        {"id":"residence","label":"MUNICÍPIO DE RESIDÊNCIA","primaryField":"residenceName","secondaryField":"residenceCode","type":"text","filterFields":["residenceName","residenceCode"]},
+        {"id":"sex","label":"SEXO DO NASCIDO VIVO","field":"sex","type":"text"},
+        {"id":"maternalAge","label":"IDADE DA MÃE · ANOS","field":"maternalAge","type":"number","decimals":0},
+        {"id":"delivery","label":"TIPO DE PARTO","field":"delivery","type":"text"},
+        {"id":"prenatal","label":"CONSULTAS DE PRÉ-NATAL","field":"prenatal","type":"text"},
+        {"id":"prenatalStart","label":"INÍCIO DO PRÉ-NATAL","field":"prenatalStart","type":"text"},
+        {"id":"gestation","label":"IDADE GESTACIONAL","field":"gestation","type":"text"},
+        {"id":"weight","label":"PESO AO NASCER · G","field":"weight","type":"number","decimals":0},
+        {"id":"apgar5","label":"APGAR · 5º MINUTO","field":"apgar5","type":"number","decimals":0},
+        {"id":"anomaly","label":"ANOMALIA REGISTRADA","field":"anomaly","type":"text"}]
+    result={**source,"view":"detail","rows":rows,"records":len(rows),"columns":columns,"metrics":[],"establishmentCode":cnes,"establishmentName":selected["name"],"kpis":[{"label":"NASCIDOS VIVOS","value":{"value":len(rows)}},{"label":"NASCIDOS POR CESÁREA","value":{"value":sum(row["delivery"]=="Cesárea" for row in rows)}},{"label":"PREMATUROS","value":{"value":selected["premature"]}},{"label":"BAIXO PESO","value":{"value":selected["lowWeight"]}}],"notes":["Cada linha representa um nascido vivo no arquivo público do SINASC. Não são exibidos nomes, CPF, CNS ou outros identificadores pessoais.","Campos ausentes ou ignorados aparecem como não informados. Quando apenas a faixa de pré-natal ou gestação está disponível, ela é identificada na célula.",source["notes"][0],*(["Este arquivo é uma prévia e os dados ainda podem ser revistos pela fonte oficial."] if year>=date.today().year-1 else [])]}
+    if progress: progress(98,"Concluindo o detalhamento dos nascimentos")
+    return result
 
 def _sim_cid_names():
     # Descrições de três caracteres da tabela CID distribuída no TAB_SIA oficial.
@@ -4297,6 +4570,8 @@ def _predefined_sih_occupancy_services(payload: dict[str,Any], uf: str, progress
     return result
 
 def tabulate(payload, progress=None):
+    if payload.get("predefinedReport")=="sinasc-maternidades":
+        return predefined_sinasc_maternity_detail(payload,progress) if payload.get("view")=="detail" else predefined_sinasc_maternity(payload,progress)
     if payload.get("predefinedReport")=="srag-semanal":
         return predefined_srag_weekly(payload,progress)
     if payload.get("predefinedReport")=="sim-mortalidade":

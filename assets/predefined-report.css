@@ -389,3 +389,13 @@
 .report-result.is-surveillance-full.is-sinan-report .report-table th:nth-child(n+4){min-width:125px}
 .report-result.is-surveillance-full:not(.is-sinan-report) .report-table{min-width:1320px}
 .report-result.is-surveillance-full:not(.is-sinan-report) .report-table th:nth-child(2){min-width:285px}
+.predefined-card[data-category="materno-infantil"]{--card-accent:#a45d81;--card-tint:#f9eef4}
+.predefined-card[data-category="materno-infantil"]:after{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a45d81' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20s-8-5.1-8-11a4.5 4.5 0 0 1 8-2.7A4.5 4.5 0 0 1 20 9c0 5.9-8 11-8 11Z'/%3E%3C/svg%3E")}
+.report-result.is-sinasc-report .report-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+.report-result.is-surveillance-full.is-sinasc-report .report-table{min-width:2450px}
+.report-result.is-sinasc-report .report-table .primary-cell{min-width:260px;max-width:330px}
+.report-result.is-sinasc-report .report-table th:not(:first-child){min-width:120px;white-space:normal}
+.report-result.is-sinasc-detail .report-table{min-width:1700px}
+.report-result.is-sinasc-detail .report-table .primary-cell{min-width:95px;max-width:115px}
+.report-result.is-sinasc-detail .report-table th:nth-child(3){min-width:220px}
+@media(max-width:760px){.report-result.is-sinasc-report .report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.report-result.is-sinasc-report .report-kpi:last-child{grid-column:auto}}
