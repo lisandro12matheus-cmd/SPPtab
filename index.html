@@ -86,6 +86,31 @@
     .hero-visual img{display:block;width:100%;height:auto}
     .hero-label{display:none}
     .hero-actions .button{min-height:51px}
+    .header{position:relative}
+    .nav a{font-size:13px}
+    .mobile-nav{display:none}
+    .hero{min-height:520px;grid-template-columns:minmax(0,1.08fr) minmax(300px,.92fr);gap:26px;padding:48px clamp(38px,5.4vw,72px);background:linear-gradient(118deg,#fbfcfa 0%,#f3f7f5 58%,#eaf2f0 100%);box-shadow:0 18px 46px #163a3612}
+    .hero-copy{max-width:610px}
+    .hero h1{max-width:610px;font-size:clamp(46px,5vw,66px);letter-spacing:-.055em;line-height:1.04}
+    .hero-copy>p:not(.eyebrow){max-width:540px;font-size:16px;line-height:1.75}
+    .hero-visual{width:100%;max-width:560px;justify-self:end;align-self:center}
+    .hero-visual img{display:block;width:100%;height:auto}
+    .benefit{min-height:104px}
+    .benefit-copy strong{font-size:12px}
+    .benefit-copy small{font-size:11px}
+    .setup-copy p,.section-head>p,.report-directory-lede{font-size:14px}
+    .feature-image{height:auto;aspect-ratio:1.84;object-fit:contain}
+    .feature-content p,.directory-card p{font-size:12px}
+    .report-group[aria-labelledby="reports-ambulatory-title"] .directory-card{grid-column:1/-1;min-height:0}
+    .mobile-nav-panel{position:absolute;z-index:5;top:calc(100% + 9px);right:0;display:grid;min-width:210px;gap:3px;padding:8px;border:1px solid #dce6e5;border-radius:12px;background:#fff;box-shadow:0 16px 38px #183b3a20}
+    .mobile-nav-panel a{padding:11px 12px;border-radius:8px;color:#344f55;font-size:13px;font-weight:650;text-decoration:none}
+    .mobile-nav-panel a:hover,.mobile-nav-panel a:focus-visible{background:#f1f6f5;color:#155f66}
+    .mobile-nav summary{display:flex;width:40px;height:40px;align-items:center;justify-content:center;border:1px solid #dce6e5;border-radius:9px;background:white;color:#294950;list-style:none;cursor:pointer}
+    .mobile-nav summary::-webkit-details-marker{display:none}
+    .mobile-nav summary svg{width:19px;height:19px}
+    @media(max-width:980px){.hero{min-height:460px;grid-template-columns:minmax(0,1fr) minmax(230px,.86fr);gap:12px;padding-inline:38px}.hero h1{font-size:clamp(43px,5.8vw,58px)}}
+    @media(max-width:720px){.header{min-height:72px;gap:10px}.nav{display:none}.mobile-nav{display:block;margin-left:auto}.button-small{margin-left:0}.hero{min-height:0;grid-template-columns:1fr;gap:8px;padding:34px 26px 24px;background:linear-gradient(155deg,#fbfcfa,#eef4f2)}.hero-copy{order:0}.hero-visual{width:min(100%,480px);justify-self:center;order:1;margin-top:4px}.hero h1{font-size:clamp(42px,8vw,58px)}.hero-copy>p:not(.eyebrow){font-size:14px}.benefits{margin-top:-12px}.feature-image{aspect-ratio:1.84}}
+    @media(max-width:430px){.header{gap:8px}.brand img{width:104px}.mobile-nav summary{width:38px;height:38px}.button-small{padding-inline:10px;font-size:10px}.hero{min-height:0;padding:29px 19px 18px}.hero h1{font-size:clamp(37px,10vw,43px)}.hero-copy>p:not(.eyebrow){font-size:13px}.hero .hero-actions{align-items:stretch;flex-direction:column;gap:7px}.hero .hero-actions .button{width:100%}.hero .text-link{justify-content:center}.hero .hero-meta{align-items:flex-start;flex-direction:column}}
     .setup-section{padding-block:74px 82px}
     .setup-heading{display:flex;align-items:end;justify-content:space-between;gap:32px;margin-bottom:24px}
     .setup-heading .eyebrow{margin-bottom:13px}
@@ -162,21 +187,22 @@
   <header class="header wrap">
     <a class="brand" href="#inicio" aria-label="TabulaSUS — início"><img src="assets/tabulasus-logo.png?v=2" alt="TabulaSUS"></a>
     <nav class="nav" aria-label="Navegação principal"><a href="#relatorios">Relatórios</a><a href="#como-instalar">Como instalar</a><a href="#escopo">Cobertura nacional</a></nav>
+    <details class="mobile-nav"><summary aria-label="Abrir navegação"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></summary><nav class="mobile-nav-panel" aria-label="Navegação principal"><a href="#relatorios">Relatórios</a><a href="#como-instalar">Como instalar</a><a href="#escopo">Cobertura nacional</a></nav></details>
     <a class="button button-small" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Setup.exe" aria-label="Baixar TabulaSUS para Windows 64 bits">Baixar para Windows <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 16v2.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
   </header>
   <main>
     <section class="hero wrap" id="inicio" aria-labelledby="hero-title">
       <div class="hero-copy">
-        <p class="eyebrow"><span class="pixels" aria-hidden="true"><i></i><i></i><i></i><i></i></span> Dados públicos · DATASUS</p>
-        <h1 id="hero-title">Tabulação de dados<br><span>públicos de saúde.</span></h1>
-        <p>Consulte dados públicos do SUS em todo o Brasil. Escolha a UF e a competência; o TabulaSUS confere sua biblioteca e busca a base pública disponível quando o arquivo ainda não foi baixado.</p>
+        <p class="eyebrow"><span class="pixels" aria-hidden="true"><i></i><i></i><i></i><i></i></span> TabulaSUS · dados públicos do SUS</p>
+        <h1 id="hero-title">Dados de saúde<br><span>prontos para análise.</span></h1>
+        <p>Encontre bases do DATASUS por estado, sistema e competência. O TabulaSUS confere os arquivos disponíveis e ajuda a organizar os dados públicos para consulta e tabulação no Windows.</p>
         <div class="hero-actions">
           <a class="button" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Setup.exe"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.75v10.5m0 0 4.25-4.25M12 14.25l-4.25-4.25M5 16.25v2.5A1.25 1.25 0 0 0 6.25 20h11.5A1.25 1.25 0 0 0 19 18.75v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Baixar para Windows</a>
           <a class="text-link" href="#como-instalar">Como começar <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m0 0-4.5-4.5M15 10l-4.5 4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
         </div>
         <div class="hero-meta"><span class="meta-dot"><i></i> Dados públicos do DATASUS</span><span class="version"><strong id="releaseVersion" aria-live="polite">Consultando versão…</strong><a href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest" target="_blank" rel="noreferrer">Ver versões ↗</a></span></div>
       </div>
-      <div class="hero-visual"><img src="assets/hero-data-visual.svg" width="640" height="460" alt="Ilustração simples de dados de saúde organizados em tabela e gráfico" fetchpriority="high"></div>
+      <div class="hero-visual"><img src="assets/hero-public-health.svg" width="640" height="460" alt="Ilustração conceitual de uma consulta a bases públicas de saúde, com filtros e cobertura nacional" fetchpriority="high" decoding="async"></div>
     </section>
     <section class="benefits wrap" aria-label="Destaques do TabulaSUS">
       <article class="benefit"><span class="benefit-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="18" cy="18" r="2" stroke="currentColor" stroke-width="1.7"/></svg></span><span class="benefit-copy"><strong>Busca automatizada</strong><small>Arquivos por sistema e competência.</small></span></article>
@@ -213,9 +239,9 @@
     <section class="section wrap" id="recursos" aria-labelledby="features-title">
       <div class="section-head"><div><p class="eyebrow"><span class="pixels" aria-hidden="true"><i></i><i></i><i></i><i></i></span> Recursos da plataforma</p><h2 id="features-title">Uma rotina mais simples,<br>da busca à tabulação.</h2></div><p>As principais etapas do trabalho ficam organizadas em um só lugar, com informações claras para acompanhar cada arquivo.</p></div>
       <div class="feature-grid" id="fluxo">
-        <article class="feature-card"><img class="feature-image" src="assets/feature-search.jpg" alt="Tela de dados públicos com arquivos organizados, filtros e indicadores de busca" loading="lazy"><div class="feature-content"><div class="feature-meta"><span><i></i> 01 · Encontrar</span><span>DATASUS</span></div><h3>Busca por competência</h3><p>Consulte bases por UF, sistema, ano e mês. O TabulaSUS reconhece os arquivos locais e busca os que estiverem disponíveis na fonte oficial.</p></div></article>
-        <article class="feature-card"><img class="feature-image" src="assets/feature-conversion.jpg" alt="Representação da conversão de um arquivo compactado em uma tabela estruturada" loading="lazy"><div class="feature-content"><div class="feature-meta"><span><i></i> 02 · Preparar</span><span>DBC → DBF</span></div><h3>Conversão acompanhada</h3><p>Converta a base e acompanhe o avanço até que ela esteja pronta para leitura e tabulação.</p></div></article>
-        <article class="feature-card"><img class="feature-image" src="assets/feature-tabulation.jpg" alt="Analista observando tabelas cruzadas, gráfico e categorias em painel de dados" loading="lazy"><div class="feature-content"><div class="feature-meta"><span><i></i> 03 · Analisar</span><span>DEF</span></div><h3>Tabulação com contexto</h3><p>Monte linhas e colunas, refine categorias e consulte o resultado com totais e descrições.</p></div></article>
+        <article class="feature-card"><img class="feature-image" src="assets/feature-search-v2.svg" width="720" height="390" alt="Ilustração de filtros para localizar bases por UF, sistema e período" loading="lazy" decoding="async"><div class="feature-content"><div class="feature-meta"><span><i></i> 01 · Encontrar</span><span>DATASUS</span></div><h3>Busca por competência</h3><p>Consulte bases por UF, sistema, ano e mês. O TabulaSUS reconhece os arquivos locais e busca os que estiverem disponíveis na fonte oficial.</p></div></article>
+        <article class="feature-card"><img class="feature-image" src="assets/feature-conversion-v2.svg" width="720" height="390" alt="Ilustração do fluxo de preparação de um arquivo DBC para leitura tabular" loading="lazy" decoding="async"><div class="feature-content"><div class="feature-meta"><span><i></i> 02 · Preparar</span><span>DBC → DBF</span></div><h3>Conversão acompanhada</h3><p>Converta a base e acompanhe o avanço até que ela esteja pronta para leitura e tabulação.</p></div></article>
+        <article class="feature-card"><img class="feature-image" src="assets/feature-tabulation-v2.svg" width="720" height="390" alt="Ilustração de dimensões de uma tabela cruzada e sua visualização" loading="lazy" decoding="async"><div class="feature-content"><div class="feature-meta"><span><i></i> 03 · Analisar</span><span>DEF</span></div><h3>Tabulação com contexto</h3><p>Monte linhas e colunas, refine categorias e consulte o resultado com totais e descrições.</p></div></article>
       </div>
     </section>
     <section class="report-directory" id="relatorios" aria-labelledby="reports-title">

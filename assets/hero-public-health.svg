@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 460" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Dados públicos de saúde organizados para consulta</title>
+  <desc id="desc">Ilustração conceitual de um painel com fontes SIA/SUS e SIH/SUS, campos de seleção e uma visualização geográfica do Brasil.</desc>
+  <defs>
+    <linearGradient id="bg" x1="83" y1="36" x2="570" y2="430" gradientUnits="userSpaceOnUse"><stop stop-color="#F7FAFC"/><stop offset="1" stop-color="#E8F1F2"/></linearGradient>
+    <linearGradient id="map" x1="397" y1="123" x2="505" y2="288" gradientUnits="userSpaceOnUse"><stop stop-color="#74B7AF"/><stop offset="1" stop-color="#2D7D83"/></linearGradient>
+    <filter id="shadow" x="52" y="40" width="539" height="374" filterUnits="userSpaceOnUse"><feGaussianBlur in="SourceAlpha" stdDeviation="13"/><feOffset dy="9"/><feColorMatrix values="0 0 0 0 .08 0 0 0 0 0 .17 0 0 0 0 .23 0 0 0 .13 0"/><feBlend in="SourceGraphic"/></filter>
+  </defs>
+  <circle cx="329" cy="231" r="207" fill="url(#bg)"/>
+  <circle cx="509" cy="88" r="43" fill="#E1EFEE"/>
+  <g filter="url(#shadow)">
+    <rect x="75" y="69" width="490" height="300" rx="18" fill="white"/>
+    <path d="M75 121h490" stroke="#E8EEEF"/>
+    <circle cx="98" cy="95" r="4" fill="#CAD5D9"/><circle cx="112" cy="95" r="4" fill="#D7E0E2"/><circle cx="126" cy="95" r="4" fill="#E2E8E9"/>
+    <text x="101" y="151" fill="#193D45" font-family="Arial,sans-serif" font-size="11" font-weight="700" letter-spacing="1.3">CONSULTA DE BASES PÚBLICAS</text>
+    <text x="101" y="171" fill="#74858B" font-family="Arial,sans-serif" font-size="10">Selecione sistema e competência</text>
+    <rect x="101" y="190" width="198" height="45" rx="8" fill="#F5F8F8" stroke="#E2EAEA"/>
+    <text x="113" y="207" fill="#71848A" font-family="Arial,sans-serif" font-size="8" font-weight="700" letter-spacing=".8">SISTEMA</text>
+    <text x="113" y="224" fill="#21454D" font-family="Arial,sans-serif" font-size="11" font-weight="700">SIA/SUS</text>
+    <path d="m278 208 4 4 4-4" stroke="#6E858A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="311" y="190" width="116" height="45" rx="8" fill="#F5F8F8" stroke="#E2EAEA"/>
+    <text x="323" y="207" fill="#71848A" font-family="Arial,sans-serif" font-size="8" font-weight="700" letter-spacing=".8">COMPETÊNCIA</text>
+    <text x="323" y="224" fill="#21454D" font-family="Arial,sans-serif" font-size="11" font-weight="700">Ano · mês</text>
+    <rect x="439" y="190" width="100" height="45" rx="8" fill="#116A73"/>
+    <path d="M457 211h13m0 0-5-5m5 5-5 5" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="476" y="215" fill="white" font-family="Arial,sans-serif" font-size="10" font-weight="700">Consultar</text>
+    <rect x="101" y="250" width="211" height="87" rx="10" fill="#F7F9F9"/>
+    <text x="117" y="270" fill="#637A80" font-family="Arial,sans-serif" font-size="8" font-weight="700" letter-spacing=".7">FONTES DISPONÍVEIS</text>
+    <rect x="117" y="283" width="87" height="37" rx="7" fill="white" stroke="#E1E9E9"/>
+    <circle cx="130" cy="301" r="4" fill="#4F9991"/><text x="140" y="304" fill="#24484E" font-family="Arial,sans-serif" font-size="9" font-weight="700">SIA/SUS</text>
+    <rect x="212" y="283" width="85" height="37" rx="7" fill="white" stroke="#E1E9E9"/>
+    <circle cx="225" cy="301" r="4" fill="#4F9991"/><text x="235" y="304" fill="#24484E" font-family="Arial,sans-serif" font-size="9" font-weight="700">SIH/SUS</text>
+    <rect x="324" y="250" width="215" height="87" rx="10" fill="#F7F9F9"/>
+    <text x="340" y="270" fill="#637A80" font-family="Arial,sans-serif" font-size="8" font-weight="700" letter-spacing=".7">ABRANGÊNCIA NACIONAL</text>
+    <path d="M411 282c-8 1-14-3-20 1l-6 8 7 7-3 8 10 5 5 11 11 3 4-8 11-2 7-9 8-4-1-10-9-3-3-8-10 1-4-6-7 2Z" fill="url(#map)"/>
+    <circle cx="392" cy="296" r="2.5" fill="#F7FFFF"/><circle cx="411" cy="290" r="2.5" fill="#F7FFFF"/><circle cx="427" cy="304" r="2.5" fill="#F7FFFF"/><circle cx="408" cy="315" r="2.5" fill="#F7FFFF"/><circle cx="438" cy="291" r="2.5" fill="#F7FFFF"/>
+    <text x="458" y="297" fill="#20484D" font-family="Arial,sans-serif" font-size="14" font-weight="700">27 UFs</text>
+    <text x="458" y="312" fill="#71848A" font-family="Arial,sans-serif" font-size="8">dados por localidade</text>
+  </g>
+  <rect x="447" y="55" width="9" height="9" rx="3" fill="#116A73"/><rect x="462" y="55" width="9" height="9" rx="3" fill="#4F9991"/><rect x="477" y="55" width="9" height="9" rx="3" fill="#9AC7C1"/>
+</svg>
