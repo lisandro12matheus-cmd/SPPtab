@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>Minhas bases · TabulaSUS</title>
-  <link rel="stylesheet" href="assets/app.css?v=22"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/tabular-refine.css?v=18"><link rel="stylesheet" href="assets/bases.css?v=2"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
+  <link rel="stylesheet" href="assets/app.css?v=22"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/tabular-refine.css?v=18"><link rel="stylesheet" href="assets/bases.css?v=3"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
   <script src="assets/sidebar.js?v=3" defer></script>
 </head>
 <body>
@@ -38,7 +38,10 @@
         <div class="bases-library-head"><div class="bases-title-group"><span class="bases-heading-icon" aria-hidden="true"><span class="tile-motif" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></span><div><h2 id="libraryTitle">Arquivos importados</h2><p>Organizados por sistema, estado e competência.</p></div></div><a class="button button-primary" href="index.php"><span aria-hidden="true">＋</span> Adicionar arquivos</a></div>
         <div class="bases-toolbar">
           <label class="bases-search"><span class="sr-only">Buscar arquivos na biblioteca</span><span aria-hidden="true">⌕</span><input id="librarySearch" type="search" placeholder="Buscar arquivo, estado ou competência" autocomplete="off"></label>
-          <label class="bases-filter"><span class="sr-only">Filtrar sistema</span><select id="systemFilter"><option value="all">Todos os sistemas</option><option value="SIA">Ambulatorial · SIA/SUS</option><option value="SIH">Hospitalar · SIH/SUS</option></select></label>
+          <label class="bases-filter bases-filter--system"><span class="sr-only">Filtrar sistema</span><select id="systemFilter" aria-label="Filtrar sistema"><option value="all">Todos os sistemas</option><option value="SIA">Ambulatorial · SIA/SUS</option><option value="SIH">Hospitalar · SIH/SUS</option></select></label>
+          <label class="bases-filter bases-filter--year"><span class="sr-only">Filtrar ano</span><select id="yearFilter" aria-label="Filtrar ano"><option value="all">Todos os anos</option></select></label>
+          <label class="bases-filter bases-filter--competency"><span class="sr-only">Filtrar competência</span><select id="competencyFilter" aria-label="Filtrar competência"><option value="all">Todas as competências</option></select></label>
+          <label class="bases-filter bases-filter--state"><span class="sr-only">Filtrar estado</span><select id="stateFilter" aria-label="Filtrar estado"><option value="all">Todos os estados</option></select></label>
           <span class="bases-visible-count" id="visibleCount" aria-live="polite">Carregando arquivos…</span>
         </div>
         <div class="bases-table-wrap">
@@ -61,6 +64,6 @@
     <div class="remove-dialog-error" id="removeError" role="alert" hidden></div>
     <div class="remove-dialog-actions"><button class="button-secondary" id="cancelRemove" type="button">Manter arquivo</button><button class="button remove-confirm" id="confirmRemove" type="button">Remover arquivo</button></div>
   </dialog>
-      <script src="assets/bases.js?v=7" defer></script><script src="assets/tabulations-nav.js?v=1" defer></script>
+      <script src="assets/bases.js?v=8" defer></script><script src="assets/tabulations-nav.js?v=1" defer></script>
 </body>
 </html>

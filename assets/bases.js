@@ -8,6 +8,9 @@
   const notice = $('#libraryNotice');
   const search = $('#librarySearch');
   const systemFilter = $('#systemFilter');
+  const yearFilter = $('#yearFilter');
+  const competencyFilter = $('#competencyFilter');
+  const stateFilter = $('#stateFilter');
   const dialog = $('#removeDialog');
   const confirmRemove = $('#confirmRemove');
   const cancelRemove = $('#cancelRemove');
@@ -47,6 +50,33 @@
   }
 
   function clearNotice() { notice.hidden = true; notice.textContent = ''; }
+
+  function syncFilterOptions(select, values, allLabel, labelForValue = (value) => value) {
+    const selected = select.value;
+    const fragment = document.createDocumentFragment();
+    const all = document.createElement('option');
+    all.value = 'all';
+    all.textContent = allLabel;
+    fragment.append(all);
+    values.forEach((value) => {
+      const option = document.createElement('option');
+      option.value = String(value);
+      option.textContent = labelForValue(value);
+      fragment.append(option);
+    });
+    select.replaceChildren(fragment);
+    select.value = values.some((value) => String(value) === selected) ? selected : 'all';
+  }
+
+  function syncLibraryFilters() {
+    const years = [...new Set(files.map((file) => String(file.year || '')).filter((year) => /^\d{4}$/.test(year)))].sort((a, b) => Number(b) - Number(a));
+    const months = [...new Set(files.map((file) => Number(file.month)).filter((month) => Number.isInteger(month) && month >= 1 && month <= 12))].sort((a, b) => a - b);
+    const states = [...new Set(files.map((file) => String(file.uf || '').toUpperCase()).filter(Boolean))]
+      .sort((a, b) => (stateNames[a] || a).localeCompare(stateNames[b] || b, 'pt-BR'));
+    syncFilterOptions(yearFilter, years, 'Todos os anos');
+    syncFilterOptions(competencyFilter, months, 'Todas as competências', (month) => monthNames[month - 1] || String(month));
+    syncFilterOptions(stateFilter, states, 'Todos os estados', (uf) => `${stateNames[uf] || uf} · ${uf}`);
+  }
 
   function statusOf(file) {
     if (file.converted) return {label:'Leitura preparada', kind:'ready', detail:'Pronto para tabular'};
@@ -135,16 +165,24 @@
   function filteredFiles() {
     const term = search.value.trim().toLocaleLowerCase('pt-BR');
     const system = systemFilter.value;
+    const year = yearFilter.value;
+    const month = competencyFilter.value;
+    const uf = stateFilter.value;
     return files.filter((file) => {
       if (system !== 'all' && file.system !== system) return false;
+      if (year !== 'all' && String(file.year) !== year) return false;
+      if (month !== 'all' && String(Number(file.month)) !== month) return false;
+      if (uf !== 'all' && String(file.uf || '').toUpperCase() !== uf) return false;
       if (!term) return true;
       const status = statusOf(file).label;
-      const text = [file.name, file.path, file.system, file.kind, file.uf, stateNames[file.uf], file.year, monthNames[(Number(file.month) || 1) - 1], status].join(' ').toLocaleLowerCase('pt-BR');
+      const fileMonth = Number(file.month) || 1;
+      const text = [file.name, file.path, file.system, file.kind, file.uf, stateNames[file.uf], file.year, monthNames[fileMonth - 1], `${String(fileMonth).padStart(2, '0')}/${file.year}`, status].join(' ').toLocaleLowerCase('pt-BR');
       return text.includes(term);
     });
   }
 
   function render() {
+    syncLibraryFilters();
     rows.replaceChildren();
     const visible = filteredFiles();
     const fragment = document.createDocumentFragment();
@@ -164,10 +202,13 @@
       $('#emptyCopy').textContent = 'Adicione arquivos DBC ambulatoriais ou hospitalares para começar a organizar suas bases.';
     } else if (visible.length === 0) {
       $('#emptyTitle').textContent = 'Nenhum arquivo encontrado';
-      $('#emptyCopy').textContent = 'Altere a busca ou o sistema selecionado para ver outras bases.';
+      $('#emptyCopy').textContent = 'Altere a busca ou os filtros de sistema, ano, competência e estado para ver outras bases.';
     }
     $('#librarySearch').disabled = noFiles;
     $('#systemFilter').disabled = noFiles;
+    $('#yearFilter').disabled = noFiles;
+    $('#competencyFilter').disabled = noFiles;
+    $('#stateFilter').disabled = noFiles;
   }
 
   function openRemoveDialog(file) {
@@ -233,6 +274,9 @@
 
   search.addEventListener('input', render);
   systemFilter.addEventListener('change', render);
+  yearFilter.addEventListener('change', render);
+  competencyFilter.addEventListener('change', render);
+  stateFilter.addEventListener('change', render);
   confirmRemove.addEventListener('click', removeFile);
   cancelRemove.addEventListener('click', () => { if (!busy && dialog.open) dialog.close(); });
   dialog.addEventListener('cancel', (event) => { if (busy) event.preventDefault(); });
