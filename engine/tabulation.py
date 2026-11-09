@@ -1,7 +1,7 @@
 """Tabulação local de arquivos DATASUS usando definições oficiais do TabWin."""
 from __future__ import annotations
 
-import json, os, re, subprocess, tempfile, zipfile, secrets, threading, time, sys, mmap, hashlib, stat, calendar, csv, io, shutil, gzip
+import json, os, re, subprocess, tempfile, zipfile, secrets, threading, time, sys, mmap, hashlib, stat, calendar, csv, io, shutil, gzip, unicodedata
 from datetime import date, timedelta
 from email.utils import parsedate_to_datetime
 import urllib.request, urllib.error, urllib.parse, xml.etree.ElementTree as ET, sqlite3
@@ -633,7 +633,7 @@ def write_tabulation_job(job_id: str, state: dict[str,Any]):
 
 def start_tabulation(payload: dict[str,Any]):
     payload=json.loads(json.dumps(payload))
-    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades"}:
+    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante"}:
         year=payload.get("year")
         month=payload.get("month")
         uf=str(payload.get("uf") or "").upper()
@@ -2626,6 +2626,269 @@ def _predefined_srag_weekly_impl(payload: dict[str,Any], progress=None):
            "As categorias de agente usam a classificação final do registro. VSR é separado dos outros vírus quando o exame PCR ou antígeno está positivo; coinfecções permanecem no grupo da classificação final. Sem agente definido inclui casos pendentes e não especificados.",
            "UTI e óbitos são contados entre os casos da tabela. Dados recentes podem ser incompletos e são revistos; números não equivalem a internações faturadas no SIH."]
     return {"ok":True,"report":"srag-semanal","view":view,"flatTable":True,"file":"SIVEP-Gripe · CSV oficial","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality,"updatedAt":data["updatedAt"],"establishmentCode":str(week) if week else None,"establishmentName":f"Semana epidemiológica {week:02d}" if week else None,"rows":rows,"records":totals["cases"],"columns":columns,"metrics":[{"id":key,"label":label.title(),"decimals":0} for key,label in SRAG_METRICS],"kpis":[{"label":"CASOS DE SRAG","value":{"value":totals["cases"]}},{"label":"PASSARAM POR UTI","value":{"value":totals["icu"]}},{"label":"ÓBITOS REGISTRADOS","value":{"value":totals["deaths"]}}],"notes":notes,"emptyStateMessage":f"Não há registros de SRAG com início dos sintomas em {month:02d}/{year} para {municipality_name} na base publicada em {data['updatedAt']}. Isso não confirma ausência de casos.","cachedAt":time.time()}
+
+SISAGUA_FIRST_YEAR=2014
+SISAGUA_RAD_PARAMETERS=(("cloro residual livre","freeChlorine","CLORO RESIDUAL LIVRE"),("cloro residual combinado","combinedChlorine","CLORO RESIDUAL COMBINADO"),("dioxido de cloro","chlorineDioxide","DIÓXIDO DE CLORO"))
+SISAGUA_SUPPLY_TYPES=(("SAA","saa","SAA · SISTEMA"),("SAC","sac","SAC · SOLUÇÃO COLETIVA"),("SAI","sai","SAI · SOLUÇÃO INDIVIDUAL"),("CARRO-PIPA","truck","CARRO-PIPA"))
+SISAGUA_EXCLUDED_MOTIVES={"surto","desastre"}
+SISAGUA_COUNT_KEYS=("rad","freeChlorine","combinedChlorine","chlorineDioxide","saa","sac","sai","truck","otherSupply","excluded")
+
+def sisagua_rad_minimum(population: int) -> int:
+    """Monthly minimum of RAD analyses (Diretriz Nacional do Plano de Amostragem, 2016, Tabela 1).
+
+    The fractional increments are rounded up: Vitória/ES (355.875 hab.) gives
+    20 + 355.875/20.000 = 37,8 → 38 per month, the value printed by the SISAGUA
+    report "Cumprimento da Diretriz Nacional - Parâmetros Básicos".
+    """
+    population=max(0,int(population))
+    def ceil_div(value,step): return -(-value//step)
+    if population<=5000: return 6
+    if population<=10000: return 9
+    if population<=50000: return 8+ceil_div(population,7500)
+    if population<=200000: return 10+ceil_div(population,10000)
+    if population<=500000: return 20+ceil_div(population,20000)
+    return 35+ceil_div(population,50000)
+
+def _sisagua_fold(value: Any) -> str:
+    text=unicodedata.normalize("NFD",str(value or "")).encode("ascii","ignore").decode("ascii")
+    return re.sub(r"\s+"," ",text).strip().casefold()
+
+def _sisagua_archive_download(year: int, progress=None):
+    """Fetch the annual SISAGUA vigilância (parâmetros básicos) CSV package from the official open-data host."""
+    folder=UPLOADS/".cache"/"sisagua-source"
+    folder.mkdir(parents=True,exist_ok=True)
+    for old in folder.glob("sisagua-*.part"):
+        try:
+            if time.time()-old.stat().st_mtime>86400: old.unlink(missing_ok=True)
+        except OSError: pass
+    url=f"https://{SINAN_DENGUE_ARCHIVE_HOST}/ckan.saude.gov.br/SISAGUA/vigilancia_parametros_basicos_{year}_csv.zip"
+    request=urllib.request.Request(url,headers={"User-Agent":"TabulaSUS/1.0","Accept":"application/zip"})
+    fd,name=tempfile.mkstemp(prefix="sisagua-",suffix=".part",dir=str(folder)); os.close(fd)
+    temp=Path(name)
+    limit=768*1024*1024
+    try:
+        with open_verified_https(request,SINAN_DENGUE_ARCHIVE_HOST,120) as response, temp.open("wb") as output:
+            size=int(response.headers.get("Content-Length") or 0)
+            modified=response.headers.get("Last-Modified")
+            try: updated_at=parsedate_to_datetime(modified).date().isoformat() if modified else date.today().isoformat()
+            except (TypeError,ValueError,OverflowError): updated_at=date.today().isoformat()
+            if size>limit: raise ValueError("O arquivo anual do SISAGUA ultrapassa o limite seguro de download.")
+            if shutil.disk_usage(folder).free<(size or 256*1024*1024)*6+64*1024*1024: raise ValueError("Espaço insuficiente para baixar e ler o SISAGUA.")
+            received=0
+            while True:
+                chunk=response.read(1024*1024)
+                if not chunk: break
+                received+=len(chunk)
+                if received>limit or (size and received>size): raise ValueError("O download do SISAGUA excedeu o tamanho esperado.")
+                output.write(chunk)
+                if progress: progress(min(40,5+int(35*received/max(size,received))),f"Baixando SISAGUA {year} · {received/1048576:.0f} MB"+(f" de {size/1048576:.0f} MB" if size else ""))
+        if size and received!=size: raise ValueError("O download do SISAGUA terminou incompleto.")
+        result=temp
+        temp=None
+        return result,updated_at
+    except urllib.error.HTTPError as exc:
+        if exc.code in {403,404}: raise ValueError(f"O arquivo oficial do SISAGUA de {year} ainda não foi publicado.") from exc
+        raise ValueError(f"O servidor oficial do SISAGUA respondeu com HTTP {exc.code}.") from exc
+    except (OSError,TimeoutError,urllib.error.URLError) as exc:
+        raise ValueError(f"Não foi possível baixar o arquivo oficial do SISAGUA: {exc}") from exc
+    finally:
+        if temp is not None: temp.unlink(missing_ok=True)
+
+def _sisagua_cache(year: int, uf: str):
+    return cache_target("sisagua_rad",{"version":1,"year":year,"uf":uf})
+
+def _sisagua_source(year: int, uf: str, progress=None):
+    """Aggregate RAD analyses of one annual SISAGUA file by municipality, month and supply solution.
+
+    The national file (≈1 GB of CSV) is read once; aggregates for every UF are
+    cached so other states and municipalities open instantly afterwards.
+    """
+    ttl=24*3600 if year>=date.today().year-1 else 30*86400
+    target=_sisagua_cache(year,uf)
+    cached=cache_read(target)
+    if isinstance(cached,dict) and isinstance(cached.get("municipalities"),dict) and time.time()-float(cached.get("fetched_at",0))<ttl:
+        return cached
+    folder=UPLOADS/".cache"/"sisagua-source"
+    folder.mkdir(parents=True,exist_ok=True)
+    with interprocess_lock(folder/f"sisagua-{year}.lock"):
+        cached=cache_read(target)
+        if isinstance(cached,dict) and isinstance(cached.get("municipalities"),dict) and time.time()-float(cached.get("fetched_at",0))<ttl:
+            return cached
+        if progress: progress(5,f"Baixando o arquivo anual de vigilância do SISAGUA {year}")
+        try: archive,updated_at=_sisagua_archive_download(year,progress)
+        except (OSError,ValueError,TimeoutError):
+            if isinstance(cached,dict) and isinstance(cached.get("municipalities"),dict):
+                cached["stale"]=True
+                return cached
+            raise
+        try:
+            by_uf: dict[str,dict[str,Any]]={}
+            parameters={folded:key for folded,key,_ in SISAGUA_RAD_PARAMETERS}
+            supplies={code:key for code,key,_ in SISAGUA_SUPPLY_TYPES}
+            try: bundle=zipfile.ZipFile(archive)
+            except zipfile.BadZipFile as exc: raise ValueError("O pacote oficial do SISAGUA está corrompido.") from exc
+            with bundle:
+                members=[item for item in bundle.infolist() if not item.is_dir() and item.filename.lower().endswith(".csv")]
+                if len(members)!=1 or not 0<members[0].file_size<=6*1024*1024*1024: raise ValueError("O pacote oficial do SISAGUA não contém o CSV esperado.")
+                member=members[0]
+                with bundle.open(member) as raw:
+                    stream=io.TextIOWrapper(raw,encoding="latin-1",errors="replace",newline="")
+                    reader=csv.reader(stream,delimiter=";")
+                    headers={name.strip().strip('"').upper():index for index,name in enumerate(next(reader,[]))}
+                    needed={"SG_UF","CO_MUNICIPIO_IBGE","NO_MUNICIPIO","NU_MES","TP_MOTIVO_COLETA","TP_ABASTECIMENTO","NU_SOLUCAO_ABASTECIMENTO","NO_SOLUCAO_ABASTECIMENTO","PARAMETRO"}
+                    if not needed.issubset(headers): raise ValueError("O arquivo oficial do SISAGUA não contém os campos necessários ao relatório.")
+                    width=max(headers[name] for name in needed)+1
+                    position={name:headers[name] for name in needed}
+                    read_count=0; parameter_cache: dict[str,str|None]={}; motive_cache: dict[str,bool]={}
+                    for row in reader:
+                        read_count+=1
+                        if read_count%50000==0 and progress:
+                            try: done=raw.tell()
+                            except (OSError,ValueError): done=0
+                            percent=40+int(52*min(1,done/member.file_size)) if done else 40
+                            progress(min(92,percent),f"Lendo análises do SISAGUA · {read_count:,} registros".replace(",","."))
+                        if len(row)<width: continue
+                        raw_parameter=row[position["PARAMETRO"]]
+                        if raw_parameter not in parameter_cache: parameter_cache[raw_parameter]=parameters.get(_sisagua_fold(raw_parameter).split(" (")[0])
+                        parameter=parameter_cache[raw_parameter]
+                        if not parameter: continue
+                        row_uf=row[position["SG_UF"]].strip().upper()
+                        municipality=re.sub(r"\D","",row[position["CO_MUNICIPIO_IBGE"]])[:6]
+                        raw_month=row[position["NU_MES"]].strip()
+                        if row_uf not in PREDEFINED_UF_CODES or len(municipality)!=6 or not raw_month.isdigit() or not 1<=int(raw_month)<=12: continue
+                        month=str(int(raw_month))
+                        state=by_uf.setdefault(row_uf,{})
+                        place=state.setdefault(municipality,{"name":_report_label(row[position["NO_MUNICIPIO"]]),"months":{}})
+                        monthly=place["months"].setdefault(month,{"counts":{key:0 for key in SISAGUA_COUNT_KEYS},"solutions":{}})
+                        supply_code=row[position["TP_ABASTECIMENTO"]].strip().upper()
+                        solution_code=row[position["NU_SOLUCAO_ABASTECIMENTO"]].strip()[:40] or "—"
+                        solution_key=f"{supply_code}|{solution_code}"
+                        solution=monthly["solutions"].setdefault(solution_key,{"supply":supply_code or "NÃO INFORMADO","code":solution_code,"name":_report_label(row[position["NO_SOLUCAO_ABASTECIMENTO"]])[:160] or "Solução não informada",**{key:0 for key in ("rad","freeChlorine","combinedChlorine","chlorineDioxide","excluded")}})
+                        raw_motive=row[position["TP_MOTIVO_COLETA"]]
+                        if raw_motive not in motive_cache: motive_cache[raw_motive]=_sisagua_fold(raw_motive) in SISAGUA_EXCLUDED_MOTIVES
+                        if motive_cache[raw_motive]:
+                            monthly["counts"]["excluded"]+=1; solution["excluded"]+=1
+                            continue
+                        counts=monthly["counts"]
+                        for item in (counts,solution):
+                            item["rad"]+=1; item[parameter]+=1
+                        counts[supplies.get(supply_code,"otherSupply")]+=1
+            fetched_at=time.time()
+            if progress: progress(94,"Salvando os totais do SISAGUA neste computador")
+            for state_code in PREDEFINED_UF_CODES:
+                cache_write(_sisagua_cache(year,state_code),{"fetched_at":fetched_at,"updatedAt":updated_at,"year":year,"uf":state_code,"municipalities":by_uf.get(state_code,{}),"scanned":read_count},max_bytes=60_000_000,keep=200)
+        finally:
+            archive.unlink(missing_ok=True)
+        result=cache_read(target)
+        if not isinstance(result,dict): raise ValueError("Não foi possível salvar os totais do SISAGUA neste computador.")
+        return result
+
+def _sisagua_population(uf: str, year: int):
+    """Resident population (IBGE) of every municipality of a UF, picking the latest year up to the report year."""
+    target=cache_target("sisagua_population",{"version":1,"uf":uf})
+    cached=cache_read(target)
+    if not (isinstance(cached,dict) and isinstance(cached.get("series"),dict) and time.time()-float(cached.get("fetched_at",0))<30*86400):
+        state=PREDEFINED_UF_CODES[uf]
+        series: dict[str,dict[str,int]]={}
+        def collect(data, source):
+            for block in data if isinstance(data,list) else []:
+                for result in block.get("resultados") or []:
+                    for item in result.get("series") or []:
+                        code=str((item.get("localidade") or {}).get("id") or "")[:6]
+                        if not re.fullmatch(r"\d{6}",code): continue
+                        for period,value in (item.get("serie") or {}).items():
+                            if str(value).isdigit() and str(period).isdigit(): series.setdefault(code,{})[str(period)]=int(value)
+        try:
+            periods=_sinan_json_request("https://servicodados.ibge.gov.br/api/v3/agregados/6579/periodos","servicodados.ibge.gov.br",timeout=25,max_bytes=1_000_000)
+            wanted=[str(item.get("id")) for item in periods if isinstance(item,dict) and str(item.get("id","")).isdigit() and int(item["id"])>=SISAGUA_FIRST_YEAR-1]
+            if wanted:
+                collect(_sinan_json_request(f"https://servicodados.ibge.gov.br/api/v3/agregados/6579/periodos/{'|'.join(wanted)}/variaveis/9324?localidades=N6[N3[{state}]]","servicodados.ibge.gov.br",timeout=35,max_bytes=16_000_000),"estimate")
+            census=_sinan_json_request(f"https://servicodados.ibge.gov.br/api/v3/agregados/4709/periodos/2022/variaveis/93?localidades=N6[N3[{state}]]","servicodados.ibge.gov.br",timeout=35,max_bytes=8_000_000)
+            for block in census if isinstance(census,list) else []:
+                for result in block.get("resultados") or []:
+                    for item in result.get("series") or []:
+                        code=str((item.get("localidade") or {}).get("id") or "")[:6]
+                        value=str((item.get("serie") or {}).get("2022") or "")
+                        if re.fullmatch(r"\d{6}",code) and value.isdigit(): series.setdefault(code,{})["2022"]=int(value)
+        except Exception:
+            if isinstance(cached,dict) and isinstance(cached.get("series"),dict): series=cached["series"]
+            else: raise ValueError("Não foi possível consultar a população do IBGE para calcular o mínimo da diretriz.")
+        if not series: raise ValueError("O IBGE não retornou a população dos municípios desta UF.")
+        cached={"fetched_at":time.time(),"series":series}
+        cache_write(target,cached,max_bytes=4_000_000,keep=40)
+    return cached["series"]
+
+def _sisagua_population_for(series: dict[str,dict[str,int]], municipality: str, year: int):
+    values=series.get(municipality) or {}
+    eligible=[int(period) for period in values if int(period)<=year]
+    chosen=max(eligible) if eligible else (min(int(period) for period in values) if values else None)
+    if chosen is None: return None,None,""
+    return values[str(chosen)],chosen,("Censo 2022" if chosen==2022 else f"estimativa {chosen}")
+
+def predefined_sisagua_rad(payload: dict[str,Any], progress=None):
+    if progress is None: return _predefined_sisagua_rad_impl(payload,None)
+    stop=threading.Event(); progress_lock=threading.Lock()
+    latest={"percent":5,"stage":"Preparando o arquivo oficial do SISAGUA"}
+    def publish(percent,stage):
+        with progress_lock:
+            latest["percent"]=percent; latest["stage"]=stage
+            progress(percent,stage)
+    def heartbeat():
+        while not stop.wait(4):
+            try:
+                with progress_lock: progress(latest["percent"],latest["stage"])
+            except Exception: pass
+    thread=threading.Thread(target=heartbeat,name="sisagua-progress-heartbeat",daemon=True)
+    thread.start()
+    try: return _predefined_sisagua_rad_impl(payload,publish)
+    finally:
+        stop.set(); thread.join(timeout=1)
+
+def _predefined_sisagua_rad_impl(payload: dict[str,Any], progress=None):
+    """PQA-VS indicator: RAD analyses by the water-quality surveillance over the national-guideline minimum."""
+    year=payload.get("year"); month=payload.get("month"); municipality=str(payload.get("municipalityCode") or "")
+    uf=str(payload.get("uf") or "").upper(); view=str(payload.get("view") or "summary")
+    if not isinstance(year,int) or not SISAGUA_FIRST_YEAR<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12:
+        raise ValueError(f"Selecione um mês de {SISAGUA_FIRST_YEAR} em diante para o relatório do SISAGUA.")
+    if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]:
+        raise ValueError("Selecione um município válido para o relatório do SISAGUA.")
+    if view not in {"summary","detail"}: raise ValueError("Selecione uma visão válida do relatório do SISAGUA.")
+    data=_sisagua_source(year,uf,progress)
+    if progress: progress(96,"Calculando o mínimo da Diretriz Nacional")
+    place=(data.get("municipalities") or {}).get(municipality) or {}
+    municipality_name=_report_label(payload.get("municipalityName") or "")[:100] or _report_label(place.get("name") or "") or f"Município {municipality}"
+    population,population_year,population_source=_sisagua_population_for(_sisagua_population(uf,year),municipality,year)
+    if population is None: raise ValueError(f"O IBGE não informou a população de {municipality_name}; o mínimo da diretriz não pode ser calculado.")
+    minimum=sisagua_rad_minimum(population)
+    monthly=(place.get("months") or {}).get(str(month)) or {"counts":{},"solutions":{}}
+    counts={key:int((monthly.get("counts") or {}).get(key) or 0) for key in SISAGUA_COUNT_KEYS}
+    compliance=round(100*counts["rad"]/minimum,1) if minimum else None
+    period=f"{month:02d}/{year}"
+    common_notes=[
+        f"Fonte: SISAGUA · Vigilância · Parâmetros básicos, arquivo público anual de {year} publicado em {data.get('updatedAt') or 'data não informada'} no Portal de Dados Abertos do SUS.",
+        "Numerador: análises de residual de agente desinfetante (RAD) registradas pela vigilância — soma de cloro residual livre, cloro residual combinado e dióxido de cloro —, pelo município e mês da coleta, nas formas SAA, SAC, SAI e carro-pipa. Coletas com motivo surto ou desastre não entram na contagem, como no relatório oficial do SISAGUA.",
+        f"Denominador: mínimo mensal da Diretriz Nacional do Plano de Amostragem da Vigilância da Qualidade da Água (2016, Tabela 1), calculado com a população total do IBGE ({population_source}: {population:,} hab.) e com arredondamento para cima. Fator de multiplicação: 100.".replace(",","."),
+        "Dados recentes podem mudar enquanto os municípios ainda registram análises no SISAGUA. Para o resultado anual, selecione os 12 meses: o percentual do período usa o total analisado sobre a soma dos mínimos mensais."
+    ]
+    if data.get("stale"): common_notes.append("Não foi possível atualizar o arquivo oficial agora; o relatório usa a última leitura salva neste computador.")
+    kpis=[{"label":"ANÁLISES RAD","value":{"value":counts["rad"]}},{"label":"MÍNIMO DA DIRETRIZ","value":{"value":minimum}},{"label":"% DO MÍNIMO","value":{"value":compliance,"decimals":1,"suffix":"%"} if compliance is not None else {"text":"—"}},{"label":f"POPULAÇÃO · {population_source.upper()}","value":{"value":population}}]
+    base={"ok":True,"report":"sisagua-residual-desinfetante","flatTable":True,"file":"SISAGUA · CSV oficial","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality,"updatedAt":data.get("updatedAt"),"population":population,"populationYear":population_year,"populationSource":population_source,"minimum":minimum,"kpis":kpis,"cachedAt":time.time()}
+    if view=="detail":
+        rows=[]
+        for solution in (monthly.get("solutions") or {}).values():
+            if not solution.get("rad") and not solution.get("excluded"): continue
+            supply=str(solution.get("supply") or "")
+            rows.append({"code":str(month),"supply":next((label for code,_,label in SISAGUA_SUPPLY_TYPES if code==supply),supply or "Não informado"),"solutionCode":solution.get("code") or "—","solutionName":solution.get("name") or "Solução não informada",**{key:int(solution.get(key) or 0) for key in ("rad","freeChlorine","combinedChlorine","chlorineDioxide","excluded")}})
+        rows.sort(key=lambda item:(-item["rad"],item["supply"],item["solutionName"]))
+        metric_items=[("rad","ANÁLISES RAD"),*((key,label) for _,key,label in SISAGUA_RAD_PARAMETERS),("excluded","SURTO/DESASTRE · FORA DA CONTA")]
+        columns=[{"id":"solution","label":"SOLUÇÃO DE ABASTECIMENTO","kind":"primary","primaryField":"solutionName","secondaryField":"solutionCode","filterFields":["solutionName","solutionCode"],"sortField":"solutionName","type":"text","sticky":True},{"id":"supply","label":"FORMA DE ABASTECIMENTO","field":"supply","type":"text"},*({"id":key,"label":label,"metricId":key,"type":"number","decimals":0} for key,label in metric_items)]
+        return {**base,"view":"detail","establishmentCode":str(month),"establishmentName":period,"rows":rows,"records":counts["rad"],"columns":columns,"metrics":[{"id":key,"label":label.title(),"decimals":0} for key,label in metric_items],"notes":[f"Detalhe de {period}: cada linha é um sistema ou solução alternativa de abastecimento com análise RAD registrada pela vigilância.",*common_notes],"emptyStateMessage":f"Não há análises RAD da vigilância registradas para {municipality_name} em {period} no arquivo publicado em {data.get('updatedAt')}."}
+    month_names=("Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro")
+    row={"code":str(month),"monthName":month_names[month-1],"period":period,"municipalityName":municipality_name,"municipalityCode":municipality,"population":population,"minimum":minimum,"compliance":compliance,**counts}
+    metric_items=[("minimum","MÍNIMO DA DIRETRIZ"),("rad","ANÁLISES RAD"),*((key,label) for _,key,label in SISAGUA_RAD_PARAMETERS),*((key,label) for _,key,label in SISAGUA_SUPPLY_TYPES),("excluded","SURTO/DESASTRE · FORA DA CONTA")]
+    columns=[{"id":"month","label":"MÊS DA COLETA","kind":"primary","primaryField":"monthName","secondaryField":"period","filterFields":["monthName","period"],"sortField":"code","type":"text","sticky":True},{"id":"population","label":f"POPULAÇÃO · {population_source.upper()}","field":"population","type":"number","decimals":0},*({"id":key,"label":label,"metricId":key,"type":"number","decimals":0} for key,label in metric_items[:2]),{"id":"compliance","label":"% DO MÍNIMO","field":"compliance","type":"percent","decimals":1},*({"id":key,"label":label,"metricId":key,"type":"number","decimals":0} for key,label in metric_items[2:]),{"id":"detail","label":"DETALHAR","kind":"action","actionLabel":"Sistemas →"}]
+    if counts["otherSupply"]: common_notes.append(f"{counts['otherSupply']} análise(s) com forma de abastecimento não reconhecida entram no total RAD, mas não nas colunas por forma.")
+    return {**base,"view":"summary","rows":[row],"records":counts["rad"],"columns":columns,"metrics":[{"id":key,"label":label.title(),"decimals":0} for key,label in metric_items],"notes":common_notes,"emptyStateMessage":""}
 
 def _sinan_cnes_unit_metadata(codes: list[str], year: int, month: int, progress=None):
     """Resolve current unit identity and competence-aware management/legal-nature classifications."""
@@ -4970,6 +5233,8 @@ def tabulate(payload, progress=None):
         return predefined_sinasc_maternity_detail(payload,progress) if payload.get("view")=="detail" else predefined_sinasc_maternity(payload,progress)
     if payload.get("predefinedReport")=="srag-semanal":
         return predefined_srag_weekly(payload,progress)
+    if payload.get("predefinedReport")=="sisagua-residual-desinfetante":
+        return predefined_sisagua_rad(payload,progress)
     if payload.get("predefinedReport")=="sim-mortalidade":
         return predefined_sim_mortality(payload,progress)
     if payload.get("predefinedReport")=="sim-mortalidade-infantil":
