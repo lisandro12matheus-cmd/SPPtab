@@ -28,7 +28,7 @@
       <section class="intro predefined-report-intro"><div class="eyebrow"><span class="eyebrow-line"></span> <span id="predefinedIntroLabel">RELATÓRIOS PRÉ-DEFINIDOS</span></div><h1 id="predefinedIntroTitle">Tabulações prontas para consultar.</h1><p id="predefinedIntroDescription">Escolha um relatório e informe a competência. Novas tabulações serão adicionadas a esta área.</p></section>
 
       <section class="predefined-catalog" id="predefinedCatalog" aria-labelledby="catalogTitle">
-        <div class="catalog-heading"><div><h2 id="catalogTitle">Relatórios</h2><p>Escolha a análise que precisa.</p></div><span class="catalog-count" id="catalogCount">14 relatórios</span></div>
+        <div class="catalog-heading"><div><h2 id="catalogTitle">Relatórios</h2><p>Escolha a análise que precisa.</p></div><span class="catalog-count" id="catalogCount">19 relatórios</span></div>
         <label class="catalog-search"><span aria-hidden="true">⌕</span><input id="catalogSearch" type="search" placeholder="Buscar relatório, assunto ou fonte" autocomplete="off" aria-label="Buscar tabulações prontas"></label>
         <p class="catalog-no-results" id="catalogNoResults" hidden>Nenhum relatório corresponde à busca.</p>
         <div class="predefined-card-grid">
@@ -75,6 +75,26 @@
           <article class="predefined-card" data-category="ambiental" data-report="sisagua-residual-desinfetante" role="button" tabindex="0" aria-label="Abrir tabulação: Amostras analisadas para residual de desinfetante na água">
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Vigilância ambiental</div><h3>Residual de desinfetante na água</h3><p>Compare as análises de cloro e dióxido de cloro da vigilância ao mínimo da Diretriz Nacional.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SISAGUA · IBGE</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
+          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-obitos-arboviroses" role="button" tabindex="0" aria-label="Abrir tabulação: óbitos suspeitos de dengue e chikungunya encerrados em até 60 dias">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">PQA-VS · Indicador 8</div><h3>Óbitos por arboviroses encerrados</h3><p>Óbitos suspeitos de dengue e chikungunya encerrados em até 60 dias da notificação. Meta: 75%.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · DENGUE · CHIK</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
+          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-contatos-hanseniase" role="button" tabindex="0" aria-label="Abrir tabulação: contatos examinados de casos novos de hanseníase">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">PQA-VS · Indicador 9</div><h3>Contatos examinados de hanseníase</h3><p>Contatos examinados dos casos novos nas coortes PB e MB, por residência atual. Meta: 82%.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · HANSENÍASE</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
+          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-contatos-tuberculose" role="button" tabindex="0" aria-label="Abrir tabulação: contatos examinados de casos novos de tuberculose pulmonar">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">PQA-VS · Indicador 10</div><h3>Contatos examinados de tuberculose</h3><p>Contatos examinados dos casos novos de TB pulmonar com confirmação laboratorial. Meta: 70%.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · TUBERCULOSE</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
+          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-sifilis-congenita" role="button" tabindex="0" aria-label="Abrir tabulação: sífilis congênita em relação à sífilis em gestantes">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">PQA-VS · Indicador 11</div><h3>Sífilis congênita × sífilis em gestantes</h3><p>Casos de sífilis congênita em menores de 1 ano sobre casos em gestantes, por residência.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · SÍFILIS</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
+          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-violencia-raca-cor" role="button" tabindex="0" aria-label="Abrir tabulação: preenchimento de raça/cor nas notificações de violência">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">PQA-VS · Indicador 14</div><h3>Raça/cor nas notificações de violência</h3><p>Notificações de violência interpessoal e autoprovocada com raça/cor válida. Meta: 95%.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · VIOLÊNCIA</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
           <article class="predefined-card" data-category="mortalidade" data-report="sim-mortalidade" role="button" tabindex="0" aria-label="Abrir tabulação: Óbitos por semana">
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Mortalidade</div><h3>Óbitos por semana</h3><p>Consulte os óbitos registrados e detalhe a causa básica, o capítulo CID-10 e a residência.</p></div>
@@ -133,6 +153,6 @@
       <div class="setup-dialog-footer"><div class="setup-default-actions"><button type="button" id="saveSetupDefault">Salvar filtros como padrão</button><button type="button" id="clearSetupDefault" hidden>Remover padrão</button><span id="setupDefaultStatus" role="status"></span></div><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=72" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=73" defer></script>
 </body>
 </html>

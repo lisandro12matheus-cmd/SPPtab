@@ -67,14 +67,27 @@ def _clear_stale_directory_lock(directory: Path) -> bool:
         if time.time() - modified < 30:
             return False
         pid = 0
-    if pid and _pid_alive(pid):
+    # Only the thread holding this path's in-process lock reaches this point,
+    # so a directory recorded with our own PID is a leftover from a release
+    # whose rmdir failed (for example, while antivirus held the owner file).
+    if pid and pid != os.getpid() and _pid_alive(pid):
         return False
-    try:
-        owner.unlink(missing_ok=True)
-        directory.rmdir()
-        return True
-    except OSError:
-        return False
+    return _remove_directory_lock(directory, attempts=3)
+
+
+def _remove_directory_lock(directory: Path, attempts: int = 1) -> bool:
+    owner = directory / "owner"
+    for attempt in range(attempts):
+        try:
+            owner.unlink(missing_ok=True)
+            directory.rmdir()
+            return True
+        except FileNotFoundError:
+            return True
+        except OSError:
+            if attempt + 1 < attempts:
+                time.sleep(0.05 * (attempt + 1))
+    return False
 
 
 def _directory_lock(path: Path, blocking: bool) -> Path:
@@ -195,10 +208,5 @@ def interprocess_lock(path: Path, blocking: bool = True):
                 handle.close()
         finally:
             if directory_locked is not None:
-                owner = directory_locked / "owner"
-                try:
-                    owner.unlink(missing_ok=True)
-                    directory_locked.rmdir()
-                except OSError:
-                    pass
+                _remove_directory_lock(directory_locked, attempts=5)
             local_lock.release()

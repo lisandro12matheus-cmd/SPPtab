@@ -308,6 +308,68 @@
     itemLabel:'meses', detailItemLabel:'sistemas e soluções de abastecimento', countMetric:'rad', countLabel:'ANÁLISES RAD',
     tableSearchSummary:'Buscar município', tableSearchDetail:'Buscar sistema, solução ou forma de abastecimento', monthlyDetail:true, filters:{}
   };
+  const pqavsBase = {
+    system:'pqavs', systemCode:'SINAN', remoteSource:true, tableMode:'flat', firstYear:2017, defaultUf:'PA', defaultMunicipalityCode:'150140',
+    systemLabel:'SINAN · PQA-VS', sourceLabel:'bases públicas do SINAN', municipalityPlaceholder:'Selecione o município', missingMunicipalityMessage:'Selecione o município.',
+    monthHelp:'Para o resultado anual do PQA-VS, selecione os 12 meses. Bases preliminares mudam a cada atualização do DATASUS.',
+    availabilityText:'Escolha os meses · a primeira leitura de cada base nacional do SINAN pode levar alguns minutos.',
+    filterNote:'Este indicador não tem filtros adicionais.', methodTitle:'Como ler o indicador:', itemLabel:'meses', countMetric:'numerator', countLabel:'NUMERADOR',
+    tableSearchSummary:'Buscar mês', tableSearchDetail:'Buscar mês', filters:{}
+  };
+  reportConfigurations['pqavs-obitos-arboviroses'] = {
+    ...pqavsBase, id:'pqavs-obitos-arboviroses', kind:'ARBO', competenceLabel:'COMPETÊNCIA DA NOTIFICAÇÃO',
+    workspaceTitle:'Óbitos por dengue e chikungunya encerrados · PQA-VS', introLabel:'PQA-VS 2025 · INDICADOR 8 · SINAN', introTitle:'Óbitos suspeitos de dengue e chikungunya encerrados em até 60 dias.',
+    introDescription:'Proporção de óbitos suspeitos encerrados em até 60 dias após a notificação. Meta: 75%.',
+    setupTitle:'Óbitos suspeitos de dengue e chikungunya', setupDescription:'Escolha o município e os meses de notificação. Selecione os 12 meses para o resultado anual.',
+    emptyMessage:'Escolha o município e os meses de notificação para acompanhar o encerramento dos óbitos suspeitos.',
+    municipalityLabel:'MUNICÍPIO', monthLabel:'MÊS DA NOTIFICAÇÃO', locationHelp:'O município pode ser o de notificação (padrão) ou o de residência.', loaderDetail:'óbitos suspeitos de dengue e chikungunya',
+    showOptionalFilters:true, staticFilterOptions:true,
+    filters:{ basis:{ label:'Município considerado', field:'basis', nameField:'basisName', queryKey:'base', sourceLabel:'SINAN · ID_MUNICIP / ID_MN_RESI', options:[['notification','Município de notificação'],['residence','Município de residência']] } },
+    filterNote:'A ficha do PQA-VS não define o município de agregação. Sem seleção, o relatório usa o município de notificação.',
+    methodText:' numerador = óbitos (evolução 2, 3 ou 4) com classificação final de dengue, chikungunya ou descartado, encerrados em até 60 dias da notificação. Denominador = todos os óbitos suspeitos, menos os ainda abertos dentro dos 60 dias. Dengue e chikungunya são somados.',
+    summaryTitle:'Encerramento dos óbitos suspeitos de arboviroses'
+  };
+  reportConfigurations['pqavs-contatos-hanseniase'] = {
+    ...pqavsBase, id:'pqavs-contatos-hanseniase', kind:'HANS', competenceLabel:'MÊS · ANO DA AVALIAÇÃO', allMonthsAvailable:true,
+    workspaceTitle:'Contatos examinados de hanseníase · PQA-VS', introLabel:'PQA-VS 2025 · INDICADOR 9 · SINAN', introTitle:'Contatos examinados de casos novos de hanseníase.',
+    introDescription:'Contatos examinados sobre registrados nas coortes: paucibacilares do ano anterior e multibacilares de dois anos antes. Meta: ≥ 82%.',
+    setupTitle:'Contatos examinados de hanseníase', setupDescription:'Escolha o ano da avaliação e os meses. O relatório busca os casos PB do ano anterior e MB de dois anos antes.',
+    emptyMessage:'Escolha o município de residência e o ano da avaliação para ver as coortes de hanseníase.',
+    municipalityLabel:'MUNICÍPIO DE RESIDÊNCIA ATUAL', monthLabel:'MÊS DO DIAGNÓSTICO', monthHelp:'O ano é o da avaliação; cada mês soma os casos PB diagnosticados naquele mês do ano anterior e os MB de dois anos antes. Selecione os 12 meses para o resultado.',
+    locationHelp:'Os casos são contados pelo município de residência atual.', loaderDetail:'coortes de hanseníase (PB e MB)',
+    methodText:' numerador = contatos examinados e denominador = contatos registrados dos casos novos das coortes (PB do ano anterior, MB de dois anos antes), excluindo erro diagnóstico e transferências para fora do município.',
+    summaryTitle:'Contatos examinados nas coortes de hanseníase'
+  };
+  reportConfigurations['pqavs-contatos-tuberculose'] = {
+    ...pqavsBase, id:'pqavs-contatos-tuberculose', kind:'TUBE', competenceLabel:'MÊS DO DIAGNÓSTICO',
+    workspaceTitle:'Contatos examinados de tuberculose · PQA-VS', introLabel:'PQA-VS 2025 · INDICADOR 10 · SINAN', introTitle:'Contatos examinados de casos novos de TB pulmonar.',
+    introDescription:'Contatos examinados sobre identificados dos casos novos de tuberculose pulmonar com confirmação laboratorial. Meta: 70%.',
+    setupTitle:'Contatos examinados de tuberculose pulmonar', setupDescription:'Escolha o município de residência e os meses do diagnóstico. Selecione os 12 meses para o resultado anual.',
+    emptyMessage:'Escolha o município de residência e os meses do diagnóstico para acompanhar os contatos examinados.',
+    municipalityLabel:'MUNICÍPIO DE RESIDÊNCIA', monthLabel:'MÊS DO DIAGNÓSTICO', locationHelp:'Os casos são contados pelo município de residência.', loaderDetail:'casos novos de tuberculose pulmonar',
+    methodText:' numerador = contatos examinados e denominador = contatos identificados dos casos novos de TB pulmonar (ou pulmonar + extrapulmonar) com baciloscopia, cultura ou teste rápido molecular positivo.',
+    summaryTitle:'Contatos de casos novos de TB pulmonar confirmada'
+  };
+  reportConfigurations['pqavs-sifilis-congenita'] = {
+    ...pqavsBase, id:'pqavs-sifilis-congenita', kind:'SIFC', competenceLabel:'MÊS DO DIAGNÓSTICO',
+    workspaceTitle:'Sífilis congênita e em gestantes · PQA-VS', introLabel:'PQA-VS 2025 · INDICADOR 11 · SINAN', introTitle:'Sífilis congênita em relação à sífilis em gestantes.',
+    introDescription:'Casos de sífilis congênita em menores de 1 ano sobre casos de sífilis em gestantes, por residência. Meta: reduzir 1 ponto percentual sobre o ano base.',
+    setupTitle:'Sífilis congênita e em gestantes', setupDescription:'Escolha o município de residência e os meses do diagnóstico. Selecione os 12 meses para o resultado anual.',
+    emptyMessage:'Escolha o município de residência e os meses do diagnóstico para comparar sífilis congênita e em gestantes.',
+    municipalityLabel:'MUNICÍPIO DE RESIDÊNCIA', monthLabel:'MÊS DO DIAGNÓSTICO', locationHelp:'Os casos são contados pelo município de residência.', loaderDetail:'sífilis congênita e em gestantes',
+    methodText:' indicador = casos de sífilis congênita em menores de 1 ano ÷ casos de sífilis em gestantes × 100, pelo ano de diagnóstico e município de residência. Quanto menor, melhor.',
+    summaryTitle:'Sífilis congênita em relação à sífilis em gestantes'
+  };
+  reportConfigurations['pqavs-violencia-raca-cor'] = {
+    ...pqavsBase, id:'pqavs-violencia-raca-cor', kind:'VIOL', competenceLabel:'MÊS DA NOTIFICAÇÃO',
+    workspaceTitle:'Raça/cor nas notificações de violência · PQA-VS', introLabel:'PQA-VS 2025 · INDICADOR 14 · SINAN', introTitle:'Preenchimento válido de raça/cor nas notificações de violência.',
+    introDescription:'Proporção de notificações de violência interpessoal e autoprovocada com raça/cor válida. Meta: 95%.',
+    setupTitle:'Raça/cor nas notificações de violência', setupDescription:'Escolha o município de notificação e os meses. Selecione os 12 meses para o resultado anual.',
+    emptyMessage:'Escolha o município de notificação e os meses para medir o preenchimento de raça/cor.',
+    municipalityLabel:'MUNICÍPIO DE NOTIFICAÇÃO', monthLabel:'MÊS DA NOTIFICAÇÃO', locationHelp:'As notificações são contadas pelo município de notificação.', loaderDetail:'notificações de violência',
+    methodText:' numerador = notificações com raça/cor Branca, Preta, Amarela, Parda ou Indígena; denominador = todas as notificações de violência interpessoal e autoprovocada. Ignorado ou em branco não vale.',
+    summaryTitle:'Raça/cor nas notificações de violência'
+  };
   const params = new URLSearchParams(location.search);
   const linkedReportId = params.get('relatorio') === 'sia-pa-belem' ? 'sia-pa-producao' : params.get('relatorio');
   let activeReport = reportConfigurations[linkedReportId] || reportConfigurations['sia-pa-producao'];
@@ -480,7 +542,7 @@
     ufSelect.disabled = Boolean(activeReport.fixedUf);
     municipalitySelect.disabled = Boolean(activeReport.fixedMunicipalityCode);
     const optionalSection = document.querySelector('.setup-optional-section');
-    if (optionalSection) optionalSection.hidden = Boolean(activeReport.remoteSource && !['sinan','sinasc'].includes(activeReport.system) && !['sim-mortalidade','sim-mortalidade-infantil'].includes(activeReport.id));
+    if (optionalSection) optionalSection.hidden = Boolean(activeReport.remoteSource && !activeReport.showOptionalFilters && !['sinan','sinasc'].includes(activeReport.system) && !['sim-mortalidade','sim-mortalidade-infantil'].includes(activeReport.id));
     const monthLabel = $('reportMonthLabel');
     if (monthLabel) {
       const qualifier = document.createElement('small');
@@ -866,7 +928,7 @@
     const requestId = ++competencyRequest;
     if (activeReport.remoteSource) {
       const now = new Date();
-      const monthCount = year === now.getFullYear() ? now.getMonth() + 1 : 12;
+      const monthCount = year === now.getFullYear() && !activeReport.allMonthsAvailable ? now.getMonth() + 1 : 12;
       const allMonths = Array.from({ length:monthCount }, (_, index) => index + 1);
       const wanted = (Array.isArray(preferred) ? preferred : [preferred]).map(Number).filter((month) => allMonths.includes(month));
       const defaultMonth = year === now.getFullYear() ? Math.max(1, now.getMonth() - (activeReport.system === 'sinasc' ? 2 : 1)) : 12;
@@ -1028,7 +1090,7 @@
       municipalitySelect.title = activeReport.remoteSource ? 'A lista de municípios não foi carregada. Confira a conexão e reabra o recorte.' : 'A lista de municípios não foi carregada. O relatório continua disponível para toda a UF.';
       if (activeReport.remoteSource && !activeReport.fixedMunicipalityCode) setAvailability('Não foi possível carregar a lista de municípios. Confira a conexão e tente novamente.', 'error');
     });
-    if (activeReport.system === 'sinasc' || activeReport.system === 'sim') {
+    if (activeReport.system === 'sinasc' || activeReport.system === 'sim' || activeReport.staticFilterOptions) {
       for (const [type, definition] of Object.entries(filterDefinitions)) if (definition.options) filterCategories[type] = definition.options.map(([value,label]) => ({ value,label }));
     }
     const simMunicipalityTask = ['sim-mortalidade','sim-mortalidade-infantil'].includes(activeReport.id)
@@ -1947,6 +2009,15 @@
     const first = monthlyResults[0]?.kpis;
     if (!Array.isArray(first)) return undefined;
     if (months.length === 1) return first;
+    if (activeReport.system === 'pqavs') {
+      const numerator = monthlyResults.reduce((total, result) => total + (Number(result.numerator) || 0), 0);
+      const denominator = monthlyResults.reduce((total, result) => total + (Number(result.denominator) || 0), 0);
+      return first.map((item, index) => {
+        if (item.kind === 'percent') return { ...item, value:denominator ? { value:Math.round(numerator * 1000 / denominator) / 10, decimals:1, suffix:'%' } : { text:'—' } };
+        if (item.kind !== 'sum') return item;
+        return { ...item, value:{ ...(item.value || {}), value:monthlyResults.reduce((total, result) => total + (Number(result.kpis?.[index]?.value?.value) || 0), 0) } };
+      });
+    }
     if (activeReport.system === 'sisagua') {
       const analyzed = rows.reduce((total, row) => total + (Number(row.rad) || 0), 0);
       const minimum = monthlyResults.reduce((total, result) => total + (Number(result.minimum) || 0), 0);
@@ -2035,7 +2106,7 @@
   async function tabulateReportMonth(view, cnes, aih, filters, year, month, monthIndex, monthCount) {
     if (activeReport.remoteSource) {
       setLoader(true, `Lendo arquivo oficial do ${activeReport.systemCode} · ${monthIndex + 1} de ${monthCount}`, `${monthNames[month - 1]} de ${year} · ${activeReport.loaderDetail || (activeReport.id === 'sim-mortalidade-infantil' ? 'óbitos e nascidos vivos por residência' : activeReport.system === 'sim' ? 'óbitos ocorridos em Belém' : activeReport.system === 'sinasc' ? 'nascidos vivos por estabelecimento' : activeReport.system === 'srag' ? 'casos por município de residência' : 'unidades notificadoras de Belém')}.`, null, true);
-      let job = await api({ action:'tabulate_start', predefinedReport:activeReport.id, view, uf:filters.uf, year, month, municipalityCode:filters.municipalityCode, municipalityName:filters.municipalityName, ...(activeReport.system === 'sinasc' ? { sinascFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { establishmentCode:cnes } : {}) } : {}), ...(activeReport.id === 'sim-mortalidade' ? { simFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { weekIndex:Number(cnes), causeCode:activeSimCauseCode } : {}) } : {}), ...(activeReport.id === 'sim-mortalidade-infantil' ? { simInfantFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])) } : {}), ...(activeReport.system === 'sinan' ? { cnesManagementCode:filters.cnesManagementCode, cnesNatureGroupCode:filters.cnesNatureGroupCode, ...(view === 'detail' ? { weekIndex:Number(cnes) } : {}) } : ['sim','srag'].includes(activeReport.system) && view === 'detail' ? { weekIndex:Number(cnes) } : {}) });
+      let job = await api({ action:'tabulate_start', predefinedReport:activeReport.id, view, uf:filters.uf, year, month, municipalityCode:filters.municipalityCode, municipalityName:filters.municipalityName, ...(activeReport.system === 'pqavs' ? { reportFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])) } : {}), ...(activeReport.system === 'sinasc' ? { sinascFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { establishmentCode:cnes } : {}) } : {}), ...(activeReport.id === 'sim-mortalidade' ? { simFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { weekIndex:Number(cnes), causeCode:activeSimCauseCode } : {}) } : {}), ...(activeReport.id === 'sim-mortalidade-infantil' ? { simInfantFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])) } : {}), ...(activeReport.system === 'sinan' ? { cnesManagementCode:filters.cnesManagementCode, cnesNatureGroupCode:filters.cnesNatureGroupCode, ...(view === 'detail' ? { weekIndex:Number(cnes) } : {}) } : ['sim','srag'].includes(activeReport.system) && view === 'detail' ? { weekIndex:Number(cnes) } : {}) });
       if (job.done && job.result) return stampMonthlyResult(job.result, year, month);
       if (!job.job_id) throw new Error(`O TabulaSUS não retornou uma consulta válida ao ${activeReport.systemCode}.`);
       const jobId = job.job_id;

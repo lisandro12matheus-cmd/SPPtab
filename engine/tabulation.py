@@ -633,7 +633,7 @@ def write_tabulation_job(job_id: str, state: dict[str,Any]):
 
 def start_tabulation(payload: dict[str,Any]):
     payload=json.loads(json.dumps(payload))
-    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante"}:
+    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante","pqavs-obitos-arboviroses","pqavs-contatos-hanseniase","pqavs-contatos-tuberculose","pqavs-sifilis-congenita","pqavs-violencia-raca-cor"}:
         year=payload.get("year")
         month=payload.get("month")
         uf=str(payload.get("uf") or "").upper()
@@ -2889,6 +2889,443 @@ def _predefined_sisagua_rad_impl(payload: dict[str,Any], progress=None):
     columns=[{"id":"month","label":"MÊS DA COLETA","kind":"primary","primaryField":"monthName","secondaryField":"period","filterFields":["monthName","period"],"sortField":"code","type":"text","sticky":True},{"id":"population","label":f"POPULAÇÃO · {population_source.upper()}","field":"population","type":"number","decimals":0},*({"id":key,"label":label,"metricId":key,"type":"number","decimals":0} for key,label in metric_items[:2]),{"id":"compliance","label":"% DO MÍNIMO","field":"compliance","type":"percent","decimals":1},*({"id":key,"label":label,"metricId":key,"type":"number","decimals":0} for key,label in metric_items[2:]),{"id":"detail","label":"DETALHAR","kind":"action","actionLabel":"Sistemas →"}]
     if counts["otherSupply"]: common_notes.append(f"{counts['otherSupply']} análise(s) com forma de abastecimento não reconhecida entram no total RAD, mas não nas colunas por forma.")
     return {**base,"view":"summary","rows":[row],"records":counts["rad"],"columns":columns,"metrics":[{"id":key,"label":label.title(),"decimals":0} for key,label in metric_items],"notes":common_notes,"emptyStateMessage":""}
+
+# ---------------------------------------------------------------------------
+# PQA-VS · indicadores calculados com as bases públicas do SINAN
+# Regras: Portaria GM/MS nº 6.878/2025, Anexo II (fichas de qualificação).
+# ---------------------------------------------------------------------------
+SINAN_DBC_DIR="/dissemin/publicos/SINAN/DADOS"
+PQAVS_FIRST_YEAR=2017
+PQAVS_REPORTS={
+    "pqavs-obitos-arboviroses":{"number":8,"label":"óbitos suspeitos de dengue e chikungunya encerrados em até 60 dias","goal":"75%","goalValue":75},
+    "pqavs-contatos-hanseniase":{"number":9,"label":"contatos examinados de casos novos de hanseníase","goal":"≥ 82%","goalValue":82},
+    "pqavs-contatos-tuberculose":{"number":10,"label":"contatos examinados de casos novos de TB pulmonar com confirmação laboratorial","goal":"70%","goalValue":70},
+    "pqavs-sifilis-congenita":{"number":11,"label":"sífilis congênita em relação à sífilis em gestantes","goal":"redução de 1 ponto percentual sobre o ano base (ou manter 0%)","goalValue":None},
+    "pqavs-violencia-raca-cor":{"number":14,"label":"notificações de violência com raça/cor válida","goal":"95%","goalValue":95},
+}
+PQAVS_MONTHS=("Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro")
+
+def _pqavs_date(value: Any):
+    raw=re.sub(r"\D","",str(value or ""))[:8]
+    if len(raw)!=8: return None
+    try: return date(int(raw[:4]),int(raw[4:6]),int(raw[6:8]))
+    except ValueError: return None
+
+def _pqavs_municipality(value: Any) -> str:
+    code=re.sub(r"\D","",_sinan_code(value))[:6]
+    return code if len(code)==6 and code[:2] in PREDEFINED_UF_CODES.values() else ""
+
+def _pqavs_int(value: Any) -> int:
+    raw=re.sub(r"\D","",_sinan_code(value))
+    return min(int(raw),999) if raw else 0
+
+def _pqavs_year(value: Any) -> int:
+    raw=re.sub(r"\D","",_sinan_code(value))[:4]
+    return int(raw) if len(raw)==4 else 0
+
+def _sinan_ftp_download(remote: str, destination: Path) -> bool:
+    """FTP fallback for networks where the HTTPS portal is unavailable. Returns False when the file does not exist."""
+    from ftplib import error_perm
+    ftp=FTP("ftp.datasus.gov.br",timeout=30)
+    try:
+        ftp.login(); ftp.set_pasv(True)
+        try: size=ftp.size(remote)
+        except error_perm: return False
+        if size is None or not 0<size<=1024*1024*1024: raise ValueError("O arquivo do SINAN no FTP tem tamanho inválido.")
+        with destination.open("wb") as output: ftp.retrbinary("RETR "+remote,output.write,blocksize=1024*1024)
+        if destination.stat().st_size!=size: raise ValueError("O arquivo do SINAN chegou incompleto pelo FTP.")
+        return True
+    finally:
+        try: ftp.close()
+        except OSError: pass
+
+def _sinan_dbc_download(prefix: str, year: int, progress=None):
+    """Download the national SINAN DBC of one disease and year, preferring the closed (FINAIS) base."""
+    name=f"{prefix}BR{year%100:02d}.dbc"
+    folder=UPLOADS/".cache"/"sinan-dbc"
+    folder.mkdir(parents=True,exist_ok=True)
+    for old in folder.glob("sinan-*.part"):
+        try:
+            if time.time()-old.stat().st_mtime>86400: old.unlink(missing_ok=True)
+        except OSError: pass
+    failures=[]
+    for stage in ("FINAIS","PRELIM"):
+        remote=f"{SINAN_DBC_DIR}/{stage}/{name}"
+        fd,temp_name=tempfile.mkstemp(prefix="sinan-",suffix=".part",dir=str(folder)); os.close(fd)
+        temp=Path(temp_name)
+        def report(done,total):
+            if progress: progress(8,f"Baixando {name} ({'base final' if stage=='FINAIS' else 'base preliminar'}) · {done/1048576:.1f} MB"+(f" de {total/1048576:.1f} MB" if total else ""))
+        try:
+            portal_download_file(remote,name,temp,report)
+            return temp,stage
+        except urllib.error.HTTPError as exc:
+            temp.unlink(missing_ok=True)
+            if exc.code==404: continue
+            failures.append(exc)
+        except Exception as exc:
+            temp.unlink(missing_ok=True)
+            failures.append(exc)
+        try:
+            if progress: progress(8,f"Baixando {name} pelo FTP do DATASUS")
+            if _sinan_ftp_download(remote,temp): return temp,stage
+            temp.unlink(missing_ok=True)
+        except Exception as exc:
+            temp.unlink(missing_ok=True)
+            failures.append(exc)
+    if failures: raise ValueError(f"Não foi possível baixar {name} do DATASUS: {failures[-1]}")
+    return None,None
+
+def _pqavs_collect_arbo(prefix: str, file_year: int):
+    valid_classes={"10","11","12","5"} if prefix=="DENG" else {"13","5"}
+    fields=("SEM_NOT","NU_ANO","DT_NOTIFIC","ID_MUNICIP","ID_MN_RESI","CLASSI_FIN","EVOLUCAO","DT_ENCERRA")
+    def collect(values):
+        sem,nu_ano,raw_notification,notifying,resident,classification,evolution,raw_closing=values
+        if _sinan_code(evolution) not in {"2","3","4"}: return ()
+        week=re.sub(r"\D","",str(sem or ""))
+        reference_year=int(week[:4]) if len(week)>=6 else _pqavs_year(nu_ano)
+        if reference_year!=file_year: return ()
+        notification=_pqavs_date(raw_notification)
+        if notification is None: return ()
+        month=notification.month if notification.year==file_year else (1 if notification.year<file_year else 12)
+        closing=_pqavs_date(raw_closing)
+        on_time=bool(closing and _sinan_code(classification) in valid_classes and 0<=(closing-notification).days<=60)
+        increments={"deaths":1,"onTime":int(on_time),"closed":int(closing is not None)}
+        output=[]
+        for basis,raw in (("n",notifying),("r",resident)):
+            municipality=_pqavs_municipality(raw)
+            if municipality: output.append((municipality,f"{basis}|{month}",increments,None if closing else notification.isoformat()))
+        return output
+    return fields,collect
+
+def _pqavs_collect_congenital(_file_year: int):
+    fields=("NU_IDADE_N","DT_DIAG","DT_NOTIFIC","ID_MN_RESI","EVO_DIAG_N")
+    def collect(values):
+        raw_age,raw_diagnosis,raw_notification,resident,final=values
+        final=_sinan_code(final)
+        if final=="5": return ()
+        age=re.sub(r"\D","",str(raw_age or ""))
+        under_one=(age[:1] in {"1","2","3"} or (age[:1]=="4" and int(age[1:] or 0)==0)) if len(age)==4 else final in {"3","4"}
+        if not under_one: return ()
+        reference=_pqavs_date(raw_diagnosis) or _pqavs_date(raw_notification)
+        municipality=_pqavs_municipality(resident)
+        if reference is None or not municipality: return ()
+        return ((municipality,f"{reference.year}|{reference.month}",{"congenital":1},None),)
+    return fields,collect
+
+def _pqavs_collect_pregnant(_file_year: int):
+    fields=("DT_DIAG","DT_NOTIFIC","ID_MN_RESI")
+    def collect(values):
+        raw_diagnosis,raw_notification,resident=values
+        reference=_pqavs_date(raw_diagnosis) or _pqavs_date(raw_notification)
+        municipality=_pqavs_municipality(resident)
+        if reference is None or not municipality: return ()
+        return ((municipality,f"{reference.year}|{reference.month}",{"pregnant":1},None),)
+    return fields,collect
+
+def _pqavs_collect_violence(file_year: int):
+    fields=("NU_ANO","DT_NOTIFIC","ID_MUNICIP","CS_RACA")
+    def collect(values):
+        nu_ano,raw_notification,notifying,race=values
+        if _pqavs_year(nu_ano)!=file_year: return ()
+        notification=_pqavs_date(raw_notification)
+        municipality=_pqavs_municipality(notifying)
+        if notification is None or not municipality: return ()
+        race=_sinan_code(race)
+        month=notification.month if notification.year==file_year else (1 if notification.year<file_year else 12)
+        return ((municipality,str(month),{"total":1,"valid":int(race in {"1","2","3","4","5"}),"ignored":int(race=="9"),"blank":int(race not in {"1","2","3","4","5","9"})},None),)
+    return fields,collect
+
+def _pqavs_collect_leprosy(_file_year: int):
+    fields=("DT_DIAG","MODOENTR","TPALTA_N","CLASSATUAL","ESQ_ATU_N","MUNIRESAT","ID_MN_RESI","CONTREG","CONTEXAM")
+    def collect(values):
+        raw_diagnosis,entry,exit_type,current_class,current_scheme,current_residence,resident,registered,examined=values
+        if _sinan_code(entry)!="1" or _sinan_code(exit_type) in {"3","4","5","8","9"}: return ()
+        current_class=_sinan_code(current_class); current_scheme=_sinan_code(current_scheme)
+        group="pb" if current_class=="1" and current_scheme=="1" else "mb" if current_class=="2" and current_scheme=="2" else ""
+        diagnosis=_pqavs_date(raw_diagnosis)
+        municipality=_pqavs_municipality(current_residence) or _pqavs_municipality(resident)
+        if not group or diagnosis is None or not municipality: return ()
+        return ((municipality,f"{diagnosis.year}|{diagnosis.month}|{group}",{"cases":1,"registered":_pqavs_int(registered),"examined":_pqavs_int(examined)},None),)
+    return fields,collect
+
+def _pqavs_collect_tuberculosis(_file_year: int):
+    fields=("DT_DIAG","TRATAMENTO","FORMA","SITUA_ENCE","BACILOSC_E","BACILOS_E2","CULTURA_ES","TEST_MOLEC","ID_MN_RESI","NU_CONTATO","NU_COMU_EX")
+    def collect(values):
+        raw_diagnosis,entry,form,closing,smear,smear2,culture,molecular,resident,identified,examined=values
+        if _sinan_code(entry) not in {"1","4","6"} or _sinan_code(form) not in {"1","3"} or _sinan_code(closing)=="6": return ()
+        diagnosis=_pqavs_date(raw_diagnosis)
+        municipality=_pqavs_municipality(resident)
+        if diagnosis is None or not municipality: return ()
+        confirmed=_sinan_code(smear)=="1" or _sinan_code(smear2)=="1" or _sinan_code(culture)=="1" or _sinan_code(molecular) in {"1","2"}
+        increments={"pulmonaryCases":1,"cases":int(confirmed),"identified":_pqavs_int(identified) if confirmed else 0,"examined":_pqavs_int(examined) if confirmed else 0}
+        return ((municipality,f"{diagnosis.year}|{diagnosis.month}",increments,None),)
+    return fields,collect
+
+PQAVS_SOURCES={
+    "DENG":("csv",lambda year:_pqavs_collect_arbo("DENG",year)),
+    "CHIK":("csv",lambda year:_pqavs_collect_arbo("CHIK",year)),
+    "SIFC":("dbc",_pqavs_collect_congenital),
+    "SIFG":("dbc",_pqavs_collect_pregnant),
+    "VIOL":("dbc",_pqavs_collect_violence),
+    "HANS":("dbc",_pqavs_collect_leprosy),
+    "TUBE":("dbc",_pqavs_collect_tuberculosis),
+}
+
+def _pqavs_source_target(prefix: str, year: int, uf: str):
+    return cache_target("pqavs_sinan",{"version":2,"prefix":prefix,"year":year,"uf":uf})
+
+def _pqavs_source(prefix: str, year: int, uf: str, progress=None):
+    """Per-UF aggregates of one national SINAN file. The national file is read once and every UF is cached."""
+    if year>date.today().year: return {"missing":True,"future":True,"municipalities":{},"year":year,"prefix":prefix}
+    target=_pqavs_source_target(prefix,year,uf)
+    def fresh(item):
+        if not isinstance(item,dict) or not isinstance(item.get("municipalities"),dict): return False
+        lifetime=86400 if item.get("missing") else 7*86400 if item.get("stage")!="FINAIS" else 60*86400
+        return time.time()-float(item.get("fetched_at",0))<lifetime
+    cached=cache_read(target)
+    if fresh(cached): return cached
+    folder=UPLOADS/".cache"/"sinan-dbc"
+    folder.mkdir(parents=True,exist_ok=True)
+    with interprocess_lock(folder/f"{prefix}-{year}.lock"):
+        cached=cache_read(target)
+        if fresh(cached): return cached
+        kind,factory=PQAVS_SOURCES[prefix]
+        fields,collect=factory(year)
+        by_uf: dict[str,dict[str,dict[str,dict[str,Any]]]]={}
+        scanned=0
+        def add(entries):
+            for municipality,key,increments,open_date in entries:
+                state=next((code for code,prefix_code in PREDEFINED_UF_CODES.items() if prefix_code==municipality[:2]),None)
+                if state is None: continue
+                bucket=by_uf.setdefault(state,{}).setdefault(municipality,{}).setdefault(key,{})
+                for name,value in increments.items(): bucket[name]=bucket.get(name,0)+value
+                if open_date: bucket.setdefault("open",[]).append(open_date)
+        stage=None; updated_at=date.today().isoformat()
+        try:
+            if kind=="csv":
+                report_id="sinan-dengue" if prefix=="DENG" else "sinan-chikungunya"
+                try: archive,updated_at=_sinan_dengue_archive(year,report_id,progress)
+                except ValueError as exc:
+                    if "ainda não está disponível" not in str(exc): raise
+                    archive=None
+                if archive is None: missing=True
+                else:
+                    missing=False; stage="CSV"
+                    try:
+                        expected=f"{prefix}BR{year%100:02d}.csv"
+                        with zipfile.ZipFile(archive) as bundle:
+                            info=next(entry for entry in bundle.infolist() if entry.filename.replace("\\","/").rsplit("/",1)[-1].casefold()==expected.casefold())
+                            with bundle.open(info) as binary, io.TextIOWrapper(binary,encoding="latin1",newline="") as stream:
+                                reader=csv.reader(stream,delimiter=",")
+                                headers={str(name or "").lstrip("\ufeff").strip().upper():index for index,name in enumerate(next(reader,[]))}
+                                missing_fields=[name for name in fields if name not in headers]
+                                if missing_fields: raise ValueError("O CSV oficial do SINAN não contém os campos: "+", ".join(missing_fields))
+                                positions=[headers[name] for name in fields]; width=max(positions)+1
+                                for row in reader:
+                                    scanned+=1
+                                    if progress and scanned%50000==0:
+                                        done=min(info.file_size,binary.tell())
+                                        progress(min(88,32+int(56*done/max(1,info.file_size))),f"Lendo {prefix} {year} · {scanned:,} registros".replace(",","."))
+                                    if len(row)<width: continue
+                                    add(collect(tuple(row[index] for index in positions)))
+                    finally:
+                        archive.unlink(missing_ok=True)
+            else:
+                dbc,stage=_sinan_dbc_download(prefix,year,progress)
+                missing=dbc is None
+                if dbc is not None:
+                    dbf=None
+                    try:
+                        if progress: progress(30,f"Descompactando {prefix}BR{year%100:02d}.dbc")
+                        dbf=Path(decompress(dbc))
+                        _,_,_,layout=dbf_layout(dbf)
+                        available=[name for name in fields if name in layout]
+                        if len(available)!=len(fields): raise ValueError(f"A base {prefix} {year} não contém os campos: "+", ".join(name for name in fields if name not in layout))
+                        processed=[0]
+                        def scan(done,total):
+                            if progress: progress(min(88,35+int(53*done/max(1,total))),f"Lendo {prefix} {year} · {done:,} de {total:,} registros".replace(",","."))
+                        for values in iter_dbf_fields(dbf,list(fields),processed_counter=processed,scan_callback=scan):
+                            add(collect(values))
+                        scanned=processed[0]
+                    finally:
+                        dbc.unlink(missing_ok=True)
+                        if dbf is not None: dbf.unlink(missing_ok=True)
+        except (OSError,ValueError,TimeoutError):
+            if isinstance(cached,dict) and isinstance(cached.get("municipalities"),dict):
+                cached["stale"]=True
+                return cached
+            raise
+        fetched_at=time.time()
+        for state in PREDEFINED_UF_CODES:
+            cache_write(_pqavs_source_target(prefix,year,state),{"fetched_at":fetched_at,"prefix":prefix,"year":year,"uf":state,"stage":stage,"missing":missing,"updatedAt":updated_at,"scanned":scanned,"municipalities":by_uf.get(state,{})},max_bytes=40_000_000,keep=400)
+        result=cache_read(target)
+        if not isinstance(result,dict): raise ValueError("Não foi possível salvar os totais do SINAN neste computador.")
+        return result
+
+def _pqavs_bucket(source: dict[str,Any], municipality: str, key: str) -> dict[str,Any]:
+    return ((source.get("municipalities") or {}).get(municipality) or {}).get(key) or {}
+
+def _pqavs_source_label(sources: list[dict[str,Any]]) -> str:
+    parts=[]
+    for item in sources:
+        name=f"{item.get('prefix')}BR{int(item.get('year',0))%100:02d}"
+        if item.get("future"): continue
+        if item.get("missing"): parts.append(f"{name} (ainda não publicado)")
+        else: parts.append(f"{name} · {'base final' if item.get('stage')=='FINAIS' else 'CSV do Portal de Dados Abertos' if item.get('stage')=='CSV' else 'base preliminar'}"+(" · última leitura salva" if item.get("stale") else ""))
+    return "; ".join(parts)
+
+def predefined_pqavs(payload: dict[str,Any], progress=None):
+    if progress is None: return _predefined_pqavs_impl(payload,None)
+    stop=threading.Event(); progress_lock=threading.Lock()
+    latest={"percent":5,"stage":"Preparando as bases do SINAN"}
+    def publish(percent,stage):
+        with progress_lock:
+            latest["percent"]=percent; latest["stage"]=stage
+            progress(percent,stage)
+    def heartbeat():
+        while not stop.wait(4):
+            try:
+                with progress_lock: progress(latest["percent"],latest["stage"])
+            except Exception: pass
+    thread=threading.Thread(target=heartbeat,name="pqavs-progress-heartbeat",daemon=True)
+    thread.start()
+    try: return _predefined_pqavs_impl(payload,publish)
+    finally:
+        stop.set(); thread.join(timeout=1)
+
+def _pqavs_percent(numerator: int, denominator: int):
+    return round(100*numerator/denominator,1) if denominator else None
+
+def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
+    report_id=str(payload.get("predefinedReport") or "")
+    spec=PQAVS_REPORTS.get(report_id)
+    if spec is None: raise ValueError("Indicador PQA-VS não reconhecido.")
+    year=payload.get("year"); month=payload.get("month"); municipality=str(payload.get("municipalityCode") or "")
+    uf=str(payload.get("uf") or "").upper()
+    if not isinstance(year,int) or not PQAVS_FIRST_YEAR<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12:
+        raise ValueError(f"Selecione um mês de {PQAVS_FIRST_YEAR} em diante.")
+    if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]:
+        raise ValueError("Selecione um município válido.")
+    if str(payload.get("view") or "summary")!="summary": raise ValueError("Este indicador tem apenas a visão mensal.")
+    municipality_name=_report_label(payload.get("municipalityName") or "")[:100] or f"Município {municipality}"
+    filters=payload.get("reportFilters") if isinstance(payload.get("reportFilters"),dict) else {}
+    month_name=PQAVS_MONTHS[month-1]
+    row={"code":str(month),"monthName":month_name,"period":f"{month:02d}/{year}"}
+    primary={"id":"month","label":"MÊS","kind":"primary","primaryField":"monthName","secondaryField":"period","filterFields":["monthName","period"],"sortField":"code","type":"text","sticky":True}
+    notes=[]; extra_kpi=None; filter_summary=[]
+    def metric(key,label): return {"id":key,"label":label,"metricId":key,"type":"number","decimals":0}
+    percent_column={"id":"percent","label":"% DO INDICADOR","field":"percent","type":"percent","decimals":1}
+    if report_id=="pqavs-obitos-arboviroses":
+        basis_values=[str(item) for item in (filters.get("basis") or []) if str(item) in {"notification","residence"}]
+        basis="r" if basis_values==["residence"] else "n"
+        filter_summary.append({"label":"Município considerado","value":"residência" if basis=="r" else "notificação"})
+        if progress: progress(5,"Preparando dengue e chikungunya do SINAN")
+        dengue=_pqavs_source("DENG",year,uf,progress); chik=_pqavs_source("CHIK",year,uf,progress)
+        today=date.today()
+        values={}
+        for prefix,source in (("dengue",dengue),("chik",chik)):
+            bucket=_pqavs_bucket(source,municipality,f"{basis}|{month}")
+            open_dates=[_pqavs_date(item) for item in bucket.get("open") or []]
+            open_window=sum(1 for item in open_dates if item and (today-item).days<=60)
+            values[prefix]={"deaths":int(bucket.get("deaths") or 0),"onTime":int(bucket.get("onTime") or 0),"openWindow":open_window,"openLate":len(open_dates)-open_window}
+        numerator=values["dengue"]["onTime"]+values["chik"]["onTime"]
+        denominator=sum(item["deaths"]-item["openWindow"] for item in values.values())
+        row.update({"dengueDeaths":values["dengue"]["deaths"],"dengueOnTime":values["dengue"]["onTime"],"chikDeaths":values["chik"]["deaths"],"chikOnTime":values["chik"]["onTime"],"openWindow":values["dengue"]["openWindow"]+values["chik"]["openWindow"],"openLate":values["dengue"]["openLate"]+values["chik"]["openLate"],"numerator":numerator,"denominator":denominator})
+        primary["label"]="MÊS DA NOTIFICAÇÃO"
+        metric_items=[("dengueDeaths","ÓBITOS SUSPEITOS · DENGUE"),("dengueOnTime","ENCERRADOS ≤ 60 DIAS · DENGUE"),("chikDeaths","ÓBITOS SUSPEITOS · CHIKUNGUNYA"),("chikOnTime","ENCERRADOS ≤ 60 DIAS · CHIKUNGUNYA"),("openWindow","EM ABERTO AINDA NO PRAZO"),("openLate","EM ABERTO HÁ MAIS DE 60 DIAS"),("numerator","NUMERADOR"),("denominator","DENOMINADOR")]
+        sources=[dengue,chik]
+        labels=("ÓBITOS ENCERRADOS ≤ 60 DIAS","ÓBITOS NO DENOMINADOR")
+        extra_kpi={"label":"EM ABERTO HÁ MAIS DE 60 DIAS","value":{"value":row["openLate"]},"kind":"sum"}
+        notes+=[
+            "Numerador: óbitos (evolução 2, 3 ou 4) com classificação final dengue (10, 11, 12) ou descartado (5) — chikungunya (13) ou descartado (5) — encerrados em até 60 dias da notificação.",
+            f"Denominador: todos os óbitos suspeitos notificados, de qualquer classificação, menos os ainda não encerrados que estão dentro dos 60 dias em {today.strftime('%d/%m/%Y')} (data desta análise).",
+            "Período: semana epidemiológica da notificação no ano selecionado; o mês usa a data de notificação. Para o resultado anual, selecione os 12 meses.",
+            f"A ficha não define o município de agregação; o relatório usa o município de {'residência' if basis=='r' else 'notificação'} (troque em Alterar recorte). Municípios sem óbitos suspeitos não pontuam no PQA-VS.",
+        ]
+    elif report_id=="pqavs-sifilis-congenita":
+        if progress: progress(5,"Preparando sífilis congênita e em gestantes do SINAN")
+        sources=[]; congenital=0; pregnant=0
+        for file_year in (year,year+1):
+            for prefix in ("SIFC","SIFG"):
+                source=_pqavs_source(prefix,file_year,uf,progress); sources.append(source)
+                bucket=_pqavs_bucket(source,municipality,f"{year}|{month}")
+                congenital+=int(bucket.get("congenital") or 0); pregnant+=int(bucket.get("pregnant") or 0)
+        numerator,denominator=congenital,pregnant
+        row.update({"congenital":congenital,"pregnant":pregnant,"numerator":numerator,"denominator":denominator})
+        primary["label"]="MÊS DO DIAGNÓSTICO"
+        metric_items=[("congenital","A · SÍFILIS CONGÊNITA < 1 ANO"),("pregnant","B · SÍFILIS EM GESTANTES")]
+        labels=("A · SÍFILIS CONGÊNITA < 1 ANO","B · SÍFILIS EM GESTANTES")
+        notes+=[
+            "Indicador = A ÷ B × 100, pelo município de residência e ano de diagnóstico. A: casos de sífilis congênita em menores de 1 ano (inclui aborto e natimorto por sífilis; exclui descartados). B: casos de sífilis em gestantes.",
+            f"São somadas as bases de notificação de {year} e {year+1}, porque casos diagnosticados no fim do ano podem ser notificados no ano seguinte. Notificações feitas depois disso não entram.",
+            "No PQA-VS o Ministério usa o dado consolidado pelo DATHI no penúltimo ano completo (painel indicadoressifilis.aids.gov.br); este cálculo com a base do SINAN serve para acompanhamento e pode diferir do painel.",
+        ]
+    elif report_id=="pqavs-violencia-raca-cor":
+        if progress: progress(5,"Preparando as notificações de violência do SINAN")
+        source=_pqavs_source("VIOL",year,uf,progress); sources=[source]
+        bucket=_pqavs_bucket(source,municipality,str(month))
+        total=int(bucket.get("total") or 0); valid=int(bucket.get("valid") or 0)
+        numerator,denominator=valid,total
+        row.update({"total":total,"valid":valid,"ignored":int(bucket.get("ignored") or 0),"blank":int(bucket.get("blank") or 0),"numerator":numerator,"denominator":denominator})
+        primary["label"]="MÊS DA NOTIFICAÇÃO"
+        metric_items=[("total","NOTIFICAÇÕES DE VIOLÊNCIA"),("valid","RAÇA/COR VÁLIDA"),("ignored","RAÇA/COR IGNORADA"),("blank","RAÇA/COR EM BRANCO")]
+        labels=("RAÇA/COR VÁLIDA","NOTIFICAÇÕES")
+        extra_kpi={"label":"IGNORADA OU EM BRANCO","value":{"value":row["ignored"]+row["blank"]},"kind":"sum"}
+        notes+=[
+            "Numerador: notificações de violência interpessoal e autoprovocada com raça/cor Branca, Preta, Amarela, Parda ou Indígena. Denominador: todas as notificações. Ignorado ou em branco é informação não válida.",
+            "Recorte pelo município de notificação e ano da notificação; o mês usa a data de notificação. Municípios sem notificação de violência não pontuam no PQA-VS.",
+        ]
+    elif report_id=="pqavs-contatos-hanseniase":
+        if progress: progress(5,"Preparando as coortes de hanseníase do SINAN")
+        pb_year,mb_year=year-1,year-2
+        sources=[]; totals={"pb":{"cases":0,"registered":0,"examined":0},"mb":{"cases":0,"registered":0,"examined":0}}
+        for group,diagnosis_year in (("pb",pb_year),("mb",mb_year)):
+            for file_year in (diagnosis_year,diagnosis_year+1):
+                source=_pqavs_source("HANS",file_year,uf,progress)
+                if source not in sources: sources.append(source)
+                bucket=_pqavs_bucket(source,municipality,f"{diagnosis_year}|{month}|{group}")
+                for key in totals[group]: totals[group][key]+=int(bucket.get(key) or 0)
+        numerator=totals["pb"]["examined"]+totals["mb"]["examined"]
+        denominator=totals["pb"]["registered"]+totals["mb"]["registered"]
+        row.update({"pbCases":totals["pb"]["cases"],"pbRegistered":totals["pb"]["registered"],"pbExamined":totals["pb"]["examined"],"mbCases":totals["mb"]["cases"],"mbRegistered":totals["mb"]["registered"],"mbExamined":totals["mb"]["examined"],"numerator":numerator,"denominator":denominator,"period":f"PB {month:02d}/{pb_year} · MB {month:02d}/{mb_year}"})
+        primary["label"]="MÊS DO DIAGNÓSTICO"
+        metric_items=[("pbCases",f"CASOS NOVOS PB · {pb_year}"),("pbRegistered","CONTATOS REGISTRADOS PB"),("pbExamined","CONTATOS EXAMINADOS PB"),("mbCases",f"CASOS NOVOS MB · {mb_year}"),("mbRegistered","CONTATOS REGISTRADOS MB"),("mbExamined","CONTATOS EXAMINADOS MB")]
+        labels=("CONTATOS EXAMINADOS PB+MB","CONTATOS REGISTRADOS PB+MB")
+        extra_kpi={"label":"CASOS NOVOS NAS COORTES","value":{"value":totals["pb"]["cases"]+totals["mb"]["cases"]},"kind":"sum"}
+        notes+=[
+            f"Coortes da avaliação {year}: casos novos paucibacilares diagnosticados em {pb_year} (classificação atual PB e esquema PQT/PB/6 doses) e multibacilares diagnosticados em {mb_year} (MB e PQT/MB/12 doses).",
+            "Modo de entrada: caso novo. Saem da conta erro diagnóstico e transferências para outro município, estado ou país (avaliação municipal). Município de residência atual; contatos registrados e examinados conforme o último acompanhamento enviado à base nacional.",
+            "Para o resultado da avaliação, selecione os 12 meses. Municípios com casos novos e sem contatos registrados não cumprem a meta; sem casos novos nas coortes, não pontuam.",
+        ]
+    elif report_id=="pqavs-contatos-tuberculose":
+        if progress: progress(5,"Preparando os casos de tuberculose do SINAN")
+        sources=[]; totals={"cases":0,"identified":0,"examined":0,"pulmonaryCases":0}
+        for file_year in (year,year+1):
+            source=_pqavs_source("TUBE",file_year,uf,progress); sources.append(source)
+            bucket=_pqavs_bucket(source,municipality,f"{year}|{month}")
+            for key in totals: totals[key]+=int(bucket.get(key) or 0)
+        numerator,denominator=totals["examined"],totals["identified"]
+        row.update({**totals,"numerator":numerator,"denominator":denominator})
+        primary["label"]="MÊS DO DIAGNÓSTICO"
+        metric_items=[("pulmonaryCases","CASOS NOVOS PULMONARES"),("cases","COM CONFIRMAÇÃO LABORATORIAL"),("identified","CONTATOS IDENTIFICADOS"),("examined","CONTATOS EXAMINADOS")]
+        labels=("CONTATOS EXAMINADOS","CONTATOS IDENTIFICADOS")
+        extra_kpi={"label":"CASOS NOVOS PULMONARES CONFIRMADOS","value":{"value":totals["cases"]},"kind":"sum"}
+        notes+=[
+            "Casos novos (tipo de entrada caso novo, não sabe ou pós-óbito), forma pulmonar ou pulmonar + extrapulmonar, exceto mudança de diagnóstico, com confirmação laboratorial: baciloscopia, cultura ou teste rápido molecular positivo.",
+            f"Município de residência e ano de diagnóstico; são somadas as bases de notificação de {year} e {year+1}. Os contatos são os registrados no último acompanhamento enviado à base nacional.",
+        ]
+    else:
+        raise ValueError("Indicador PQA-VS não implementado.")
+    percent=_pqavs_percent(numerator,denominator)
+    row["percent"]=percent
+    columns=[primary,*(metric(key,label) for key,label in metric_items),percent_column]
+    goal=spec["goal"]
+    kpis=[{"label":labels[0],"value":{"value":numerator},"kind":"sum"},{"label":labels[1],"value":{"value":denominator},"kind":"sum"},{"label":f"RESULTADO · META {goal.upper()}" if spec["goalValue"] is not None else "RESULTADO","value":{"value":percent,"decimals":1,"suffix":"%"} if percent is not None else {"text":"—"},"kind":"percent"}]
+    if extra_kpi: kpis.append(extra_kpi)
+    stage_note=f"Fonte: SINAN, bases públicas nacionais do DATASUS — {_pqavs_source_label(sources)}. Bases preliminares mudam a cada atualização."
+    notes=[f"PQA-VS 2025 · indicador {spec['number']} ({spec['label']}). Meta: {goal}. Regras da Portaria GM/MS nº 6.878/2025, Anexo II.",*notes,stage_note]
+    if any(item.get("stale") for item in sources): notes.append("Não foi possível atualizar alguma base agora; o resultado usa a última leitura salva neste computador.")
+    return {"ok":True,"report":report_id,"view":"summary","flatTable":True,"file":"SINAN · bases públicas","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality,"filters":filter_summary,"numerator":numerator,"denominator":denominator,"rows":[row],"records":denominator,"columns":columns,"metrics":[{"id":key,"label":label.title(),"decimals":0} for key,label in metric_items],"kpis":kpis,"notes":notes,"emptyStateMessage":"","cachedAt":time.time()}
 
 def _sinan_cnes_unit_metadata(codes: list[str], year: int, month: int, progress=None):
     """Resolve current unit identity and competence-aware management/legal-nature classifications."""
@@ -5235,6 +5672,8 @@ def tabulate(payload, progress=None):
         return predefined_srag_weekly(payload,progress)
     if payload.get("predefinedReport")=="sisagua-residual-desinfetante":
         return predefined_sisagua_rad(payload,progress)
+    if payload.get("predefinedReport") in PQAVS_REPORTS:
+        return predefined_pqavs(payload,progress)
     if payload.get("predefinedReport")=="sim-mortalidade":
         return predefined_sim_mortality(payload,progress)
     if payload.get("predefinedReport")=="sim-mortalidade-infantil":
