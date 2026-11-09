@@ -327,7 +327,8 @@
     filters:{ basis:{ label:'Município considerado', field:'basis', nameField:'basisName', queryKey:'base', parameter:true, defaultValue:'notification', sourceLabel:'SINAN · ID_MUNICIP (notificação) / ID_MN_RESI (residência)', options:[['notification','Município de notificação'],['residence','Município de residência']] } },
     filterNote:'A ficha do PQA-VS não diz se os óbitos são contados pelo município de notificação ou de residência. Escolha o critério usado pela sua vigilância; o padrão é o de notificação.',
     methodText:' numerador = óbitos (evolução 2, 3 ou 4) com classificação final de dengue, chikungunya ou descartado, encerrados em até 60 dias da notificação. Denominador = todos os óbitos suspeitos, menos os ainda abertos dentro dos 60 dias. Dengue e chikungunya são somados.',
-    summaryTitle:'Encerramento dos óbitos suspeitos de arboviroses'
+    summaryTitle:'Encerramento dos óbitos suspeitos de arboviroses',
+    monthlyDetail:true, backLabel:'← Meses', detailTitlePrefix:'Óbitos suspeitos notificados', detailItemLabel:'óbitos suspeitos', tableSearchDetail:'Buscar unidade, CNES, classificação ou situação'
   };
   reportConfigurations['pqavs-contatos-hanseniase'] = {
     ...pqavsBase, id:'pqavs-contatos-hanseniase', kind:'HANS', competenceLabel:'MÊS · ANO DA AVALIAÇÃO', allMonthsAvailable:true,
@@ -338,7 +339,8 @@
     municipalityLabel:'MUNICÍPIO DE RESIDÊNCIA ATUAL', monthLabel:'MÊS DO DIAGNÓSTICO', monthHelp:'O ano é o da avaliação; cada mês soma os casos PB diagnosticados naquele mês do ano anterior e os MB de dois anos antes. Selecione os 12 meses para o resultado.',
     locationHelp:'Os casos são contados pelo município de residência atual.', loaderDetail:'coortes de hanseníase (PB e MB)',
     methodText:' numerador = contatos examinados e denominador = contatos registrados dos casos novos das coortes (PB do ano anterior, MB de dois anos antes), excluindo erro diagnóstico e transferências para fora do município.',
-    summaryTitle:'Contatos examinados nas coortes de hanseníase'
+    summaryTitle:'Contatos examinados nas coortes de hanseníase',
+    monthlyDetail:true, backLabel:'← Meses', detailTitlePrefix:'Casos novos das coortes', detailItemLabel:'casos novos', tableSearchDetail:'Buscar unidade, CNES, coorte ou situação'
   };
   reportConfigurations['pqavs-contatos-tuberculose'] = {
     ...pqavsBase, id:'pqavs-contatos-tuberculose', kind:'TUBE', competenceLabel:'MÊS DO DIAGNÓSTICO',
@@ -351,7 +353,8 @@
     filters:{ basis:{ label:'Município considerado', field:'basis', nameField:'basisName', queryKey:'base', parameter:true, defaultValue:'residence', sourceLabel:'SINAN · ID_MN_RESI / ID_MUNIC_A / ID_MUNICIP', options:[['residence','Residência informada na notificação'],['current','Município atual do acompanhamento (após transferência)'],['notification','Município de notificação']] } },
     filterNote:'A ficha manda usar a linha "Mun Res BR2" do TabWin sem dizer qual campo é. O padrão é a residência informada na notificação; confira com a sua vigilância.',
     methodText:' numerador = contatos examinados e denominador = contatos identificados dos casos novos de TB pulmonar (ou pulmonar + extrapulmonar) com baciloscopia, cultura ou teste rápido molecular positivo.',
-    summaryTitle:'Contatos de casos novos de TB pulmonar confirmada'
+    summaryTitle:'Contatos de casos novos de TB pulmonar confirmada',
+    monthlyDetail:true, backLabel:'← Meses', detailTitlePrefix:'Casos novos de TB pulmonar confirmada', detailItemLabel:'casos novos', tableSearchDetail:'Buscar data, confirmação ou situação'
   };
   reportConfigurations['pqavs-sifilis-congenita'] = {
     ...pqavsBase, id:'pqavs-sifilis-congenita', kind:'SIFC', competenceLabel:'MÊS DO DIAGNÓSTICO',
