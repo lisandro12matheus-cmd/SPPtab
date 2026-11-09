@@ -81,11 +81,11 @@
             <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · DENGUE · CHIK</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
           <article class="predefined-card" data-category="vigilancia" data-report="pqavs-contatos-hanseniase" role="button" tabindex="0" aria-label="Abrir tabulação: contatos examinados de casos novos de hanseníase">
-            <div class="predefined-card-content"><div class="predefined-card-eyebrow">PQA-VS · Indicador 9</div><h3>Contatos examinados de hanseníase</h3><p>Contatos examinados dos casos novos nas coortes PB e MB, por residência atual. Meta: 82%.</p></div>
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">SINAN · PQA-VS · Indicador 9</div><h3>Hanseníase: casos e contatos</h3><p>Veja os casos registrados e o acompanhamento de contatos nas coortes do indicador.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · HANSENÍASE</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
           <article class="predefined-card" data-category="vigilancia" data-report="pqavs-contatos-tuberculose" role="button" tabindex="0" aria-label="Abrir tabulação: contatos examinados de casos novos de tuberculose pulmonar">
-            <div class="predefined-card-content"><div class="predefined-card-eyebrow">PQA-VS · Indicador 10</div><h3>Contatos examinados de tuberculose</h3><p>Contatos examinados dos casos novos de TB pulmonar com confirmação laboratorial. Meta: 70%.</p></div>
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">SINAN · PQA-VS · Indicador 10</div><h3>Tuberculose: casos e contatos</h3><p>Veja os casos registrados, os casos elegíveis e o acompanhamento de contatos.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · TUBERCULOSE</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
           <article class="predefined-card" data-category="vigilancia" data-report="pqavs-sifilis-congenita" role="button" tabindex="0" aria-label="Abrir tabulação: sífilis congênita em relação à sífilis em gestantes">
@@ -153,6 +153,6 @@
       <div class="setup-dialog-footer"><div class="setup-default-actions"><button type="button" id="saveSetupDefault">Salvar filtros como padrão</button><button type="button" id="clearSetupDefault" hidden>Remover padrão</button><span id="setupDefaultStatus" role="status"></span></div><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=75" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=76" defer></script>
 </body>
 </html>

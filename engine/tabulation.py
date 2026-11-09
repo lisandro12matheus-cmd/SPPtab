@@ -3040,29 +3040,32 @@ def _pqavs_collect_leprosy(_file_year: int):
     fields=("DT_DIAG","MODOENTR","TPALTA_N","CLASSATUAL","ESQ_ATU_N","MUNIRESAT","ID_MN_RESI","CONTREG","CONTEXAM")
     def collect(values):
         raw_diagnosis,entry,exit_type,current_class,current_scheme,current_residence,resident,registered,examined=values
-        if _sinan_code(entry)!="1" or _sinan_code(exit_type) in {"3","4","5","8","9"}: return ()
-        current_class=_sinan_code(current_class); current_scheme=_sinan_code(current_scheme)
-        group="pb" if current_class=="1" and current_scheme=="1" else "mb" if current_class=="2" and current_scheme=="2" else ""
         diagnosis=_pqavs_date(raw_diagnosis)
         municipality=_pqavs_municipality(current_residence) or _pqavs_municipality(resident)
-        if not group or diagnosis is None or not municipality: return ()
-        return ((municipality,f"{diagnosis.year}|{diagnosis.month}|{group}",{"cases":1,"registered":_pqavs_int(registered),"examined":_pqavs_int(examined)},None),)
+        if diagnosis is None or not municipality: return ()
+        output=[(municipality,f"{diagnosis.year}|{diagnosis.month}|all",{"notifications":1},None)]
+        if _sinan_code(entry)!="1" or _sinan_code(exit_type) in {"3","4","5","8","9"}: return tuple(output)
+        current_class=_sinan_code(current_class); current_scheme=_sinan_code(current_scheme)
+        group="pb" if current_class=="1" and current_scheme=="1" else "mb" if current_class=="2" and current_scheme=="2" else ""
+        if group:
+            output.append((municipality,f"{diagnosis.year}|{diagnosis.month}|{group}",{"cases":1,"registered":_pqavs_int(registered),"examined":_pqavs_int(examined)},None))
+        return tuple(output)
     return fields,collect
 
 def _pqavs_collect_tuberculosis(_file_year: int):
     fields=("DT_DIAG","TRATAMENTO","FORMA","SITUA_ENCE","BACILOSC_E","BACILOS_E2","CULTURA_ES","TEST_MOLEC","ID_MN_RESI","NU_CONTATO","NU_COMU_EX","ID_MUNICIP","ID_MUNIC_A")
     def collect(values):
         raw_diagnosis,entry,form,closing,smear,smear2,culture,molecular,resident,identified,examined,notifying,current_unit=values
-        if _sinan_code(entry) not in {"1","4","6"} or _sinan_code(form) not in {"1","3"} or _sinan_code(closing)=="6": return ()
         diagnosis=_pqavs_date(raw_diagnosis)
         if diagnosis is None: return ()
+        notifying=_pqavs_municipality(notifying)
+        bases=(("r",_pqavs_municipality(resident)),("u",_pqavs_municipality(current_unit) or notifying),("n",notifying))
+        output=[(municipality,f"{basis}|{diagnosis.year}|{diagnosis.month}",{"notifications":1},None) for basis,municipality in bases if municipality]
+        if _sinan_code(entry) not in {"1","4","6"} or _sinan_code(form) not in {"1","3"} or _sinan_code(closing)=="6": return tuple(output)
         confirmed=_sinan_code(smear)=="1" or _sinan_code(smear2)=="1" or _sinan_code(culture)=="1" or _sinan_code(molecular) in {"1","2"}
         increments={"pulmonaryCases":1,"cases":int(confirmed),"identified":_pqavs_int(identified) if confirmed else 0,"examined":_pqavs_int(examined) if confirmed else 0}
-        notifying=_pqavs_municipality(notifying)
-        # Residence at notification (default), current follow-up municipality
-        # (after transfers; falls back to the notifying one) and notifying municipality.
-        bases=(("r",_pqavs_municipality(resident)),("u",_pqavs_municipality(current_unit) or notifying),("n",notifying))
-        return tuple((municipality,f"{basis}|{diagnosis.year}|{diagnosis.month}",increments,None) for basis,municipality in bases if municipality)
+        output.extend((municipality,f"{basis}|{diagnosis.year}|{diagnosis.month}",increments,None) for basis,municipality in bases if municipality)
+        return tuple(output)
     return fields,collect
 
 PQAVS_SOURCES={
@@ -3075,7 +3078,7 @@ PQAVS_SOURCES={
     "TUBE":("dbc",_pqavs_collect_tuberculosis),
 }
 
-PQAVS_COLLECTOR_VERSIONS={"SIFC":3,"TUBE":2}
+PQAVS_COLLECTOR_VERSIONS={"SIFC":3,"HANS":1,"TUBE":3}
 
 def _pqavs_source_target(prefix: str, year: int, uf: str):
     identity={"version":2,"prefix":prefix,"year":year,"uf":uf}
@@ -3287,6 +3290,11 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
         if progress: progress(5,"Preparando as coortes de hanseníase do SINAN")
         pb_year,mb_year=year-1,year-2
         sources=[]; totals={"pb":{"cases":0,"registered":0,"examined":0},"mb":{"cases":0,"registered":0,"examined":0}}
+        all_cases=0
+        for file_year in (year,year+1):
+            source=_pqavs_source("HANS",file_year,uf,progress)
+            if source not in sources: sources.append(source)
+            all_cases+=int(_pqavs_bucket(source,municipality,f"{year}|{month}|all").get("notifications") or 0)
         for group,diagnosis_year in (("pb",pb_year),("mb",mb_year)):
             for file_year in (diagnosis_year,diagnosis_year+1):
                 source=_pqavs_source("HANS",file_year,uf,progress)
@@ -3295,14 +3303,15 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
                 for key in totals[group]: totals[group][key]+=int(bucket.get(key) or 0)
         numerator=totals["pb"]["examined"]+totals["mb"]["examined"]
         denominator=totals["pb"]["registered"]+totals["mb"]["registered"]
-        row.update({"pbCases":totals["pb"]["cases"],"pbRegistered":totals["pb"]["registered"],"pbExamined":totals["pb"]["examined"],"mbCases":totals["mb"]["cases"],"mbRegistered":totals["mb"]["registered"],"mbExamined":totals["mb"]["examined"],"numerator":numerator,"denominator":denominator,"period":f"PB {month:02d}/{pb_year} · MB {month:02d}/{mb_year}"})
+        row.update({"allCases":all_cases,"pbCases":totals["pb"]["cases"],"pbRegistered":totals["pb"]["registered"],"pbExamined":totals["pb"]["examined"],"mbCases":totals["mb"]["cases"],"mbRegistered":totals["mb"]["registered"],"mbExamined":totals["mb"]["examined"],"numerator":numerator,"denominator":denominator,"period":f"PB {month:02d}/{pb_year} · MB {month:02d}/{mb_year}"})
         primary["label"]="MÊS DO DIAGNÓSTICO"
-        metric_items=[("pbCases",f"CASOS NOVOS PB · {pb_year}"),("pbRegistered","CONTATOS REGISTRADOS PB"),("pbExamined","CONTATOS EXAMINADOS PB"),("mbCases",f"CASOS NOVOS MB · {mb_year}"),("mbRegistered","CONTATOS REGISTRADOS MB"),("mbExamined","CONTATOS EXAMINADOS MB")]
+        metric_items=[("allCases",f"NOTIFICAÇÕES DE HANSENÍASE · {year}"),("pbCases",f"CASOS NOVOS PB · {pb_year}"),("pbRegistered","CONTATOS REGISTRADOS PB"),("pbExamined","CONTATOS EXAMINADOS PB"),("mbCases",f"CASOS NOVOS MB · {mb_year}"),("mbRegistered","CONTATOS REGISTRADOS MB"),("mbExamined","CONTATOS EXAMINADOS MB")]
         labels=("CONTATOS EXAMINADOS PB+MB","CONTATOS REGISTRADOS PB+MB")
-        extra_kpi={"label":"CASOS NOVOS NAS COORTES","value":{"value":totals["pb"]["cases"]+totals["mb"]["cases"]},"kind":"sum"}
+        extra_kpi={"label":f"NOTIFICAÇÕES DE HANSENÍASE · {year}","value":{"value":all_cases},"kind":"sum"}
         notes+=[
             f"Coortes da avaliação {year}: casos novos paucibacilares diagnosticados em {pb_year} (classificação atual PB e esquema PQT/PB/6 doses) e multibacilares diagnosticados em {mb_year} (MB e PQT/MB/12 doses).",
             "Modo de entrada: caso novo. Saem da conta erro diagnóstico e transferências para outro município, estado ou país (avaliação municipal). Município de residência atual; contatos registrados e examinados conforme o último acompanhamento enviado à base nacional.",
+            "A coluna de notificações conta os registros da ficha no SINAN no mês de diagnóstico; não representa pessoas únicas. O indicador de contatos mantém, em separado, as coortes e regras oficiais.",
             "Para o resultado da avaliação, selecione os 12 meses. Municípios com casos novos e sem contatos registrados não cumprem a meta; sem casos novos nas coortes, não pontuam.",
         ]
     elif report_id=="pqavs-contatos-tuberculose":
@@ -3312,7 +3321,7 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
         basis_label={"residence":"residência na notificação","current":"município atual do acompanhamento","notification":"município de notificação"}[basis]
         filter_summary.append({"label":"Município considerado","value":basis_label})
         if progress: progress(5,"Preparando os casos de tuberculose do SINAN")
-        sources=[]; totals={"cases":0,"identified":0,"examined":0,"pulmonaryCases":0}
+        sources=[]; totals={"cases":0,"identified":0,"examined":0,"pulmonaryCases":0,"notifications":0}
         for file_year in (year,year+1):
             source=_pqavs_source("TUBE",file_year,uf,progress); sources.append(source)
             bucket=_pqavs_bucket(source,municipality,f"{basis_key}|{year}|{month}")
@@ -3320,15 +3329,18 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
         numerator,denominator=totals["examined"],totals["identified"]
         row.update({**totals,"numerator":numerator,"denominator":denominator})
         primary["label"]="MÊS DO DIAGNÓSTICO"
-        metric_items=[("pulmonaryCases","CASOS NOVOS PULMONARES"),("cases","COM CONFIRMAÇÃO LABORATORIAL"),("identified","CONTATOS IDENTIFICADOS"),("examined","CONTATOS EXAMINADOS")]
+        metric_items=[("notifications",f"NOTIFICAÇÕES DE TUBERCULOSE · {year}"),("pulmonaryCases","CASOS NOVOS PULMONARES ELEGÍVEIS"),("cases","COM CONFIRMAÇÃO LABORATORIAL"),("identified","CONTATOS IDENTIFICADOS"),("examined","CONTATOS EXAMINADOS")]
         labels=("CONTATOS EXAMINADOS","CONTATOS IDENTIFICADOS")
-        extra_kpi={"label":"CASOS NOVOS PULMONARES CONFIRMADOS","value":{"value":totals["cases"]},"kind":"sum"}
+        extra_kpi={"label":f"NOTIFICAÇÕES DE TUBERCULOSE · {year}","value":{"value":totals["notifications"]},"kind":"sum"}
         notes+=[
             "Casos novos (tipo de entrada caso novo, não sabe ou pós-óbito), forma pulmonar ou pulmonar + extrapulmonar, exceto mudança de diagnóstico, com confirmação laboratorial: baciloscopia, cultura ou teste rápido molecular positivo.",
             f"Município considerado: {basis_label} (troque em Alterar recorte). A ficha manda usar a linha \"Mun Res BR2\" do TabWin sem dizer o campo; o padrão é a residência informada na notificação (ID_MN_RESI). Ano de diagnóstico; são somadas as bases de notificação de {year} e {year+1}. Os contatos são os registrados no último acompanhamento enviado à base nacional.",
+            "A coluna de notificações conta os registros da ficha no SINAN no mês de diagnóstico; não representa pessoas únicas. O indicador de contatos mantém, em separado, apenas os casos que atendem às regras do PQA-VS.",
         ]
     else:
         raise ValueError("Indicador PQA-VS não implementado.")
+    if sources and all(item.get("missing") or item.get("future") for item in sources):
+        raise ValueError("O DATASUS ainda não publicou os arquivos necessários para este período. Isso não significa que houve zero casos.")
     percent=_pqavs_percent(numerator,denominator)
     row["percent"]=percent
     if report_id in {"pqavs-contatos-hanseniase","pqavs-contatos-tuberculose"} and numerator>denominator:
@@ -3339,6 +3351,8 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
     if extra_kpi: kpis.append(extra_kpi)
     stage_note=f"Fonte: SINAN, bases públicas nacionais do DATASUS — {_pqavs_source_label(sources)}. Bases preliminares mudam a cada atualização."
     notes=[f"PQA-VS 2025 · indicador {spec['number']} ({spec['label']}). Meta: {goal}. Regras da Portaria GM/MS nº 6.878/2025, Anexo II.",*notes,stage_note]
+    if any(item.get("missing") for item in sources):
+        notes.append("Há arquivos de alguns anos que ainda não foram publicados pelo DATASUS. Os casos exibidos abrangem apenas os arquivos disponíveis; a ausência de arquivo não foi contada como zero casos.")
     if any(item.get("stale") for item in sources): notes.append("Não foi possível atualizar alguma base agora; o resultado usa a última leitura salva neste computador.")
     return {"ok":True,"report":report_id,"view":"summary","flatTable":True,"file":"SINAN · bases públicas","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality,"filters":filter_summary,"numerator":numerator,"denominator":denominator,"rows":[row],"records":denominator,"columns":columns,"metrics":[{"id":key,"label":label.title(),"decimals":0} for key,label in metric_items],"kpis":kpis,"notes":notes,"emptyStateMessage":"","cachedAt":time.time()}
 

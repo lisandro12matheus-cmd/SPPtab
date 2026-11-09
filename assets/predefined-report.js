@@ -331,8 +331,8 @@
   };
   reportConfigurations['pqavs-contatos-hanseniase'] = {
     ...pqavsBase, id:'pqavs-contatos-hanseniase', kind:'HANS', competenceLabel:'MÊS · ANO DA AVALIAÇÃO', allMonthsAvailable:true,
-    workspaceTitle:'Contatos examinados de hanseníase · PQA-VS', introLabel:'PQA-VS 2025 · INDICADOR 9 · SINAN', introTitle:'Contatos examinados de casos novos de hanseníase.',
-    introDescription:'Contatos examinados sobre registrados nas coortes: paucibacilares do ano anterior e multibacilares de dois anos antes. Meta: ≥ 82%.',
+    workspaceTitle:'Casos de hanseníase e contatos examinados · PQA-VS', introLabel:'VIGILÂNCIA · SINAN · PQA-VS 2025', introTitle:'Casos de hanseníase e contatos examinados.',
+    introDescription:'Veja os casos registrados no período e, separadamente, o acompanhamento dos contatos nas coortes usadas pelo indicador. Meta do indicador: ≥ 82%.',
     setupTitle:'Contatos examinados de hanseníase', setupDescription:'Escolha o ano da avaliação e os meses. O relatório busca os casos PB do ano anterior e MB de dois anos antes.',
     emptyMessage:'Escolha o município de residência e o ano da avaliação para ver as coortes de hanseníase.',
     municipalityLabel:'MUNICÍPIO DE RESIDÊNCIA ATUAL', monthLabel:'MÊS DO DIAGNÓSTICO', monthHelp:'O ano é o da avaliação; cada mês soma os casos PB diagnosticados naquele mês do ano anterior e os MB de dois anos antes. Selecione os 12 meses para o resultado.',
@@ -342,8 +342,8 @@
   };
   reportConfigurations['pqavs-contatos-tuberculose'] = {
     ...pqavsBase, id:'pqavs-contatos-tuberculose', kind:'TUBE', competenceLabel:'MÊS DO DIAGNÓSTICO',
-    workspaceTitle:'Contatos examinados de tuberculose · PQA-VS', introLabel:'PQA-VS 2025 · INDICADOR 10 · SINAN', introTitle:'Contatos examinados de casos novos de TB pulmonar.',
-    introDescription:'Contatos examinados sobre identificados dos casos novos de tuberculose pulmonar com confirmação laboratorial. Meta: 70%.',
+    workspaceTitle:'Casos de tuberculose e contatos examinados · PQA-VS', introLabel:'VIGILÂNCIA · SINAN · PQA-VS 2025', introTitle:'Casos de tuberculose e contatos examinados.',
+    introDescription:'Veja os casos registrados no período e, separadamente, os casos elegíveis e o acompanhamento dos contatos. Meta do indicador: 70%.',
     setupTitle:'Contatos examinados de tuberculose pulmonar', setupDescription:'Escolha o município de residência e os meses do diagnóstico. Selecione os 12 meses para o resultado anual.',
     emptyMessage:'Escolha o município de residência e os meses do diagnóstico para acompanhar os contatos examinados.',
     municipalityLabel:'MUNICÍPIO', monthLabel:'MÊS DO DIAGNÓSTICO', locationHelp:'Escolha abaixo qual município da notificação será considerado.', loaderDetail:'casos novos de tuberculose pulmonar',
