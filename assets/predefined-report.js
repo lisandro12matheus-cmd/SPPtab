@@ -324,8 +324,8 @@
     emptyMessage:'Escolha o município e os meses de notificação para acompanhar o encerramento dos óbitos suspeitos.',
     municipalityLabel:'MUNICÍPIO', monthLabel:'MÊS DA NOTIFICAÇÃO', locationHelp:'O município pode ser o de notificação (padrão) ou o de residência.', loaderDetail:'óbitos suspeitos de dengue e chikungunya',
     showOptionalFilters:true, staticFilterOptions:true,
-    filters:{ basis:{ label:'Município considerado', field:'basis', nameField:'basisName', queryKey:'base', sourceLabel:'SINAN · ID_MUNICIP / ID_MN_RESI', options:[['notification','Município de notificação'],['residence','Município de residência']] } },
-    filterNote:'A ficha do PQA-VS não define o município de agregação. Sem seleção, o relatório usa o município de notificação.',
+    filters:{ basis:{ label:'Município considerado', field:'basis', nameField:'basisName', queryKey:'base', parameter:true, defaultValue:'notification', sourceLabel:'SINAN · ID_MUNICIP (notificação) / ID_MN_RESI (residência)', options:[['notification','Município de notificação'],['residence','Município de residência']] } },
+    filterNote:'A ficha do PQA-VS não diz se os óbitos são contados pelo município de notificação ou de residência. Escolha o critério usado pela sua vigilância; o padrão é o de notificação.',
     methodText:' numerador = óbitos (evolução 2, 3 ou 4) com classificação final de dengue, chikungunya ou descartado, encerrados em até 60 dias da notificação. Denominador = todos os óbitos suspeitos, menos os ainda abertos dentro dos 60 dias. Dengue e chikungunya são somados.',
     summaryTitle:'Encerramento dos óbitos suspeitos de arboviroses'
   };
@@ -346,7 +346,10 @@
     introDescription:'Contatos examinados sobre identificados dos casos novos de tuberculose pulmonar com confirmação laboratorial. Meta: 70%.',
     setupTitle:'Contatos examinados de tuberculose pulmonar', setupDescription:'Escolha o município de residência e os meses do diagnóstico. Selecione os 12 meses para o resultado anual.',
     emptyMessage:'Escolha o município de residência e os meses do diagnóstico para acompanhar os contatos examinados.',
-    municipalityLabel:'MUNICÍPIO DE RESIDÊNCIA', monthLabel:'MÊS DO DIAGNÓSTICO', locationHelp:'Os casos são contados pelo município de residência.', loaderDetail:'casos novos de tuberculose pulmonar',
+    municipalityLabel:'MUNICÍPIO', monthLabel:'MÊS DO DIAGNÓSTICO', locationHelp:'Escolha abaixo qual município da notificação será considerado.', loaderDetail:'casos novos de tuberculose pulmonar',
+    showOptionalFilters:true, staticFilterOptions:true,
+    filters:{ basis:{ label:'Município considerado', field:'basis', nameField:'basisName', queryKey:'base', parameter:true, defaultValue:'residence', sourceLabel:'SINAN · ID_MN_RESI / ID_MUNIC_A / ID_MUNICIP', options:[['residence','Residência informada na notificação'],['current','Município atual do acompanhamento (após transferência)'],['notification','Município de notificação']] } },
+    filterNote:'A ficha manda usar a linha "Mun Res BR2" do TabWin sem dizer qual campo é. O padrão é a residência informada na notificação; confira com a sua vigilância.',
     methodText:' numerador = contatos examinados e denominador = contatos identificados dos casos novos de TB pulmonar (ou pulmonar + extrapulmonar) com baciloscopia, cultura ou teste rápido molecular positivo.',
     summaryTitle:'Contatos de casos novos de TB pulmonar confirmada'
   };
@@ -981,6 +984,8 @@
       if (!activeFilterTypes.includes(type)) addFilterSelect.add(new Option(definition.label, type));
     }
     addFilterSelect.disabled = !Object.keys(filterDefinitions).some((type) => !activeFilterTypes.includes(type));
+    const addFilterField = addFilterSelect.closest('.setup-add-filter-field');
+    if (addFilterField) addFilterField.hidden = Object.values(filterDefinitions).every((definition) => definition.parameter);
     if ([...addFilterSelect.options].some((option) => option.value === selected)) addFilterSelect.value = selected;
     else addFilterSelect.value = '';
   }
@@ -1003,9 +1008,20 @@
       const caption = document.createElement('span');
       caption.textContent = 'CATEGORIAS · CTRL/⌘ + CLIQUE PARA VÁRIAS';
       const select = document.createElement('select');
-      select.multiple = true;
+      select.multiple = !definition.parameter;
       const categories = categoriesForFilter(type).slice();
       const preferredValues = normalizeSelectedValues(preferred[definition.field]);
+      if (definition.parameter) {
+        row.classList.add('setup-filter-parameter');
+        caption.textContent = 'ESCOLHA UMA OPÇÃO';
+        const chosen = categories.some((item) => item.value === preferredValues[0]) ? preferredValues[0] : (definition.defaultValue || categories[0]?.value || '');
+        for (const item of categories) select.add(new Option(item.label, item.value, false, item.value === chosen));
+        select.addEventListener('change', updateScopeDescription);
+        label.append(caption, select);
+        row.append(title, source, label);
+        addedFilterRows.append(row);
+        continue;
+      }
       if (type === 'manager' && linkedManagerCode && preferredValues.includes(linkedManagerCode) && !categories.some((item) => String(item.value) === linkedManagerCode)) {
         const municipalityOption = [...municipalitySelect.options].find((option) => option.value === linkedManagerCode);
         const municipalityName = municipalityOption?.textContent || savedGlobalLocation?.municipalityName || '';
@@ -1066,6 +1082,9 @@
     setAvailability(activeReport.remoteSource ? 'Carregando municípios para a consulta…' : 'Carregando filtros da definição oficial…', 'loading');
     resetSelect(municipalitySelect, activeReport.municipalityPlaceholder || (activeReport.system === 'srag' ? 'Selecione um município de residência' : activeReport.system === 'sinasc' ? 'Selecione o município do nascimento' : activeReport.remoteSource ? 'Selecione um município notificante' : 'Todos os municípios'));
     const preferredMunicipality = String(preferred.municipalityCode || '');
+    for (const [type, definition] of Object.entries(filterDefinitions).reverse()) {
+      if (definition.parameter && !activeFilterTypes.includes(type)) activeFilterTypes.unshift(type);
+    }
     for (const [type, definition] of Object.entries(filterDefinitions)) {
       if (normalizeSelectedValues(preferred[definition.field]).length && !activeFilterTypes.includes(type)) activeFilterTypes.push(type);
     }

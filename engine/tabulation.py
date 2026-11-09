@@ -3001,11 +3001,12 @@ def _pqavs_collect_congenital(_file_year: int):
     fields=("NU_IDADE_N","DT_DIAG","DT_NOTIFIC","ID_MN_RESI","EVO_DIAG_N")
     def collect(values):
         raw_age,raw_diagnosis,raw_notification,resident,final=values
+        # Same rule as the DATHI panel used by PQA-VS (checked against Belém
+        # 2022: 372 recente + 19 aborto + 10 natimorto = 401): count diagnóstico
+        # final 1 (recente), 3 (aborto) and 4 (natimorto); leave out 2 (tardia)
+        # and 5 (descartado). TabNet labels code 4 differently; the panel prevails.
         final=_sinan_code(final)
-        if final=="5": return ()
-        age=re.sub(r"\D","",str(raw_age or ""))
-        under_one=(age[:1] in {"1","2","3"} or (age[:1]=="4" and int(age[1:] or 0)==0)) if len(age)==4 else final in {"3","4"}
-        if not under_one: return ()
+        if final not in {"1","3","4"}: return ()
         reference=_pqavs_date(raw_diagnosis) or _pqavs_date(raw_notification)
         municipality=_pqavs_municipality(resident)
         if reference is None or not municipality: return ()
@@ -3049,16 +3050,19 @@ def _pqavs_collect_leprosy(_file_year: int):
     return fields,collect
 
 def _pqavs_collect_tuberculosis(_file_year: int):
-    fields=("DT_DIAG","TRATAMENTO","FORMA","SITUA_ENCE","BACILOSC_E","BACILOS_E2","CULTURA_ES","TEST_MOLEC","ID_MN_RESI","NU_CONTATO","NU_COMU_EX")
+    fields=("DT_DIAG","TRATAMENTO","FORMA","SITUA_ENCE","BACILOSC_E","BACILOS_E2","CULTURA_ES","TEST_MOLEC","ID_MN_RESI","NU_CONTATO","NU_COMU_EX","ID_MUNICIP","ID_MUNIC_A")
     def collect(values):
-        raw_diagnosis,entry,form,closing,smear,smear2,culture,molecular,resident,identified,examined=values
+        raw_diagnosis,entry,form,closing,smear,smear2,culture,molecular,resident,identified,examined,notifying,current_unit=values
         if _sinan_code(entry) not in {"1","4","6"} or _sinan_code(form) not in {"1","3"} or _sinan_code(closing)=="6": return ()
         diagnosis=_pqavs_date(raw_diagnosis)
-        municipality=_pqavs_municipality(resident)
-        if diagnosis is None or not municipality: return ()
+        if diagnosis is None: return ()
         confirmed=_sinan_code(smear)=="1" or _sinan_code(smear2)=="1" or _sinan_code(culture)=="1" or _sinan_code(molecular) in {"1","2"}
         increments={"pulmonaryCases":1,"cases":int(confirmed),"identified":_pqavs_int(identified) if confirmed else 0,"examined":_pqavs_int(examined) if confirmed else 0}
-        return ((municipality,f"{diagnosis.year}|{diagnosis.month}",increments,None),)
+        notifying=_pqavs_municipality(notifying)
+        # Residence at notification (default), current follow-up municipality
+        # (after transfers; falls back to the notifying one) and notifying municipality.
+        bases=(("r",_pqavs_municipality(resident)),("u",_pqavs_municipality(current_unit) or notifying),("n",notifying))
+        return tuple((municipality,f"{basis}|{diagnosis.year}|{diagnosis.month}",increments,None) for basis,municipality in bases if municipality)
     return fields,collect
 
 PQAVS_SOURCES={
@@ -3071,8 +3075,12 @@ PQAVS_SOURCES={
     "TUBE":("dbc",_pqavs_collect_tuberculosis),
 }
 
+PQAVS_COLLECTOR_VERSIONS={"SIFC":3,"TUBE":2}
+
 def _pqavs_source_target(prefix: str, year: int, uf: str):
-    return cache_target("pqavs_sinan",{"version":2,"prefix":prefix,"year":year,"uf":uf})
+    identity={"version":2,"prefix":prefix,"year":year,"uf":uf}
+    if prefix in PQAVS_COLLECTOR_VERSIONS: identity["collector"]=PQAVS_COLLECTOR_VERSIONS[prefix]
+    return cache_target("pqavs_sinan",identity)
 
 def _pqavs_source(prefix: str, year: int, uf: str, progress=None):
     """Per-UF aggregates of one national SINAN file. The national file is read once and every UF is cached."""
@@ -3217,7 +3225,7 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
     percent_column={"id":"percent","label":"% DO INDICADOR","field":"percent","type":"percent","decimals":1}
     if report_id=="pqavs-obitos-arboviroses":
         basis_values=[str(item) for item in (filters.get("basis") or []) if str(item) in {"notification","residence"}]
-        basis="r" if basis_values==["residence"] else "n"
+        basis="r" if basis_values[:1]==["residence"] else "n"
         filter_summary.append({"label":"Município considerado","value":"residência" if basis=="r" else "notificação"})
         if progress: progress(5,"Preparando dengue e chikungunya do SINAN")
         dengue=_pqavs_source("DENG",year,uf,progress); chik=_pqavs_source("CHIK",year,uf,progress)
@@ -3240,7 +3248,7 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
             "Numerador: óbitos (evolução 2, 3 ou 4) com classificação final dengue (10, 11, 12) ou descartado (5) — chikungunya (13) ou descartado (5) — encerrados em até 60 dias da notificação.",
             f"Denominador: todos os óbitos suspeitos notificados, de qualquer classificação, menos os ainda não encerrados que estão dentro dos 60 dias em {today.strftime('%d/%m/%Y')} (data desta análise).",
             "Período: semana epidemiológica da notificação no ano selecionado; o mês usa a data de notificação. Para o resultado anual, selecione os 12 meses.",
-            f"A ficha não define o município de agregação; o relatório usa o município de {'residência' if basis=='r' else 'notificação'} (troque em Alterar recorte). Municípios sem óbitos suspeitos não pontuam no PQA-VS.",
+            f"Município considerado: {'residência' if basis=='r' else 'notificação'} (troque em Alterar recorte). A ficha não define o município de agregação. Municípios sem óbitos suspeitos não pontuam no PQA-VS.",
         ]
     elif report_id=="pqavs-sifilis-congenita":
         if progress: progress(5,"Preparando sífilis congênita e em gestantes do SINAN")
@@ -3256,7 +3264,7 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
         metric_items=[("congenital","A · SÍFILIS CONGÊNITA < 1 ANO"),("pregnant","B · SÍFILIS EM GESTANTES")]
         labels=("A · SÍFILIS CONGÊNITA < 1 ANO","B · SÍFILIS EM GESTANTES")
         notes+=[
-            "Indicador = A ÷ B × 100, pelo município de residência e ano de diagnóstico. A: casos de sífilis congênita em menores de 1 ano (inclui aborto e natimorto por sífilis; exclui descartados). B: casos de sífilis em gestantes.",
+            "Indicador = A ÷ B × 100, pelo município de residência e ano de diagnóstico. A: casos de sífilis congênita recente, aborto e natimorto por sífilis (exclui tardia e descartados), como no painel do DATHI. B: casos de sífilis em gestantes.",
             f"São somadas as bases de notificação de {year} e {year+1}, porque casos diagnosticados no fim do ano podem ser notificados no ano seguinte. Notificações feitas depois disso não entram.",
             "No PQA-VS o Ministério usa o dado consolidado pelo DATHI no penúltimo ano completo (painel indicadoressifilis.aids.gov.br); este cálculo com a base do SINAN serve para acompanhamento e pode diferir do painel.",
         ]
@@ -3298,11 +3306,16 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
             "Para o resultado da avaliação, selecione os 12 meses. Municípios com casos novos e sem contatos registrados não cumprem a meta; sem casos novos nas coortes, não pontuam.",
         ]
     elif report_id=="pqavs-contatos-tuberculose":
+        basis_values=[str(item) for item in (filters.get("basis") or []) if str(item) in {"residence","current","notification"}]
+        basis=basis_values[0] if basis_values else "residence"
+        basis_key={"residence":"r","current":"u","notification":"n"}[basis]
+        basis_label={"residence":"residência na notificação","current":"município atual do acompanhamento","notification":"município de notificação"}[basis]
+        filter_summary.append({"label":"Município considerado","value":basis_label})
         if progress: progress(5,"Preparando os casos de tuberculose do SINAN")
         sources=[]; totals={"cases":0,"identified":0,"examined":0,"pulmonaryCases":0}
         for file_year in (year,year+1):
             source=_pqavs_source("TUBE",file_year,uf,progress); sources.append(source)
-            bucket=_pqavs_bucket(source,municipality,f"{year}|{month}")
+            bucket=_pqavs_bucket(source,municipality,f"{basis_key}|{year}|{month}")
             for key in totals: totals[key]+=int(bucket.get(key) or 0)
         numerator,denominator=totals["examined"],totals["identified"]
         row.update({**totals,"numerator":numerator,"denominator":denominator})
@@ -3312,12 +3325,14 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
         extra_kpi={"label":"CASOS NOVOS PULMONARES CONFIRMADOS","value":{"value":totals["cases"]},"kind":"sum"}
         notes+=[
             "Casos novos (tipo de entrada caso novo, não sabe ou pós-óbito), forma pulmonar ou pulmonar + extrapulmonar, exceto mudança de diagnóstico, com confirmação laboratorial: baciloscopia, cultura ou teste rápido molecular positivo.",
-            f"Município de residência e ano de diagnóstico; são somadas as bases de notificação de {year} e {year+1}. Os contatos são os registrados no último acompanhamento enviado à base nacional.",
+            f"Município considerado: {basis_label} (troque em Alterar recorte). A ficha manda usar a linha \"Mun Res BR2\" do TabWin sem dizer o campo; o padrão é a residência informada na notificação (ID_MN_RESI). Ano de diagnóstico; são somadas as bases de notificação de {year} e {year+1}. Os contatos são os registrados no último acompanhamento enviado à base nacional.",
         ]
     else:
         raise ValueError("Indicador PQA-VS não implementado.")
     percent=_pqavs_percent(numerator,denominator)
     row["percent"]=percent
+    if report_id in {"pqavs-contatos-hanseniase","pqavs-contatos-tuberculose"} and numerator>denominator:
+        notes.append("Há mais contatos examinados que registrados em algum mês: isso vem da própria base do SINAN (contatos registrados não atualizados no acompanhamento) e o cálculo oficial também não limita o resultado a 100%.")
     columns=[primary,*(metric(key,label) for key,label in metric_items),percent_column]
     goal=spec["goal"]
     kpis=[{"label":labels[0],"value":{"value":numerator},"kind":"sum"},{"label":labels[1],"value":{"value":denominator},"kind":"sum"},{"label":f"RESULTADO · META {goal.upper()}" if spec["goalValue"] is not None else "RESULTADO","value":{"value":percent,"decimals":1,"suffix":"%"} if percent is not None else {"text":"—"},"kind":"percent"}]
