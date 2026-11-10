@@ -376,6 +376,23 @@
     methodText:' numerador = notificações com raça/cor Branca, Preta, Amarela, Parda ou Indígena; denominador = todas as notificações de violência interpessoal e autoprovocada. Ignorado ou em branco não vale.',
     summaryTitle:'Raça/cor nas notificações de violência'
   };
+  reportConfigurations['chagas-aguda-cronica'] = {
+    ...pqavsBase, id:'chagas-aguda-cronica', kind:'CHAG', competenceLabel:'MÊS DA NOTIFICAÇÃO', defaultMunicipalityCode:'150010',
+    systemLabel:'SINAN · e-SUS Notifica', sourceLabel:'bases públicas do SINAN e do e-SUS Notifica',
+    workspaceTitle:'Doença de Chagas aguda e crônica', introLabel:'VIGILÂNCIA EPIDEMIOLÓGICA · SINAN · e-SUS NOTIFICA', introTitle:'Doença de Chagas: forma aguda e forma crônica.',
+    introDescription:'Notificações e casos confirmados da forma aguda (SINAN), com transmissão oral e óbitos, e as notificações da forma crônica no e-SUS Notifica (desde 2023).',
+    setupTitle:'Doença de Chagas aguda e crônica', setupDescription:'Escolha o município e os meses de notificação. Selecione os 12 meses para ver o ano inteiro.',
+    emptyMessage:'Escolha o município e os meses de notificação para ver os casos de doença de Chagas.',
+    municipalityLabel:'MUNICÍPIO', monthLabel:'MÊS DA NOTIFICAÇÃO', locationHelp:'O município pode ser o de residência (padrão) ou o de notificação.', loaderDetail:'notificações de doença de Chagas aguda e crônica',
+    monthHelp:'Selecione os 12 meses para ver o ano inteiro. Bases preliminares mudam a cada atualização do DATASUS.',
+    availabilityText:'Escolha os meses · a primeira leitura das bases nacionais pode levar alguns minutos.',
+    showOptionalFilters:true, staticFilterOptions:true,
+    filters:{ basis:{ label:'Município considerado', field:'basis', nameField:'basisName', queryKey:'base', parameter:true, defaultValue:'residence', sourceLabel:'SINAN · ID_MN_RESI / ID_MUNICIP · e-SUS Notifica · CD_MN_RESI / CD_MUNICIP', options:[['residence','Município de residência'],['notification','Município de notificação']] } },
+    filterNote:'Escolha se os casos são contados pelo município de residência (padrão) ou pelo de notificação.',
+    methodTitle:'Como ler o relatório:', methodText:' na forma aguda, confirmados = classificação final confirmada e óbitos = evolução "óbito por doença de Chagas aguda". A forma crônica vem da base tratada pelo Ministério da Saúde no e-SUS Notifica, disponível a partir de 2023.',
+    summaryTitle:'Doença de Chagas por mês de notificação', countMetric:'acuteConfirmed', countLabel:'CONFIRMADOS AGUDA',
+    monthlyDetail:true, backLabel:'← Meses', detailTitlePrefix:'Notificações de doença de Chagas', detailItemLabel:'notificações', tableSearchDetail:'Buscar unidade, CNES, residência, forma ou classificação'
+  };
   const params = new URLSearchParams(location.search);
   const linkedReportId = params.get('relatorio') === 'sia-pa-belem' ? 'sia-pa-producao' : params.get('relatorio');
   let activeReport = reportConfigurations[linkedReportId] || reportConfigurations['sia-pa-producao'];

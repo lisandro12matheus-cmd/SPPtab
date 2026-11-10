@@ -633,7 +633,7 @@ def write_tabulation_job(job_id: str, state: dict[str,Any]):
 
 def start_tabulation(payload: dict[str,Any]):
     payload=json.loads(json.dumps(payload))
-    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante","pqavs-obitos-arboviroses","pqavs-contatos-hanseniase","pqavs-contatos-tuberculose","pqavs-sifilis-congenita","pqavs-violencia-raca-cor"}:
+    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante","pqavs-obitos-arboviroses","pqavs-contatos-hanseniase","pqavs-contatos-tuberculose","pqavs-sifilis-congenita","pqavs-violencia-raca-cor","chagas-aguda-cronica"}:
         year=payload.get("year")
         month=payload.get("month")
         uf=str(payload.get("uf") or "").upper()
@@ -2895,6 +2895,8 @@ def _predefined_sisagua_rad_impl(payload: dict[str,Any], progress=None):
 # Regras: Portaria GM/MS nº 6.878/2025, Anexo II (fichas de qualificação).
 # ---------------------------------------------------------------------------
 SINAN_DBC_DIR="/dissemin/publicos/SINAN/DADOS"
+# National files kept outside the SINAN folder but with the same FINAIS/PRELIM layout.
+SINAN_DBC_DIRS={"DCCR":"/dissemin/publicos/ESUSNOTIFICA/DADOS"}
 PQAVS_FIRST_YEAR=2017
 PQAVS_REPORTS={
     "pqavs-obitos-arboviroses":{"number":8,"label":"óbitos suspeitos de dengue e chikungunya encerrados em até 60 dias","goal":"75%","goalValue":75},
@@ -2950,7 +2952,7 @@ def _sinan_dbc_download(prefix: str, year: int, progress=None):
         except OSError: pass
     failures=[]
     for stage in ("FINAIS","PRELIM"):
-        remote=f"{SINAN_DBC_DIR}/{stage}/{name}"
+        remote=f"{SINAN_DBC_DIRS.get(prefix,SINAN_DBC_DIR)}/{stage}/{name}"
         fd,temp_name=tempfile.mkstemp(prefix="sinan-",suffix=".part",dir=str(folder)); os.close(fd)
         temp=Path(temp_name)
         def report(done,total):
@@ -3078,6 +3080,84 @@ def _pqavs_collect_tuberculosis(_file_year: int):
         return tuple(output)
     return fields,collect
 
+# ---------------------------------------------------------------------------
+# Doença de Chagas: forma aguda (SINAN, CHAGBRaa.dbc) e crônica (e-SUS
+# Notifica, DCCRBRaa.dbc, desde 2023). A base crônica grava rótulos de texto
+# sem acento em vez de códigos, datas DD/MM/AAAA e, no campo CNES, às vezes um
+# número de 15 dígitos (CNS) que nunca deve ser exibido.
+# ---------------------------------------------------------------------------
+CHAGAS_REPORT_ID="chagas-aguda-cronica"
+CHAGAS_FIRST_YEAR=2017
+CHAGAS_CHRONIC_FIRST_YEAR=2023
+CHAGAS_ACUTE_CLASSES={"1":"Confirmado","2":"Descartado","8":"Inconclusivo","":"Em investigação"}
+CHAGAS_ACUTE_ROUTES={"1":"Transfusional","2":"Vetorial","3":"Vertical","4":"Acidental","5":"Oral","6":"Outra","9":"Ignorado","":"Não informado"}
+CHAGAS_ACUTE_EVOLUTION={"1":"Vivo","2":"Óbito por doença de Chagas aguda","3":"Óbito por outras causas","9":"Ignorado","":"Não informado"}
+CHAGAS_CHRONIC_FORMS={"indeterminada":"Indeterminada","cardiaca leve/moderada":"Cardíaca leve/moderada","cardiaca avancada":"Cardíaca avançada","digestiva":"Digestiva","cardiodigestiva":"Cardiodigestiva","em investigacao":"Em investigação","":"Não preenchida"}
+CHAGAS_CHRONIC_SUSPICION={"triagem para doador de orgaos/tecidos":"Triagem para doador de órgãos/tecidos","receptor em transplante de orgaos/tecidos":"Receptor em transplante de órgãos/tecidos","banco de sangue":"Banco de sangue","pre-natal":"Pré-natal","rastreamento na aps":"Rastreamento na APS","rastreamento/busca ativa":"Rastreamento/busca ativa","busca ativa em registros (prontuarios, etc.)":"Busca ativa em registros (prontuários etc.)","busca ativa de familiares":"Busca ativa de familiares","busca ativa a partir do triatomineo na ud":"Busca ativa a partir do triatomíneo no domicílio","demanda espontanea - ubs":"Demanda espontânea · UBS","demanda espontanea: hospital ou servico especializado":"Demanda espontânea · hospital ou serviço especializado","servicos de assistencia em hiv/aids":"Serviço de assistência em HIV/aids","comite investigacao de obito":"Comitê de investigação de óbito","outros":"Outros","":"Não informado"}
+CHAGAS_CHRONIC_CLOSING={"permanece em acompanhamento clinico":"Em acompanhamento clínico","obito por d. chagas":"Óbito por doença de Chagas","obito por outras causas":"Óbito por outras causas","abandono":"Abandono","em aberto":"Em aberto","":"Não preenchido"}
+
+def _chagas_text(value: Any) -> str:
+    raw=repair_mojibake_text(str(value or "")).strip()
+    return "".join(char for char in unicodedata.normalize("NFKD",raw) if not unicodedata.combining(char)).casefold()
+
+def _chagas_br_date(value: Any):
+    match=re.fullmatch(r"(\d{2})/(\d{2})/(\d{4})",str(value or "").strip())
+    if not match: return None
+    try: return date(int(match.group(3)),int(match.group(2)),int(match.group(1)))
+    except ValueError: return None
+
+def _chagas_cnes(value: Any) -> str:
+    code=re.sub(r"\D","",str(value or ""))
+    return code if len(code)==7 else ""
+
+def _chagas_age(value: Any) -> str:
+    raw=re.sub(r"\D","",str(value or ""))
+    if len(raw)<2: return ""
+    number=int(raw[1:]); unit=raw[0]
+    if unit=="4": return f"{number} {'ano' if number==1 else 'anos'}"
+    if unit=="3": return f"{number} {'mês' if number==1 else 'meses'}"
+    if unit=="2": return f"{number} {'dia' if number==1 else 'dias'}"
+    if unit=="1": return f"{number} h"
+    return ""
+
+def _chagas_collect_acute(file_year: int):
+    fields=("DT_NOTIFIC","NU_ANO","ID_MUNICIP","ID_MN_RESI","ID_UNIDADE","CS_SEXO","NU_IDADE_N","CLASSI_FIN","EVOLUCAO","CON_PROVAV","COMUNINF","ESPECIFICO","TEMPO","DT_ENCERRA")
+    def collect(values):
+        raw_notification,nu_ano,notifying,resident,unit,sex,age,classification,evolution,route,infection,treated,days,raw_closing=values
+        notification=_pqavs_date(raw_notification)
+        if notification is None or (_pqavs_year(nu_ano) or notification.year)!=file_year: return ()
+        month=notification.month if notification.year==file_year else (1 if notification.year<file_year else 12)
+        classification=_sinan_code(classification); evolution=_sinan_code(evolution); route=_sinan_code(route)
+        confirmed=classification=="1"
+        increments={"acuteNotified":1,"acuteConfirmed":int(confirmed),"acuteOral":int(confirmed and route=="5"),"acuteOpen":int(classification==""),"acuteDeaths":int(confirmed and evolution=="2")}
+        closing=_pqavs_date(raw_closing)
+        item={"type":"A","notified":notification.isoformat(),"closed":closing.isoformat() if closing else "","unit":_chagas_cnes(unit),"sex":_sinan_code(sex).upper(),"age":_chagas_age(age),"resident":_pqavs_municipality(resident),"classification":classification,"evolution":evolution,"route":route,"infection":_pqavs_municipality(infection),"treated":_sinan_code(treated),"days":_pqavs_int(days)}
+        output=[]
+        for basis,raw in (("n",notifying),("r",resident)):
+            municipality=_pqavs_municipality(raw)
+            if municipality: output.append((municipality,f"{basis}|{month}",increments,None,item))
+        return tuple(output)
+    return fields,collect
+
+def _chagas_collect_chronic(file_year: int):
+    fields=("DT_NOTIFIC","CD_MUNICIP","CD_MN_RESI","CNES","CS_SEXO","NU_IDADE_N","ANO_DIAG","MO_SUSPEIT","FORMA","TRAT_BNZ","TRAT_NFX","BUSCAATIVA","ST_ENCERRA","DT_ENCERRA")
+    def collect(values):
+        raw_notification,notifying,resident,unit,sex,age,diagnosis_year,suspicion,form,bnz,nfx,active_search,closing,raw_closing=values
+        notification=_chagas_br_date(raw_notification)
+        if notification is None or notification.year!=file_year: return ()
+        form=_chagas_text(form); closing=_chagas_text(closing)
+        bnz=_chagas_text(bnz)=="sim"; nfx=_chagas_text(nfx)=="sim"
+        increments={"chronicNotified":1,"chronicCardiac":int(form in {"cardiaca leve/moderada","cardiaca avancada"}),"chronicDigestive":int(form in {"digestiva","cardiodigestiva"}),"chronicBlank":int(form==""),"chronicTreated":int(bnz or nfx),"chronicDeaths":int(closing=="obito por d. chagas")}
+        closed=_chagas_br_date(raw_closing)
+        sex_text=_chagas_text(sex)
+        item={"type":"C","notified":notification.isoformat(),"closed":closed.isoformat() if closed else "","unit":_chagas_cnes(unit),"sex":"F" if sex_text.startswith("f") else "M" if sex_text.startswith("m") else "","age":_chagas_age(age),"resident":_pqavs_municipality(resident),"form":form,"closing":closing,"suspicion":_chagas_text(suspicion)[:80],"treatment":" + ".join(name for flag,name in ((bnz,"Benznidazol"),(nfx,"Nifurtimox")) if flag),"activeSearch":_chagas_text(active_search),"diagnosisYear":_pqavs_year(diagnosis_year)}
+        output=[]
+        for basis,raw in (("n",notifying),("r",resident)):
+            municipality=_pqavs_municipality(raw)
+            if municipality: output.append((municipality,f"{basis}|{notification.month}",increments,None,item))
+        return tuple(output)
+    return fields,collect
+
 PQAVS_SOURCES={
     "DENG":("csv",lambda year:_pqavs_collect_arbo("DENG",year)),
     "CHIK":("csv",lambda year:_pqavs_collect_arbo("CHIK",year)),
@@ -3086,9 +3166,11 @@ PQAVS_SOURCES={
     "VIOL":("dbc",_pqavs_collect_violence),
     "HANS":("dbc",_pqavs_collect_leprosy),
     "TUBE":("dbc",_pqavs_collect_tuberculosis),
+    "CHAG":("dbc",_chagas_collect_acute),
+    "DCCR":("dbc",_chagas_collect_chronic),
 }
 
-PQAVS_COLLECTOR_VERSIONS={"SIFC":3,"HANS":3,"TUBE":4,"DENG":2,"CHIK":2}
+PQAVS_COLLECTOR_VERSIONS={"SIFC":3,"HANS":3,"TUBE":4,"DENG":2,"CHIK":2,"CHAG":1,"DCCR":1}
 
 def _pqavs_source_target(prefix: str, year: int, uf: str):
     identity={"version":2,"prefix":prefix,"year":year,"uf":uf}
@@ -3279,6 +3361,101 @@ def _pqavs_detail(report_id: str, items, year: int, month: int, today_value: dat
         empty="Não há óbitos suspeitos de dengue ou chikungunya neste mês."
     return {"rows":rows,"records":len(rows),"columns":columns,"metrics":metrics,"detailNote":note,"emptyStateMessage":empty}
 
+def _chagas_detail(items, year: int, month: int):
+    """Case list behind one month for both forms; the public bases carry no name or CNS, and CNS-looking values are dropped."""
+    names=_pqavs_unit_names([item.get("unit") for item in items],year,month)
+    try: municipalities=_sinan_ibge_municipalities()
+    except Exception: municipalities={}
+    def place(code): return municipalities.get(code) or (f"Município {code}" if code else "Não informado")
+    sexes={"M":"Masculino","F":"Feminino","I":"Ignorado"}
+    rows=[]
+    for item in items:
+        unit=item.get("unit") or ""
+        acute=item.get("type")=="A"
+        base={"code":str(month),"unitName":names.get(unit) or (f"CNES {unit}" if unit else "Unidade não informada"),"unitCode":f"CNES {unit}" if unit else "","notified":_pqavs_br_date(item.get("notified")),"notifiedSort":item.get("notified") or "","person":" · ".join(part for part in (sexes.get(item.get("sex") or "",""),item.get("age") or "") if part) or "—","resident":place(item.get("resident") or "")}
+        if acute:
+            classification=item.get("classification") or ""
+            treated=item.get("treated")
+            treatment="Específico" + (f" · {item['days']} dias" if item.get("days") else "") if treated=="1" else "Sem tratamento específico" if treated=="2" else "Não informado"
+            infection=item.get("infection") or ""
+            base.update({"form":"Aguda · SINAN","status":CHAGAS_ACUTE_CLASSES.get(classification,f"Código {classification}"),"route":CHAGAS_ACUTE_ROUTES.get(item.get("route") or "",f"Código {item.get('route')}")+(f" · infecção em {place(infection)}" if infection else ""),"treatment":treatment,"outcome":CHAGAS_ACUTE_EVOLUTION.get(item.get("evolution") or "",f"Código {item.get('evolution')}"),"order":0 if classification=="1" else 1 if classification=="" else 2})
+        else:
+            form=item.get("form") or ""
+            diagnosis=item.get("diagnosisYear")
+            base.update({"form":"Crônica · e-SUS Notifica","status":CHAGAS_CHRONIC_FORMS.get(form,_report_label(form).capitalize())+(f" · diagnóstico {diagnosis}" if diagnosis else ""),"route":CHAGAS_CHRONIC_SUSPICION.get(item.get("suspicion") or "",_report_label(item.get("suspicion") or "").capitalize()),"treatment":item.get("treatment") or "Sem prescrição informada","outcome":CHAGAS_CHRONIC_CLOSING.get(item.get("closing") or "",_report_label(item.get("closing") or "").capitalize()),"order":0})
+        rows.append(base)
+    rows.sort(key=lambda row:(row["form"],row.pop("order"),row["notifiedSort"]))
+    columns=[
+        {"id":"unit","label":"UNIDADE NOTIFICADORA","kind":"primary","primaryField":"unitName","secondaryField":"unitCode","filterFields":["unitName","unitCode"],"sortField":"unitName","type":"text","sticky":True},
+        {"id":"form","label":"FICHA","field":"form","type":"text"},
+        {"id":"notified","label":"NOTIFICAÇÃO","field":"notified","sortField":"notifiedSort","type":"text"},
+        {"id":"person","label":"SEXO · IDADE","field":"person","type":"text"},
+        {"id":"resident","label":"RESIDÊNCIA","field":"resident","type":"text"},
+        {"id":"status","label":"CLASSIFICAÇÃO / FORMA CLÍNICA","field":"status","type":"text"},
+        {"id":"route","label":"MODO DE INFECÇÃO / SUSPEIÇÃO","field":"route","type":"text"},
+        {"id":"treatment","label":"TRATAMENTO","field":"treatment","type":"text"},
+        {"id":"outcome","label":"EVOLUÇÃO / ENCERRAMENTO","field":"outcome","type":"text"},
+    ]
+    note="Cada linha é uma notificação do mês. Na forma aguda aparecem primeiro os confirmados, depois os em investigação e por fim os descartados ou inconclusivos. As bases públicas não trazem nome nem CNS do paciente."
+    return {"rows":rows,"records":len(rows),"columns":columns,"metrics":[],"detailNote":note,"emptyStateMessage":"Não há notificações de doença de Chagas neste mês."}
+
+def _predefined_chagas_impl(payload: dict[str,Any], progress=None):
+    year=payload.get("year"); month=payload.get("month"); municipality=str(payload.get("municipalityCode") or "")
+    uf=str(payload.get("uf") or "").upper()
+    if not isinstance(year,int) or not CHAGAS_FIRST_YEAR<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12:
+        raise ValueError(f"Selecione um mês de {CHAGAS_FIRST_YEAR} em diante.")
+    if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]:
+        raise ValueError("Selecione um município válido.")
+    view=str(payload.get("view") or "summary")
+    if view not in {"summary","detail"}: raise ValueError("Visão inválida.")
+    filters=payload.get("reportFilters") if isinstance(payload.get("reportFilters"),dict) else {}
+    basis_values=[str(item) for item in (filters.get("basis") or []) if str(item) in {"notification","residence"}]
+    basis="n" if basis_values[:1]==["notification"] else "r"
+    basis_label="notificação" if basis=="n" else "residência"
+    municipality_name=_report_label(payload.get("municipalityName") or "")[:100] or f"Município {municipality}"
+    if progress: progress(5,"Preparando as bases de doença de Chagas")
+    sources=[_pqavs_source("CHAG",year,uf,progress)]
+    chronic_available=year>=CHAGAS_CHRONIC_FIRST_YEAR
+    if chronic_available: sources.append(_pqavs_source("DCCR",year,uf,progress))
+    if all(item.get("missing") or item.get("future") for item in sources):
+        raise ValueError("O DATASUS ainda não publicou os arquivos de doença de Chagas para este período. Isso não significa que houve zero casos.")
+    row={"code":str(month),"monthName":PQAVS_MONTHS[month-1],"period":f"{month:02d}/{year}"}
+    keys=("acuteNotified","acuteConfirmed","acuteOral","acuteOpen","acuteDeaths","chronicNotified","chronicCardiac","chronicDigestive","chronicBlank","chronicTreated","chronicDeaths")
+    row.update({key:0 for key in keys})
+    items=[]
+    for source in sources:
+        bucket=_pqavs_bucket(source,municipality,f"{basis}|{month}")
+        for key in keys: row[key]+=int(bucket.get(key) or 0)
+        items.extend(bucket.get("items") or [])
+    acute_missing=bool(sources[0].get("missing")); chronic_missing=chronic_available and bool(sources[1].get("missing"))
+    metric_items=[("acuteNotified","AGUDA · NOTIFICAÇÕES"),("acuteConfirmed","AGUDA · CONFIRMADOS"),("acuteOral","AGUDA · CONFIRMADOS POR VIA ORAL"),("acuteOpen","AGUDA · SEM CLASSIFICAÇÃO FINAL"),("acuteDeaths","AGUDA · ÓBITOS PELO AGRAVO")]
+    if chronic_available: metric_items+=[("chronicNotified","CRÔNICA · NOTIFICAÇÕES"),("chronicCardiac","CRÔNICA · FORMA CARDÍACA"),("chronicDigestive","CRÔNICA · DIGESTIVA OU CARDIODIGESTIVA"),("chronicBlank","CRÔNICA · FORMA NÃO PREENCHIDA"),("chronicTreated","CRÔNICA · COM PRESCRIÇÃO DE BNZ/NFX"),("chronicDeaths","CRÔNICA · ÓBITOS POR CHAGAS")]
+    def metric(key,label): return {"id":key,"label":label,"metricId":key,"type":"number","decimals":0}
+    primary={"id":"month","label":"MÊS DA NOTIFICAÇÃO","kind":"primary","primaryField":"monthName","secondaryField":"period","filterFields":["monthName","period"],"sortField":"code","type":"text","sticky":True}
+    columns=[primary,*(metric(key,label) for key,label in metric_items),{"id":"detail","label":"DETALHAR","kind":"action","actionLabel":"Casos →"}]
+    deaths=row["acuteDeaths"]+row["chronicDeaths"]
+    kpis=[{"label":"AGUDA · NOTIFICAÇÕES","value":{"value":row["acuteNotified"]},"kind":"sum"},{"label":"AGUDA · CONFIRMADOS","value":{"value":row["acuteConfirmed"]},"kind":"sum"},{"label":"CRÔNICA · NOTIFICAÇÕES" if chronic_available else "CRÔNICA · FICHA SÓ A PARTIR DE 2023","value":{"value":row["chronicNotified"]} if chronic_available else {"text":"—"},"kind":"sum" if chronic_available else "text"},{"label":"ÓBITOS POR DOENÇA DE CHAGAS","value":{"value":deaths},"kind":"sum"}]
+    notes=[
+        f"Município considerado: {basis_label} (troque em Alterar recorte). O mês e o ano usam a data de notificação.",
+        "Forma aguda (SINAN): confirmados = classificação final 1; óbitos = confirmados com evolução \"óbito por doença de Chagas aguda\". Via oral = modo provável de infecção 5. Sem classificação final = notificações ainda em investigação.",
+    ]
+    if chronic_available:
+        notes.append("Forma crônica (e-SUS Notifica, ficha disponível desde 6/1/2023): a base pública já vem tratada pelo Ministério da Saúde (sem duplicidades, sem cancelados e sem casos confirmados na fase aguda). Muitas fichas têm a investigação em branco; por isso a coluna de forma não preenchida aparece separada.")
+    else:
+        notes.append(f"A forma crônica só passou a ser notificada no e-SUS Notifica em 2023; em {year} o relatório mostra apenas a forma aguda.")
+    notes.append(f"Fonte: bases públicas nacionais do DATASUS — {_pqavs_source_label(sources)}. Bases preliminares mudam a cada atualização.")
+    if acute_missing: notes.append(f"A base da forma aguda de {year} ainda não foi publicada pelo DATASUS; as colunas da forma aguda não representam zero casos.")
+    if chronic_missing: notes.append(f"A base da forma crônica de {year} ainda não foi publicada pelo DATASUS; as colunas da forma crônica não representam zero casos.")
+    if any(item.get("stale") for item in sources): notes.append("Não foi possível atualizar alguma base agora; o resultado usa a última leitura salva neste computador.")
+    total=row["acuteNotified"]+row["chronicNotified"]
+    result={"ok":True,"report":CHAGAS_REPORT_ID,"view":"summary","flatTable":True,"file":"SINAN · e-SUS Notifica","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality,"filters":[{"label":"Município considerado","value":basis_label}],"numerator":row["acuteConfirmed"],"denominator":row["acuteNotified"],"rows":[row],"records":total,"columns":columns,"metrics":[{"id":key,"label":label.capitalize(),"decimals":0} for key,label in metric_items],"kpis":kpis,"notes":notes,"emptyStateMessage":"","cachedAt":time.time()}
+    if view=="detail":
+        detail=_chagas_detail(items,year,month)
+        result.update({key:value for key,value in detail.items() if key!="detailNote"})
+        result["notes"]=[detail["detailNote"],*result["notes"]]
+        result.update({"view":"detail","establishmentCode":str(month),"establishmentName":f"{month:02d}/{year}"})
+    return result
+
 def predefined_pqavs(payload: dict[str,Any], progress=None):
     if progress is None: return _predefined_pqavs_impl(payload,None)
     stop=threading.Event(); progress_lock=threading.Lock()
@@ -3303,6 +3480,7 @@ def _pqavs_percent(numerator: int, denominator: int):
 
 def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
     report_id=str(payload.get("predefinedReport") or "")
+    if report_id==CHAGAS_REPORT_ID: return _predefined_chagas_impl(payload,progress)
     spec=PQAVS_REPORTS.get(report_id)
     if spec is None: raise ValueError("Indicador PQA-VS não reconhecido.")
     year=payload.get("year"); month=payload.get("month"); municipality=str(payload.get("municipalityCode") or "")
@@ -5807,7 +5985,7 @@ def tabulate(payload, progress=None):
         return predefined_srag_weekly(payload,progress)
     if payload.get("predefinedReport")=="sisagua-residual-desinfetante":
         return predefined_sisagua_rad(payload,progress)
-    if payload.get("predefinedReport") in PQAVS_REPORTS:
+    if payload.get("predefinedReport") in PQAVS_REPORTS or payload.get("predefinedReport")==CHAGAS_REPORT_ID:
         return predefined_pqavs(payload,progress)
     if payload.get("predefinedReport")=="sim-mortalidade":
         return predefined_sim_mortality(payload,progress)
