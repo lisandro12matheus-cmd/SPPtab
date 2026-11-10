@@ -2393,13 +2393,16 @@
     $('reportEmptyMessage').textContent = activeReport.emptyMessage;
   }
   yearSelect.addEventListener('change', async () => {
-    await refreshCompetencies(Number(yearSelect.value), [], selectedUf());
+    // Keep the months already chosen; only months that do not exist in the new year are dropped.
+    await refreshCompetencies(Number(yearSelect.value), selectedMonths(), selectedUf());
     updateScopeDescription();
   });
   ufSelect.addEventListener('change', async () => {
     const preferred = selectedFilters();
     updateScopeDescription();
-    await Promise.all([refreshCompetencies(Number(yearSelect.value), [], selectedUf()), loadOptionalFilters(selectedUf(), preferred)]);
+    // A new state must not inherit the previous state's municipality, but keeps the chosen months.
+    preferred.municipalityCode = '';
+    await Promise.all([refreshCompetencies(Number(yearSelect.value), selectedMonths(), selectedUf()), loadOptionalFilters(selectedUf(), preferred)]);
     updateScopeDescription();
   });
   municipalitySelect.addEventListener('change', () => {
