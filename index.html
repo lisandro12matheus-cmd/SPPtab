@@ -1,7 +1,22 @@
 <!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TabulaSUS — Saúde em dados</title><meta name="description" content="Consulte e organize dados públicos do SUS com o TabulaSUS. Ferramenta gratuita para Windows 64 bits, com relatórios prontos e cobertura das 27 UFs."><meta name="theme-color" content="#1766C2"><link rel="stylesheet" href="assets/homepage.css"><link rel="preload" href="assets/inter-regular.ttf" as="font" type="font/ttf" crossorigin></head>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TabulaSUS — Saúde em dados</title><meta name="description" content="Consulte e organize dados públicos do SUS com o TabulaSUS. Ferramenta gratuita para Windows 64 bits, com relatórios prontos e cobertura das 27 UFs."><meta name="theme-color" content="#1766C2"><link rel="stylesheet" href="assets/homepage.css"><link rel="preload" href="assets/inter-regular.ttf" as="font" type="font/ttf" crossorigin><style>
+/* Avaliação incorporada diretamente na página, sem cartão ou modal. */
+.avaliacoes-embed {
+  width: 100%;
+  max-width: 760px;
+  margin: 30px auto 0;
+}
+.avaliacoes-embed iframe {
+  display: block;
+  width: 100%;
+  height: 610px;
+  border: 0;
+  background: transparent;
+}
+</style>
+</head>
 <body><a class="skip" href="#conteudo">Pular para o conteúdo</a>
-<header class="wrap header"><a class="brand" href="#inicio" aria-label="TabulaSUS — início"><img src="assets/tabulasus-logo.png" alt="TabulaSUS" width="2172" height="724"><span>Saúde em dados</span></a><nav aria-label="Navegação principal"><a href="#relatorios">Relatórios</a><a href="#cobertura">Cobertura</a><a href="#instalacao">Como instalar</a></nav><a class="button small" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Setup.exe">Baixar TabulaSUS <span aria-hidden="true">↓</span></a></header>
+<header class="wrap header"><a class="brand" href="#inicio" aria-label="TabulaSUS — início"><img src="assets/tabulasus-logo.png" alt="TabulaSUS" width="2172" height="724"><span>Saúde em dados</span></a><nav aria-label="Navegação principal"><a href="#relatorios">Relatórios</a><a href="#cobertura">Cobertura</a><a href="#instalacao">Como instalar</a><a href="#avaliar">Avaliar</a></nav><a class="button small" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Setup.exe">Baixar TabulaSUS <span aria-hidden="true">↓</span></a></header>
 
 
   <main id="conteudo"><section class="hero wrap" id="inicio"><div class="hero-copy"><p class="eyebrow">DADOS PÚBLICOS. GESTÃO INFORMADA.</p><h1>Os dados do SUS,<br>mais perto da<br><em>sua gestão.</em></h1><p class="lead">Conecte dados do DATASUS, informações do CNES e a tabela SIGTAP em análises para apoiar a gestão, a regulação e o planejamento em saúde.</p><div class="actions"><a class="button" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Setup.exe">Baixar TabulaSUS <span aria-hidden="true">↓</span></a><a class="button secondary" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest">Ver versões no GitHub <span aria-hidden="true">↗</span></a></div><p class="availability">Gratuito <span>·</span> Windows 64 bits <span>·</span> Instalação em um arquivo</p></div>
@@ -11,40 +26,38 @@
 <section class="integrations"><div class="wrap section"><div class="section-heading"><div><p class="eyebrow">CONEXÕES COM FONTES OFICIAIS</p><h2>Mais contexto.<br>Análises mais completas.</h2></div><p>Além das bases do DATASUS, o TabulaSUS utiliza a tabela SIGTAP, APIs do CNES e outras fontes governamentais para complementar as análises disponíveis.</p></div><div class="integration-grid"><article><p class="source">CADASTRO NACIONAL DE ESTABELECIMENTOS DE SAÚDE</p><h3>CNES: uma conexão essencial</h3><p>Integrações com APIs e serviços do CNES complementam os relatórios com informações de estabelecimentos, profissionais e leitos, relacionando a produção à estrutura da rede de saúde.</p></article><article><p class="source">TABELA UNIFICADA DO SUS</p><h3>SIGTAP: contexto dos procedimentos</h3><p>Consulte procedimentos, atributos e relacionamentos da tabela SIGTAP por competência. As referências oficiais ajudam a interpretar os procedimentos registrados.</p></article><article><p class="source">API DE LOCALIDADES DO IBGE</p><h3>Referências territoriais oficiais</h3><p>A conexão com a API do IBGE fornece as referências de estados e municípios utilizadas na seleção e na organização territorial das consultas.</p></article><article><p class="source">DADOS ABERTOS DO MINISTÉRIO DA SAÚDE</p><h3>Outras fontes para a análise</h3><p>As análises também utilizam bases públicas de vigilância, mortalidade e nascimentos, conforme as fontes e os relatórios implementados.</p></article></div><p class="note">Cada análise utiliza as conexões pertinentes ao seu escopo. A disponibilidade e a atualização das informações dependem dos serviços e das bases oficiais.</p></div></section><section class="coverage" id="cobertura"><div class="wrap coverage-inner"><div><p class="eyebrow">DO SEU ESTADO. PARA SUA ANÁLISE.</p><h2>Todo o Brasil<br>no mesmo ponto de partida.</h2><p>O TabulaSUS busca bases públicas do DATASUS por estado e competência e atende às 27 unidades da Federação.</p><p>Uma ferramenta de apoio para transformar consultas em informação útil ao trabalho de gestores, equipes de regulação e planejamento em saúde.</p></div><div class="coverage-card"><div class="coverage-heading"><strong>27</strong><span>estados e Distrito Federal</span></div><div class="states" aria-label="Unidades da Federação atendidas"><span>AC</span><span>AL</span><span>AP</span><span>AM</span><span>BA</span><span>CE</span><span>DF</span><span>ES</span><span>GO</span><span>MA</span><span>MT</span><span>MS</span><span>MG</span><span>PA</span><span>PB</span><span>PR</span><span>PE</span><span>PI</span><span>RJ</span><span>RN</span><span>RS</span><span>RO</span><span>RR</span><span>SC</span><span>SP</span><span>SE</span><span>TO</span></div><p>A disponibilidade dos dados acompanha cada fonte oficial.</p></div></div></section>
     <section class="wrap section installation" id="instalacao"><div class="section-heading"><div><p class="eyebrow">PRONTO PARA COMEÇAR</p><h2>Um download.<br>Instalação sem complicação.</h2></div><p>Você não precisa instalar XAMPP, PHP ou Python separadamente. Os componentes necessários já acompanham o instalador.</p></div><p class="install-note">A instalação da nova versão leva menos de 1 minuto.</p><ol class="install-steps"><li><span>01</span><h3>Baixe o instalador</h3><p>Use o botão abaixo para baixar o arquivo <strong>SPPtab-Setup.exe</strong>, para Windows 64 bits.</p></li><li><span>02</span><h3>Abra o arquivo</h3><p>Execute o instalador e siga as orientações. Ele prepara os componentes do TabulaSUS.</p></li><li><span>03</span><h3>Inicie sua consulta</h3><p>No iniciador, clique em <strong>Abrir TabulaSUS</strong>. Escolha sua UF e o relatório que deseja consultar.</p></li></ol><div class="download-bar"><div><h3>Leve o TabulaSUS para sua rotina.</h3><p>Gratuito · Windows 64 bits</p></div><a class="button" href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SPPtab-Setup.exe">Baixar TabulaSUS <span aria-hidden="true">↓</span></a></div><div class="download-links"><a href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest">Consultar versões no GitHub ↗</a><a href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest/download/SHA256SUM.txt">Verificação SHA-256 ↗</a></div></section>
 
-<section class="wrap section" id="avaliar">
+<section class="wrap section" id="avaliar" aria-labelledby="avaliar-titulo">
   <div class="section-heading">
     <div>
       <p class="eyebrow">SUA OPINIÃO IMPORTA</p>
-      <h2>Ajude o TabulaSUS<br>a evoluir.</h2>
+      <h2 id="avaliar-titulo">Ajude o TabulaSUS<br>a evoluir.</h2>
     </div>
-    <p>
-      Sua experiência é importante para aprimorar
-      a ferramenta. Compartilhe sua avaliação,
-      deixe sugestões e contribua para tornar
-      o TabulaSUS cada vez melhor.
-    </p>
+    <p>Compartilhe sua experiência, dê uma nota de 1 a 5 estrelas e ajude a melhorar o TabulaSUS.</p>
   </div>
-
-  <div style="max-width:720px;margin:35px auto 0;">
+  <div class="avaliacoes-embed">
     <iframe
+      id="formulario-avaliacao"
       src="https://geosaudebelem.page.gd/avaliacoes.php"
-      title="Avalie o TabulaSUS"
+      title="Formulário de avaliação do TabulaSUS"
       loading="lazy"
-      style="width:100%;height:550px;border:0;"
+      referrerpolicy="strict-origin-when-cross-origin"
     ></iframe>
-
-    <p style="text-align:center;font-size:13px;">
-      <a
-        href="https://geosaudebelem.page.gd/avaliacoes.php"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="text-link"
-      >
-        Abrir formulário em outra página
-      </a>
-    </p>
   </div>
 </section>
 
-    <section class="wrap questions"><h2>Antes de começar</h2><div><details><summary>Preciso estar conectado à internet?</summary><p>É necessário acesso à internet para buscar bases, consultar APIs governamentais e obter referências oficiais, incluindo DATASUS, CNES, SIGTAP e IBGE. A disponibilidade de cada consulta depende da fonte pública.</p></details><details><summary>O TabulaSUS substitui os sistemas oficiais?</summary><p>Não. O TabulaSUS facilita a consulta e a organização de informações públicas. As fontes oficiais continuam sendo a referência dos dados, que podem receber atualizações.</p></details><details><summary>Onde encontro o código e as atualizações?</summary><p>O código está no <a href="https://github.com/lisandro12matheus-cmd/SPPtab">repositório oficial</a>. Os instaladores e as notas de atualização estão na <a href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest">página de versões no GitHub</a>.</p></details></div></section></main>
-<footer><div class="wrap footer"><div><strong>TabulaSUS</strong><p>Saúde em dados</p></div><p>Responsável: Lisandro Ribeiro</p><div><a href="https://github.com/lisandro12matheus-cmd/SPPtab">Repositório oficial ↗</a><a href="https://tabulasus.vercel.app/">Site do projeto ↗</a></div></div></footer></body></html>
+<section class="wrap questions"><h2>Antes de começar</h2><div><details><summary>Preciso estar conectado à internet?</summary><p>É necessário acesso à internet para buscar bases, consultar APIs governamentais e obter referências oficiais, incluindo DATASUS, CNES, SIGTAP e IBGE. A disponibilidade de cada consulta depende da fonte pública.</p></details><details><summary>O TabulaSUS substitui os sistemas oficiais?</summary><p>Não. O TabulaSUS facilita a consulta e a organização de informações públicas. As fontes oficiais continuam sendo a referência dos dados, que podem receber atualizações.</p></details><details><summary>Onde encontro o código e as atualizações?</summary><p>O código está no <a href="https://github.com/lisandro12matheus-cmd/SPPtab">repositório oficial</a>. Os instaladores e as notas de atualização estão na <a href="https://github.com/lisandro12matheus-cmd/SPPtab/releases/latest">página de versões no GitHub</a>.</p></details></div></section></main>
+<footer><div class="wrap footer"><div><strong>TabulaSUS</strong><p>Saúde em dados</p></div><p>Responsável: Lisandro Ribeiro</p><div><a href="https://github.com/lisandro12matheus-cmd/SPPtab">Repositório oficial ↗</a><a href="https://tabulasus.vercel.app/">Site do projeto ↗</a></div></div></footer><script>
+// Ajusta a altura caso o formulário incorporado envie sua medida ao site.
+window.addEventListener('message', function (event) {
+  if (event.origin !== 'https://geosaudebelem.page.gd') return;
+  const frame = document.getElementById('formulario-avaliacao');
+  if (!frame || event.source !== frame.contentWindow) return;
+  const dados = event.data;
+  if (!dados || dados.tipo !== 'tabulasus-avaliacao-altura') return;
+  const altura = Number(dados.altura);
+  if (Number.isFinite(altura) && altura > 0) {
+    frame.style.height = Math.min(1200, Math.max(380, Math.ceil(altura) + 8)) + 'px';
+  }
+});
+</script>
+</body></html>
