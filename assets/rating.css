@@ -1,0 +1,29 @@
+/* Avalie o TabulaSUS: item da sidebar (abre o formulário em nova aba) e convite ocasional */
+.sidebar-rate{margin:auto 0 14px;min-height:42px;width:100%;display:flex;align-items:center;gap:12px;padding:0 12px;border:1px solid #2f4d74;border-radius:10px;background:linear-gradient(180deg,rgba(69,145,244,.13),rgba(69,145,244,.06));color:#d8e7fb;font:600 12px 'DM Sans',Inter,system-ui,sans-serif;text-align:left;text-decoration:none;cursor:pointer;transition:background .15s ease,border-color .15s ease,color .15s ease}
+.sidebar-rate:hover{border-color:#4f7fb8;background:rgba(69,145,244,.2);color:#fff}
+.sidebar-rate:focus-visible{outline:3px solid #77aeff;outline-offset:2px}
+.sidebar-rate-icon{flex:0 0 18px;width:18px;height:18px;display:inline-flex;color:#8fbaf7}
+.sidebar-rate:hover .sidebar-rate-icon{color:#b9d4fb}
+.sidebar-rate-icon svg{display:block;width:18px;height:18px}
+.sidebar-rate-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar-rate+.sidebar-foot{margin-top:0}
+.app-shell.sidebar-collapsed>.sidebar .sidebar-rate{justify-content:center;padding:0}
+.app-shell.sidebar-collapsed>.sidebar .sidebar-rate-label{display:none}
+@media(max-width:760px){.app-shell:not(.sidebar-mobile-expanded)>.sidebar .sidebar-rate{justify-content:center;padding:0}.app-shell:not(.sidebar-mobile-expanded)>.sidebar .sidebar-rate-label{display:none}}
+
+.rate-toast{position:fixed;right:24px;bottom:24px;z-index:900;width:328px;display:flex;gap:12px;padding:15px 16px;border:1px solid #dfe8f3;border-radius:14px;background:#fff;box-shadow:0 16px 40px rgba(14,34,58,.14);font-family:'DM Sans',Inter,system-ui,sans-serif;opacity:0;transform:translateY(10px);transition:opacity .25s ease,transform .25s ease;pointer-events:none}
+.rate-toast.is-visible{opacity:1;transform:none;pointer-events:auto}
+.rate-toast-mark{width:30px;height:30px;flex:none;border-radius:9px;background:#eaf2ff;color:#2f78dc;display:grid;place-items:center}
+.rate-toast-mark svg{width:16px;height:16px}
+.rate-toast-copy strong{display:block;font-size:12.5px;font-weight:700;color:#163039}
+.rate-toast-copy p{margin:4px 0 0;font-size:11px;line-height:1.5;color:#6f8086}
+.rate-toast-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.rate-toast-actions button,.rate-toast-actions a{box-sizing:border-box;height:30px;padding:0 12px;border-radius:8px;font:600 11px 'DM Sans',sans-serif;cursor:pointer;transition:background .15s ease,color .15s ease}
+.rate-toast-later{border:1px solid #e3eaf1;background:#fff;color:#5d7178}
+.rate-toast-later:hover{background:#f4f7fa;color:#344a50}
+.rate-toast-now{border:1px solid #2f78dc;background:#2f78dc;color:#fff}
+.rate-toast-now:hover{background:#205fb4;border-color:#205fb4}
+.rate-toast-actions button:focus-visible,.rate-toast-actions a:focus-visible{outline:3px solid #bdd6ff;outline-offset:2px}
+
+.rate-toast-now{display:inline-flex;align-items:center;text-decoration:none}
+@media(prefers-reduced-motion:reduce){.rate-toast{transition:none}}

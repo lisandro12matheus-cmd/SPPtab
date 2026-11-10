@@ -17,7 +17,7 @@ tabwin2_page_security();
   <link rel="stylesheet" href="assets/search-loading.css?v=3">
   <link rel="stylesheet" href="assets/compact-headings.css?v=1">
   <link rel="stylesheet" href="assets/location-entry.css?v=1">
-  <script src="assets/sidebar.js?v=3" defer></script>
+  <link rel="stylesheet" href="assets/rating.css?v=1"><script src="assets/sidebar.js?v=3" defer></script><script src="assets/rating.js?v=1" defer></script>
   <script src="assets/launch-gate.js?v=1"></script>
 </head>
 <body>
