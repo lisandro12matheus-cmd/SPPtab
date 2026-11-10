@@ -109,7 +109,7 @@
     anomaly:{ label:'Anomalia congênita registrada', field:'anomalyStatus', nameField:'anomalyStatusName', queryKey:'anomalia', sourceLabel:'SINASC · IDANOMAL', options:[['1','Sim'],['2','Não'],['unknown','Não informado']] }
   };
   const simMortalityFilterDefinitions = {
-    residenceOrigin:{ label:'Residência em Belém ou em outro município', field:'residenceOrigin', nameField:'residenceOriginName', queryKey:'origem_residencia', sourceLabel:'SIM · CODMUNRES', options:[['local','Residente em Belém'],['outside','Residente em outro município'],['unknown','Residência não informada']] },
+    residenceOrigin:{ label:'Residência no município do óbito ou em outro', field:'residenceOrigin', nameField:'residenceOriginName', queryKey:'origem_residencia', sourceLabel:'SIM · CODMUNRES', options:[['local','Residente no município de ocorrência'],['outside','Residente em outro município'],['unknown','Residência não informada']] },
     residenceMunicipality:{ label:'Município de residência', field:'residenceMunicipality', nameField:'residenceMunicipalityName', queryKey:'municipio_residencia', sourceLabel:'SIM · CODMUNRES / IBGE', searchable:true },
     naturalityMunicipality:{ label:'Município de nascimento', field:'naturalityMunicipality', nameField:'naturalityMunicipalityName', queryKey:'municipio_nascimento', sourceLabel:'SIM · CODMUNNATU / IBGE', searchable:true, searchPlaceholder:'Buscar município de nascimento…' },
     ageGroup:{ label:'Faixa etária', field:'ageGroup', nameField:'ageGroupName', queryKey:'faixa_etaria', sourceLabel:'SIM · IDADE', options:[['under1','Menor de 1 ano'],['1-17','1 a 17 anos'],['18-29','18 a 29 anos'],['30-59','30 a 59 anos'],['60+','60 anos ou mais'],['unknown','Não informado']] },
@@ -198,7 +198,7 @@
       tableMode:'flat', defaultMunicipalityCode:'150140',
       workspaceTitle:'Serviços Profissionais · SIH/SUS', introLabel:'SERVIÇOS PROFISSIONAIS · SIH/SUS', introTitle:'Produção profissional por AIH.',
       introDescription:'Atos e valores profissionais por autorização, procedimento, estabelecimento e profissional executor.',
-      setupTitle:'Serviços profissionais por AIH', setupDescription:'Escolha a UF e a competência. Vários meses exigem bases já baixadas. O recorte inicial mostra Belém, Pará.',
+      setupTitle:'Serviços profissionais por AIH', setupDescription:'Escolha a UF e a competência. Vários meses exigem bases já baixadas. O recorte inicial segue o estado escolhido no mapa.',
       emptyMessage:'Escolha a UF e a competência. Município, gestor da produção, CBO, tipo de gestão, natureza jurídica e atendimento hospitalar SUS são opcionais.',
       municipalityLabel:'MUNICÍPIO DE ATENDIMENTO',
       filterNote:'O município representa o local de atendimento. Gestor e CBO vêm do SIH/SP. Como o SP não traz tipo de gestão nem natureza jurídica, esses filtros usam o CNES da mesma competência e recorrem ao cadastro atual quando não há registro histórico. O atendimento hospitalar SUS usa o cadastro atual.',
@@ -222,11 +222,11 @@
     },
     'sinan-dengue': {
       id:'sinan-dengue', system:'sinan', systemCode:'SINAN', kind:'DENGUE', remoteSource:true, tableMode:'flat',
-      systemLabel:'SINAN · VIGILÂNCIA', sourceLabel:'notificações públicas do SINAN', defaultUf:'PA', fixedUf:'PA', defaultMunicipalityCode:'150140', fixedMunicipalityCode:'150140',
+      systemLabel:'SINAN · VIGILÂNCIA', sourceLabel:'notificações públicas do SINAN', defaultUf:'PA', defaultMunicipalityCode:'150140',
       workspaceTitle:'Dengue · SINAN', introLabel:'VIGILÂNCIA EPIDEMIOLÓGICA · SINAN', introTitle:'Notificações de dengue.',
       introDescription:'Consulte em uma tabela as semanas epidemiológicas, unidades notificadoras e municípios de residência.',
-      setupTitle:'Notificações de dengue · Belém', setupDescription:'O recorte mostra unidades notificadoras localizadas em Belém. Escolha o período e, se quiser, filtre por gestão ou natureza jurídica do CNES.',
-      emptyMessage:'O relatório considera unidades notificadoras cadastradas em Belém. Escolha ao menos um mês; os filtros de gestão e natureza jurídica são opcionais.',
+      setupTitle:'Notificações de dengue', setupDescription:'Escolha o estado, o município das unidades notificadoras e o período. Se quiser, filtre por gestão ou natureza jurídica do CNES.',
+      emptyMessage:'O relatório considera as unidades notificadoras cadastradas no município escolhido. Escolha ao menos um mês; os filtros de gestão e natureza jurídica são opcionais.', missingMunicipalityMessage:'Selecione o município das unidades notificadoras.',
       municipalityLabel:'MUNICÍPIO DAS UNIDADES',
       filterNote:'Gestão municipal, estadual ou dupla e natureza pública, privada ou sem fins lucrativos vêm do cadastro atual do CNES. Selecione várias opções com Ctrl no Windows ou Command no Mac. Os filtros são opcionais e podem ser combinados.',
       methodTitle:'Como interpretar este relatório:', methodText:' cada linha combina semana epidemiológica, unidade notificadora e município de residência. Os totais são notificações, não pessoas únicas, e as semanas recentes podem ser revistas.',
@@ -239,19 +239,19 @@
       ...reportConfigurations['sinan-dengue'], id, kind, firstYear:kind === 'CHIK' ? 2014 : 2015,
       workspaceTitle:`${name} · SINAN`, introTitle:`Notificações de ${name}.`,
       introDescription:`Consulte em uma tabela as semanas epidemiológicas, unidades notificadoras e municípios de residência.`,
-      setupTitle:`Notificações de ${name} · Belém`, summaryTitle:`Notificações de ${name}`,
+      setupTitle:`Notificações de ${name}`, summaryTitle:`Notificações de ${name}`,
       methodText:` os totais representam notificações de ${name}, não pessoas únicas. Prováveis excluem as descartadas; confirmadas seguem a classificação final própria do agravo. ${kind === 'CHIK' ? 'Internações registradas incluem notificações ainda não confirmadas.' : 'Gestantes notificadas incluem casos ainda não confirmados.'} Cada linha mostra semana, unidade e residência.`,
     };
   }
   reportConfigurations['sim-mortalidade'] = {
-    ...reportConfigurations['sinan-dengue'], id:'sim-mortalidade', system:'sim', systemCode:'SIM', kind:'MORTALIDADE', filters:simMortalityFilterDefinitions, fixedUf:'PA', fixedMunicipalityCode:'150140',
+    ...reportConfigurations['sinan-dengue'], id:'sim-mortalidade', system:'sim', systemCode:'SIM', kind:'MORTALIDADE', filters:simMortalityFilterDefinitions,
     systemLabel:'SIM · MORTALIDADE', sourceLabel:'declarações públicas do SIM', workspaceTitle:'Mortalidade · SIM',
     introLabel:'MORTALIDADE · SIM', introTitle:'Mortalidade por semana e causa.',
     introDescription:'Consulte os óbitos por causa básica, residência e características disponíveis na Declaração de Óbito.',
-    setupTitle:'Mortalidade · Belém', setupDescription:'Escolha o período para consultar os óbitos ocorridos em Belém.',
-    emptyMessage:'Escolha ao menos um mês para consultar a base pública do SIM.', municipalityLabel:'MUNICÍPIO DE OCORRÊNCIA',
-    filterNote:'Belém é o município fixo de ocorrência do óbito. “Local do óbito” indica a categoria do lugar; “estabelecimento de ocorrência” identifica a unidade CNES registrada na declaração. Adicione filtros opcionais para residência, nascimento, faixa etária, sexo, raça/cor, escolaridade e outros campos. Use Ctrl ou Command para selecionar várias categorias no mesmo filtro.',
-    methodTitle:'Como interpretar este relatório:', methodText:' os totais são declarações de óbito não fetal do SIM. O recorte usa Belém como município de ocorrência; a residência pode ser filtrada por município. O detalhamento apresenta contagens agrupadas, sem nomes ou identificadores pessoais.',
+    setupTitle:'Mortalidade', setupDescription:'Escolha o estado, o município de ocorrência e o período para consultar os óbitos.',
+    emptyMessage:'Escolha ao menos um mês para consultar a base pública do SIM.', municipalityLabel:'MUNICÍPIO DE OCORRÊNCIA', missingMunicipalityMessage:'Selecione o município de ocorrência dos óbitos.',
+    filterNote:'O município escolhido é o de ocorrência do óbito. “Local do óbito” indica a categoria do lugar; “estabelecimento de ocorrência” identifica a unidade CNES registrada na declaração. Adicione filtros opcionais para residência, nascimento, faixa etária, sexo, raça/cor, escolaridade e outros campos. Use Ctrl ou Command para selecionar várias categorias no mesmo filtro.',
+    methodTitle:'Como interpretar este relatório:', methodText:' os totais são declarações de óbito não fetal do SIM. O recorte usa o município escolhido como local de ocorrência; a residência pode ser filtrada por município. O detalhamento apresenta contagens agrupadas, sem nomes ou identificadores pessoais.',
     summaryTitle:'Óbitos por semana', countMetric:'deaths', countLabel:'ÓBITOS NÃO FETAIS',
     tableSearchSummary:'Buscar semana', tableSearchDetail:'Buscar residência, perfil ou estabelecimento'
   };
@@ -423,7 +423,7 @@
       : params.getAll(definition.queryKey);
     linkedFilters[definition.field] = values;
   }
-  if (activeReport.system === 'sinan' && savedGlobalLocation?.useMunicipalManager && savedGlobalMunicipality === '150140' && !params.has('cnes_gestao')) linkedFilters.cnesManagementCode = ['MUNICIPAL'];
+  if (activeReport.system === 'sinan' && savedGlobalLocation?.useMunicipalManager && Boolean(savedGlobalMunicipality) && !params.has('cnes_gestao')) linkedFilters.cnesManagementCode = ['MUNICIPAL'];
 
   function normalizeSelectedValues(value) {
     const values = Array.isArray(value) ? value : value == null || value === '' ? [] : [value];
@@ -462,7 +462,7 @@
   function filtersFromParams(searchParams) {
     const preferred = { municipalityCode:activeReport.fixedMunicipalityCode || searchParams.get('municipio') || (searchParams.get('relatorio') === 'sia-pa-belem' ? '150140' : '') };
     for (const definition of Object.values(filterDefinitions)) preferred[definition.field] = searchParams.getAll(definition.queryKey);
-    if (activeReport.system === 'sinan' && savedGlobalLocation?.useMunicipalManager && savedGlobalMunicipality === '150140' && !searchParams.has('cnes_gestao')) preferred.cnesManagementCode = ['MUNICIPAL'];
+    if (activeReport.system === 'sinan' && savedGlobalLocation?.useMunicipalManager && Boolean(savedGlobalMunicipality) && !searchParams.has('cnes_gestao')) preferred.cnesManagementCode = ['MUNICIPAL'];
     return preferred;
   }
 
@@ -575,7 +575,7 @@
     const monthHelp = document.querySelector('.setup-competency-help');
     if (monthHelp) monthHelp.textContent = activeReport.monthHelp || (activeReport.system === 'sim' ? 'O mês usa a data do óbito; dados recentes podem ser preliminares.' : activeReport.system === 'sinasc' ? 'O mês usa a data do nascimento. O ano recente pode estar em prévia ou ainda não ter todos os meses.' : activeReport.remoteSource ? 'O mês usa a data de início dos sintomas; o período atual pode ter dados parciais.' : 'Vários meses só com bases já baixadas. Uma competência pode ser buscada no DATASUS ao abrir.');
     const locationHelp = document.querySelector('.setup-primary-grid')?.closest('.setup-section')?.querySelector('.setup-section-heading span');
-    if (locationHelp) locationHelp.textContent = activeReport.locationHelp || (activeReport.system === 'sinan' ? 'O recorte considera unidades notificadoras atualmente cadastradas em Belém.' : activeReport.system === 'sim' ? 'O recorte considera óbitos ocorridos em Belém.' : activeReport.system === 'sinasc' ? 'Escolha o município onde ocorreram os nascimentos.' : activeReport.system === 'srag' ? 'Escolha o município onde os casos residem.' : 'A UF define qual arquivo estadual será consultado.');
+    if (locationHelp) locationHelp.textContent = activeReport.locationHelp || (activeReport.system === 'sinan' ? 'O recorte considera as unidades notificadoras cadastradas no município escolhido.' : activeReport.system === 'sim' ? 'O recorte considera os óbitos ocorridos no município escolhido.' : activeReport.system === 'sinasc' ? 'Escolha o município onde ocorreram os nascimentos.' : activeReport.system === 'srag' ? 'Escolha o município onde os casos residem.' : 'A UF define qual arquivo estadual será consultado.');
     $('predefinedIntroLabel').textContent = activeReport.introLabel;
     $('predefinedIntroTitle').textContent = activeReport.introTitle;
     $('predefinedIntroDescription').textContent = activeReport.introDescription;
@@ -691,9 +691,16 @@
 
   function applySetupPreference(fallbackUf = selectedUf()) {
     const saved = setupPreference();
-    setUfOptions(activeReport.fixedUf || saved?.uf || activeReport.defaultUf || fallbackUf);
+    // The state chosen on the start map wins over the report's built-in default (Pará);
+    // only a filter the user saved for this report, or a fixed-scope report, goes before it.
+    setUfOptions(activeReport.fixedUf || saved?.uf || savedGlobalUf || activeReport.defaultUf || fallbackUf);
     activeFilterTypes = saved?.activeFilterTypes || [];
-    return saved ? { municipalityCode:activeReport.fixedMunicipalityCode || saved.municipalityCode, ...saved.filters } : (activeReport.defaultMunicipalityCode ? { municipalityCode:activeReport.defaultMunicipalityCode } : {});
+    if (saved) return { municipalityCode:activeReport.fixedMunicipalityCode || saved.municipalityCode, ...saved.filters };
+    const uf = selectedUf();
+    const municipalityCode = activeReport.fixedMunicipalityCode
+      || (savedGlobalUf === uf ? savedGlobalMunicipality : '')
+      || (String(activeReport.defaultMunicipalityCode || '').startsWith(stateCodes[uf]) ? activeReport.defaultMunicipalityCode : '');
+    return municipalityCode ? { municipalityCode } : {};
   }
 
   function updateScopeDescription() {
@@ -1157,10 +1164,10 @@
       renderAdditionalFilterRows(preferred);
       if (activeReport.remoteSource) {
         if (activeReport.availabilityText) setAvailability(activeReport.availabilityText, '');
-        else if (activeReport.system === 'sinan') setAvailability('Unidades cadastradas em Belém · gestão e natureza jurídica do CNES são opcionais.', '');
+        else if (activeReport.system === 'sinan') setAvailability('Unidades cadastradas no município · gestão e natureza jurídica do CNES são opcionais.', '');
         else if (activeReport.system === 'srag') setAvailability('Município de residência · escolha o mês do início dos sintomas.', '');
         else if (activeReport.system === 'sinasc') setAvailability('Município do nascimento · escolha o mês da ocorrência.', '');
-        else setAvailability(activeReport.id === 'sim-mortalidade-infantil' ? 'Município de residência · filtros opcionais disponíveis · escolha o mês do óbito e do nascimento.' : 'Óbitos ocorridos em Belém · filtros opcionais disponíveis · escolha o mês da ocorrência.', '');
+        else setAvailability(activeReport.id === 'sim-mortalidade-infantil' ? 'Município de residência · filtros opcionais disponíveis · escolha o mês do óbito e do nascimento.' : 'Óbitos ocorridos no município · filtros opcionais disponíveis · escolha o mês da ocorrência.', '');
         updateOpenButton();
       }
     }
@@ -2144,7 +2151,7 @@
 
   async function tabulateReportMonth(view, cnes, aih, filters, year, month, monthIndex, monthCount) {
     if (activeReport.remoteSource) {
-      setLoader(true, `Lendo arquivo oficial do ${activeReport.systemCode} · ${monthIndex + 1} de ${monthCount}`, `${monthNames[month - 1]} de ${year} · ${activeReport.loaderDetail || (activeReport.id === 'sim-mortalidade-infantil' ? 'óbitos e nascidos vivos por residência' : activeReport.system === 'sim' ? 'óbitos ocorridos em Belém' : activeReport.system === 'sinasc' ? 'nascidos vivos por estabelecimento' : activeReport.system === 'srag' ? 'casos por município de residência' : 'unidades notificadoras de Belém')}.`, null, true);
+      setLoader(true, `Lendo arquivo oficial do ${activeReport.systemCode} · ${monthIndex + 1} de ${monthCount}`, `${monthNames[month - 1]} de ${year} · ${activeReport.loaderDetail || (activeReport.id === 'sim-mortalidade-infantil' ? 'óbitos e nascidos vivos por residência' : activeReport.system === 'sim' ? `óbitos ocorridos em ${filters.municipalityName || 'município escolhido'}` : activeReport.system === 'sinasc' ? 'nascidos vivos por estabelecimento' : activeReport.system === 'srag' ? 'casos por município de residência' : `unidades notificadoras de ${filters.municipalityName || 'município escolhido'}`)}.`, null, true);
       let job = await api({ action:'tabulate_start', predefinedReport:activeReport.id, view, uf:filters.uf, year, month, municipalityCode:filters.municipalityCode, municipalityName:filters.municipalityName, ...(activeReport.system === 'pqavs' ? { reportFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])) } : {}), ...(activeReport.system === 'sinasc' ? { sinascFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { establishmentCode:cnes } : {}) } : {}), ...(activeReport.id === 'sim-mortalidade' ? { simFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { weekIndex:Number(cnes), causeCode:activeSimCauseCode } : {}) } : {}), ...(activeReport.id === 'sim-mortalidade-infantil' ? { simInfantFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])) } : {}), ...(activeReport.system === 'sinan' ? { cnesManagementCode:filters.cnesManagementCode, cnesNatureGroupCode:filters.cnesNatureGroupCode, ...(view === 'detail' ? { weekIndex:Number(cnes) } : {}) } : ['sim','srag'].includes(activeReport.system) && view === 'detail' ? { weekIndex:Number(cnes) } : {}) });
       if (job.done && job.result) return stampMonthlyResult(job.result, year, month);
       if (!job.job_id) throw new Error(`O TabulaSUS não retornou uma consulta válida ao ${activeReport.systemCode}.`);
@@ -2209,7 +2216,7 @@
     const filters = selectedFilters();
     if (activeReport.remoteSource && !/^\d{6}$/.test(filters.municipalityCode)) {
       await openReportSetup(filters);
-      setAvailability(activeReport.missingMunicipalityMessage || activeReport.system === 'sim' ? activeReport.missingMunicipalityMessage || 'O recorte fixo de Belém não está disponível. Reabra o relatório.' : activeReport.system === 'sinasc' ? 'Selecione o município onde ocorreram os nascimentos.' : activeReport.system === 'srag' ? 'Selecione o município de residência para continuar.' : 'Selecione o município onde as notificações foram registradas para continuar.', 'error');
+      setAvailability(activeReport.missingMunicipalityMessage || activeReport.system === 'sim' ? activeReport.missingMunicipalityMessage || 'Selecione o município para continuar.' : activeReport.system === 'sinasc' ? 'Selecione o município onde ocorreram os nascimentos.' : activeReport.system === 'srag' ? 'Selecione o município de residência para continuar.' : 'Selecione o município onde as notificações foram registradas para continuar.', 'error');
       return;
     }
     const requestedCount = requestedMonths.length;
@@ -2319,7 +2326,7 @@
       return;
     }
     if (activeReport.remoteSource && !/^\d{6}$/.test(activeReport.fixedMunicipalityCode || municipalitySelect.value)) {
-      setAvailability(activeReport.missingMunicipalityMessage || activeReport.system === 'sinan' ? activeReport.missingMunicipalityMessage || 'O recorte fixo de Belém não está disponível. Reabra o relatório.' : activeReport.system === 'sinasc' ? 'Selecione o município onde ocorreram os nascimentos.' : activeReport.system === 'srag' ? 'Selecione o município de residência.' : 'Selecione o município onde as notificações foram registradas.', 'error');
+      setAvailability(activeReport.missingMunicipalityMessage || activeReport.system === 'sinan' ? activeReport.missingMunicipalityMessage || 'Selecione o município para continuar.' : activeReport.system === 'sinasc' ? 'Selecione o município onde ocorreram os nascimentos.' : activeReport.system === 'srag' ? 'Selecione o município de residência.' : 'Selecione o município onde as notificações foram registradas.', 'error');
       if (!activeReport.fixedMunicipalityCode) municipalitySelect.focus();
       return;
     }
@@ -2350,11 +2357,11 @@
       await loadReportDefaults(reportId);
       if (activeReport.id !== reportId) return;
       const preferred = applySetupPreference(preferredUf);
-      if (linkedMunicipality) preferred.municipalityCode = linkedMunicipality;
+      if (linkedMunicipality && linkedMunicipality.startsWith(stateCodes[selectedUf()])) preferred.municipalityCode = linkedMunicipality;
       const managerDefinition = filterDefinitions.manager;
       const preferredManagers = linkedManagerValues.length ? linkedManagerValues : linkedManagerCode ? [linkedManagerCode] : [];
       if (preferredManagers.length && managerDefinition) preferred[managerDefinition.field] = preferredManagers;
-      if (reportId.startsWith('sinan-') && savedGlobalLocation?.useMunicipalManager && savedGlobalMunicipality === '150140') preferred.cnesManagementCode = ['MUNICIPAL'];
+      if (reportId.startsWith('sinan-') && savedGlobalLocation?.useMunicipalManager && Boolean(savedGlobalMunicipality)) preferred.cnesManagementCode = ['MUNICIPAL'];
       await openReportSetup(preferred);
     };
     reportCard.addEventListener('click', activate);

@@ -56,15 +56,15 @@
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Fluxo assistencial</div><h3>Origem e destino das internações</h3><p>Veja de onde vêm os pacientes e em quais hospitais as AIHs são registradas.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SIH/SUS</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
-          <article class="predefined-card" data-category="vigilancia" data-report="sinan-dengue" role="button" tabindex="0" aria-label="Abrir tabulação: notificações de dengue em Belém">
+          <article class="predefined-card" data-category="vigilancia" data-report="sinan-dengue" role="button" tabindex="0" aria-label="Abrir tabulação: notificações de dengue">
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Vigilância epidemiológica</div><h3>Notificações de dengue</h3><p>Consulte semana, unidade notificadora, classificação e residência na mesma tabela.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · CNES</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
-          <article class="predefined-card" data-category="vigilancia" data-report="sinan-chikungunya" role="button" tabindex="0" aria-label="Abrir tabulação: notificações de chikungunya em Belém">
+          <article class="predefined-card" data-category="vigilancia" data-report="sinan-chikungunya" role="button" tabindex="0" aria-label="Abrir tabulação: notificações de chikungunya">
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Vigilância epidemiológica</div><h3>Notificações de chikungunya</h3><p>Consulte semana, unidade notificadora e município de residência na mesma tabela.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · CNES</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
-          <article class="predefined-card" data-category="vigilancia" data-report="sinan-zika" role="button" tabindex="0" aria-label="Abrir tabulação: notificações de zika em Belém">
+          <article class="predefined-card" data-category="vigilancia" data-report="sinan-zika" role="button" tabindex="0" aria-label="Abrir tabulação: notificações de zika">
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Vigilância epidemiológica</div><h3>Notificações de zika</h3><p>Consulte semana, gestantes, unidade e residência na mesma tabela.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · CNES</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
@@ -157,6 +157,6 @@
       <div class="setup-dialog-footer"><div class="setup-default-actions"><button type="button" id="saveSetupDefault">Salvar filtros como padrão</button><button type="button" id="clearSetupDefault" hidden>Remover padrão</button><span id="setupDefaultStatus" role="status"></span></div><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=78" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=80" defer></script>
 </body>
 </html>
