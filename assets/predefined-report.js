@@ -639,7 +639,9 @@
     const selected = selectedFilters();
     const filters = {};
     for (const definition of Object.values(filterDefinitions)) filters[definition.field] = selected[definition.field];
-    return { uf:selected.uf, municipalityCode:activeReport.fixedMunicipalityCode || selected.municipalityCode, activeFilterTypes:[...activeFilterTypes], filters };
+    // Only the additional filters are saved as the report default; state and municipality
+    // always come from the current choice (start map or the setup fields).
+    return { activeFilterTypes:[...activeFilterTypes], filters };
   }
 
   function setupPreference() {
@@ -647,9 +649,8 @@
     if (!saved || typeof saved !== 'object') return null;
     const filters = {};
     for (const definition of Object.values(filterDefinitions)) filters[definition.field] = normalizeSelectedValues(saved.filters?.[definition.field]);
+    // Defaults saved by older versions may still carry uf/municipalityCode; they are ignored.
     return {
-      uf:activeReport.fixedUf || (stateNames[saved.uf] ? saved.uf : selectedUf()),
-      municipalityCode:activeReport.fixedMunicipalityCode || String(saved.municipalityCode || ''),
       activeFilterTypes:(Array.isArray(saved.activeFilterTypes) ? saved.activeFilterTypes : []).filter((type) => filterDefinitions[type]),
       filters
     };
@@ -659,7 +660,7 @@
     const saved = setupPreference();
     $('clearSetupDefault').hidden = !saved;
     const matches = saved && JSON.stringify(setupSettings()) === JSON.stringify(saved);
-    $('saveSetupDefault').textContent = matches ? 'Padrão salvo' : saved ? 'Atualizar padrão' : 'Salvar filtros como padrão';
+    $('saveSetupDefault').textContent = matches ? 'Padrão salvo' : saved ? 'Atualizar padrão' : 'Salvar filtros adicionais como padrão';
     if (!matches && $('setupDefaultStatus').textContent === 'Aplicado nas próximas consultas') $('setupDefaultStatus').textContent = 'Alterações ainda não salvas';
   }
 
@@ -691,16 +692,15 @@
 
   function applySetupPreference(fallbackUf = selectedUf()) {
     const saved = setupPreference();
-    // The state chosen on the start map wins over the report's built-in default (Pará);
-    // only a filter the user saved for this report, or a fixed-scope report, goes before it.
-    setUfOptions(activeReport.fixedUf || saved?.uf || savedGlobalUf || activeReport.defaultUf || fallbackUf);
+    // The state chosen on the start map wins over the report's built-in default (Pará).
+    // A saved report default only brings back the additional filters, never state or municipality.
+    setUfOptions(activeReport.fixedUf || savedGlobalUf || activeReport.defaultUf || fallbackUf);
     activeFilterTypes = saved?.activeFilterTypes || [];
-    if (saved) return { municipalityCode:activeReport.fixedMunicipalityCode || saved.municipalityCode, ...saved.filters };
     const uf = selectedUf();
     const municipalityCode = activeReport.fixedMunicipalityCode
       || (savedGlobalUf === uf ? savedGlobalMunicipality : '')
       || (String(activeReport.defaultMunicipalityCode || '').startsWith(stateCodes[uf]) ? activeReport.defaultMunicipalityCode : '');
-    return municipalityCode ? { municipalityCode } : {};
+    return { ...(saved?.filters || {}), ...(municipalityCode ? { municipalityCode } : {}) };
   }
 
   function updateScopeDescription() {
