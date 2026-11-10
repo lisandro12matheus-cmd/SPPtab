@@ -36,6 +36,18 @@
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Produção ambulatorial</div><h3>Produção por estabelecimento</h3><p>Compare o apresentado e o aprovado por unidade e abra a composição dos procedimentos.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SIA/SUS · SIGTAP</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
+          <article class="predefined-card" data-category="ambulatorial" data-report="sia-apac-oncologia" role="button" tabindex="0" aria-label="Abrir tabulação: oncologia, quimioterapia e radioterapia">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Alta complexidade · APAC</div><h3>Oncologia: quimio e radioterapia</h3><p>Pacientes, APACs e valores de quimioterapia e radioterapia por estabelecimento e procedimento.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SIA/SUS · APAC AQ · AR</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
+          <article class="predefined-card" data-category="ambulatorial" data-report="sia-apac-dialise" role="button" tabindex="0" aria-label="Abrir tabulação: terapia renal substitutiva, diálise">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Alta complexidade · APAC</div><h3>Diálise: terapia renal substitutiva</h3><p>Pacientes em diálise, novos tratamentos, óbitos e valores por estabelecimento.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SIA/SUS · APAC ATD</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
+          <article class="predefined-card" data-category="ambulatorial" data-report="sia-raas-caps" role="button" tabindex="0" aria-label="Abrir tabulação: atenção psicossocial nos CAPS">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Saúde mental · RAAS</div><h3>CAPS: atenção psicossocial</h3><p>Pacientes acompanhados e ações dos CAPS, com situação de rua e uso de álcool e drogas.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SIA/SUS · RAAS PS</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
           <article class="predefined-card" data-category="hospitalar" data-report="sih-rd-producao" role="button" tabindex="0" aria-label="Abrir tabulação: Produção hospitalar por estabelecimento">
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Produção hospitalar</div><h3>Produção por estabelecimento</h3><p>Acompanhe AIHs e valores por hospital, com abertura dos procedimentos registrados.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SIH/SUS · SIGTAP</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
@@ -108,6 +120,10 @@
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Saúde materno-infantil</div><h3>Mortalidade infantil</h3><p>Relacione óbitos antes de um ano, faixa de dias, causa básica e nascidos vivos do município de residência.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SIM · SINASC</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
+          <article class="predefined-card" data-category="materno-infantil" data-report="sim-mortalidade-materna-fetal" role="button" tabindex="0" aria-label="Abrir tabulação: mortalidade materna e fetal">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Saúde materno-infantil</div><h3>Mortalidade materna e fetal</h3><p>Óbitos maternos e fetais de residentes, razão de mortalidade materna e taxa de mortalidade perinatal.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SIM · SINASC</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
           <article class="predefined-card" data-category="materno-infantil" data-report="sinasc-maternidades" role="button" tabindex="0" aria-label="Abrir tabulação: Nascimentos e perfil materno-infantil">
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Saúde materno-infantil</div><h3>Nascimentos e perfil materno-infantil</h3><p>Nascidos vivos, pré-natal, partos, prematuridade e baixo peso em uma tabela por estabelecimento.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SINASC · CNES</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
@@ -157,6 +173,6 @@
       <div class="setup-dialog-footer"><div class="setup-default-actions"><button type="button" id="saveSetupDefault">Salvar filtros adicionais como padrão</button><button type="button" id="clearSetupDefault" hidden>Remover padrão</button><span id="setupDefaultStatus" role="status"></span></div><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=82" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=85" defer></script>
 </body>
 </html>

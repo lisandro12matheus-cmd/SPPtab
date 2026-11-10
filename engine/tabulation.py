@@ -633,7 +633,7 @@ def write_tabulation_job(job_id: str, state: dict[str,Any]):
 
 def start_tabulation(payload: dict[str,Any]):
     payload=json.loads(json.dumps(payload))
-    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante","pqavs-obitos-arboviroses","pqavs-contatos-hanseniase","pqavs-contatos-tuberculose","pqavs-sifilis-congenita","pqavs-violencia-raca-cor","chagas-aguda-cronica"}:
+    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante","pqavs-obitos-arboviroses","pqavs-contatos-hanseniase","pqavs-contatos-tuberculose","pqavs-sifilis-congenita","pqavs-violencia-raca-cor","chagas-aguda-cronica","sim-mortalidade-materna-fetal"}:
         year=payload.get("year")
         month=payload.get("month")
         uf=str(payload.get("uf") or "").upper()
@@ -2899,6 +2899,12 @@ def _predefined_sisagua_rad_impl(payload: dict[str,Any], progress=None):
 SINAN_DBC_DIR="/dissemin/publicos/SINAN/DADOS"
 # National files kept outside the SINAN folder but with the same FINAIS/PRELIM layout.
 SINAN_DBC_DIRS={"DCCR":"/dissemin/publicos/ESUSNOTIFICA/DADOS"}
+# National SIM files (DOMATaa, DOFETaa, DOINFaa): different folders and no "BR" in the name.
+SIM_DBC_STAGE_DIRS={"FINAIS":"/dissemin/publicos/SIM/CID10/DOFET","PRELIM":"/dissemin/publicos/SIM/PRELIM/DOFET"}
+SIM_DBC_PREFIXES={"DOMAT","DOFET","DOINF"}
+
+def _national_dbc_name(prefix: str, year: int) -> str:
+    return f"{prefix}{year%100:02d}" if prefix in SIM_DBC_PREFIXES else f"{prefix}BR{year%100:02d}"
 PQAVS_FIRST_YEAR=2017
 PQAVS_REPORTS={
     "pqavs-obitos-arboviroses":{"number":8,"label":"óbitos suspeitos de dengue e chikungunya encerrados em até 60 dias","goal":"75%","goalValue":75},
@@ -2945,7 +2951,7 @@ def _sinan_ftp_download(remote: str, destination: Path) -> bool:
 
 def _sinan_dbc_download(prefix: str, year: int, progress=None):
     """Download the national SINAN DBC of one disease and year, preferring the closed (FINAIS) base."""
-    name=f"{prefix}BR{year%100:02d}.dbc"
+    name=_national_dbc_name(prefix,year)+".dbc"
     folder=UPLOADS/".cache"/"sinan-dbc"
     folder.mkdir(parents=True,exist_ok=True)
     for old in folder.glob("sinan-*.part"):
@@ -2954,7 +2960,7 @@ def _sinan_dbc_download(prefix: str, year: int, progress=None):
         except OSError: pass
     failures=[]
     for stage in ("FINAIS","PRELIM"):
-        remote=f"{SINAN_DBC_DIRS.get(prefix,SINAN_DBC_DIR)}/{stage}/{name}"
+        remote=f"{SIM_DBC_STAGE_DIRS[stage]}/{name}" if prefix in SIM_DBC_PREFIXES else f"{SINAN_DBC_DIRS.get(prefix,SINAN_DBC_DIR)}/{stage}/{name}"
         fd,temp_name=tempfile.mkstemp(prefix="sinan-",suffix=".part",dir=str(folder)); os.close(fd)
         temp=Path(temp_name)
         def report(done,total):
@@ -3160,6 +3166,69 @@ def _chagas_collect_chronic(file_year: int):
         return tuple(output)
     return fields,collect
 
+# ---------------------------------------------------------------------------
+# Mortalidade materna e fetal (SIM, arquivos nacionais DOMAT/DOFET/DOINF por
+# município de residência) com nascidos vivos do SINASC.
+# DOMAT já traz só óbitos maternos (capítulo O, sem os tardios O96/O97).
+# ---------------------------------------------------------------------------
+MATERNAL_REPORT_ID="sim-mortalidade-materna-fetal"
+MATERNAL_FIRST_YEAR=2010
+SIM_MATERNAL_MOMENT={"1":"Na gravidez","2":"No parto","3":"No abortamento","4":"Até 42 dias após o parto","5":"De 43 dias a 1 ano após o parto","8":"Fora desses períodos","9":"Ignorado","":"Não informado"}
+SIM_FETAL_MOMENT={"1":"Antes do parto","2":"Durante o parto","3":"Depois do parto","9":"Ignorado","":"Não informado"}
+SIM_DEATH_PLACE={"1":"Hospital","2":"Outro estabelecimento de saúde","3":"Domicílio","4":"Via pública","5":"Outro local","6":"Aldeia indígena","9":"Ignorado","":"Não informado"}
+SIM_GESTATION_BANDS={"1":"Menos de 22 semanas","2":"22 a 27 semanas","3":"28 a 31 semanas","4":"32 a 36 semanas","5":"37 a 41 semanas","6":"42 semanas ou mais","9":"Ignorada","":"Não informada"}
+
+def _sim_number(value: Any, low: int, high: int):
+    raw=str(value or "").strip()
+    return int(raw) if raw.isdigit() and low<=int(raw)<=high else None
+
+def _sim_code7(value: Any) -> str:
+    code=re.sub(r"\D","",str(value or ""))
+    return code[-7:] if len(code) in {7,8} and (len(code)==7 or code.startswith("0")) else ""
+
+def _sim_years(value: Any):
+    raw=re.sub(r"\D","",str(value or ""))
+    return int(raw[1:]) if len(raw)==3 and raw[0]=="4" else 100+int(raw[1:]) if len(raw)==3 and raw[0]=="5" else None
+
+def _sim_collect_maternal(file_year: int):
+    fields=("DTOBITO","CODMUNRES","CODMUNOCOR","IDADE","CAUSABAS","TPMORTEOCO","LOCOCOR","CODESTAB","DTINVESTIG","DTCONINV")
+    def collect(values):
+        raw_death,resident,occurrence,age,cause,moment,place,establishment,investigated,concluded=values
+        death=_public_health_date(raw_death); municipality=_pqavs_municipality(resident)
+        if death is None or death.year!=file_year or not municipality: return ()
+        was_investigated=bool(str(investigated).strip() or str(concluded).strip())
+        item={"type":"M","cause":re.sub(r"[^A-Z0-9]","",str(cause).upper())[:4],"age":_sim_years(age),"moment":_sinan_code(moment),"place":_sinan_code(place),"unit":_sim_code7(establishment),"occurrence":_pqavs_municipality(occurrence),"investigated":was_investigated}
+        return ((municipality,f"r|{death.month}",{"maternal":1,"maternalInvestigated":int(was_investigated)},None,item),)
+    return fields,collect
+
+def _sim_collect_fetal(file_year: int):
+    fields=("DTOBITO","CODMUNRES","CODMUNOCOR","SEMAGESTAC","GESTACAO","PESO","OBITOPARTO","PARTO","IDADEMAE","CAUSABAS","LOCOCOR","CODESTAB","DTINVESTIG","DTCONINV","DTCONCASO")
+    def collect(values):
+        raw_death,resident,occurrence,weeks,gestation_band,weight,moment,delivery,mother_age,cause,place,establishment,investigated,concluded,case_concluded=values
+        death=_public_health_date(raw_death); municipality=_pqavs_municipality(resident)
+        if death is None or death.year!=file_year or not municipality: return ()
+        weeks=_sim_number(weeks,10,45); weight=_sim_number(weight,100,7000); gestation_band=_sinan_code(gestation_band)
+        # Perinatal period: 22 completed weeks or more; without weeks, 500 g or more; without both, the gestation band.
+        perinatal=(weeks>=22) if weeks is not None else (weight>=500) if weight is not None else gestation_band in {"2","3","4","5","6"}
+        moment=_sinan_code(moment)
+        # Fetal and infant deaths are investigated in their own SIM module, which records DTCONCASO.
+        was_investigated=bool(str(investigated).strip() or str(concluded).strip() or str(case_concluded).strip())
+        item={"type":"F","cause":re.sub(r"[^A-Z0-9]","",str(cause).upper())[:4],"motherAge":_sim_number(mother_age,10,60),"weeks":weeks,"gestationBand":gestation_band,"weight":weight,"moment":moment,"delivery":_sinan_code(delivery),"place":_sinan_code(place),"unit":_sim_code7(establishment),"occurrence":_pqavs_municipality(occurrence),"perinatal":perinatal,"investigated":was_investigated}
+        return ((municipality,f"r|{death.month}",{"fetal":1,"fetalPerinatal":int(perinatal),"fetalAntepartum":int(moment=="1"),"fetalInvestigated":int(was_investigated)},None,item),)
+    return fields,collect
+
+def _sim_collect_infant(file_year: int):
+    fields=("DTOBITO","CODMUNRES","IDADE")
+    def collect(values):
+        raw_death,resident,age=values
+        death=_public_health_date(raw_death); municipality=_pqavs_municipality(resident)
+        age=re.sub(r"\D","",str(age or ""))
+        if death is None or death.year!=file_year or not municipality or len(age)!=3: return ()
+        # IDADE: 0xx minutes, 1xx hours, 2xx days. Early neonatal = 0 to 6 days.
+        early=age[0] in {"0","1"} or (age[0]=="2" and int(age[1:])<=6)
+        return ((municipality,f"r|{death.month}",{"infant":1,"earlyNeonatal":int(early)},None),)
+    return fields,collect
+
 PQAVS_SOURCES={
     "DENG":("csv",lambda year:_pqavs_collect_arbo("DENG",year)),
     "CHIK":("csv",lambda year:_pqavs_collect_arbo("CHIK",year)),
@@ -3170,9 +3239,12 @@ PQAVS_SOURCES={
     "TUBE":("dbc",_pqavs_collect_tuberculosis),
     "CHAG":("dbc",_chagas_collect_acute),
     "DCCR":("dbc",_chagas_collect_chronic),
+    "DOMAT":("dbc",_sim_collect_maternal),
+    "DOFET":("dbc",_sim_collect_fetal),
+    "DOINF":("dbc",_sim_collect_infant),
 }
 
-PQAVS_COLLECTOR_VERSIONS={"SIFC":3,"HANS":3,"TUBE":4,"DENG":2,"CHIK":2,"CHAG":1,"DCCR":1}
+PQAVS_COLLECTOR_VERSIONS={"SIFC":3,"HANS":3,"TUBE":4,"DENG":2,"CHIK":2,"CHAG":1,"DCCR":1,"DOMAT":1,"DOFET":2,"DOINF":1}
 
 def _pqavs_source_target(prefix: str, year: int, uf: str):
     identity={"version":2,"prefix":prefix,"year":year,"uf":uf}
@@ -3243,9 +3315,9 @@ def _pqavs_source(prefix: str, year: int, uf: str, progress=None):
                 if dbc is not None:
                     dbf=None
                     try:
-                        if progress: progress(30,f"Descompactando {prefix}BR{year%100:02d}.dbc")
+                        if progress: progress(30,f"Descompactando {_national_dbc_name(prefix,year)}.dbc")
                         dbf=Path(decompress(dbc))
-                        if progress: progress(34,f"Lendo {prefix}BR{year%100:02d} e somando por município")
+                        if progress: progress(34,f"Lendo {_national_dbc_name(prefix,year)} e somando por município")
                         _,_,_,layout=dbf_layout(dbf)
                         available=[name for name in fields if name in layout]
                         if len(available)!=len(fields): raise ValueError(f"A base {prefix} {year} não contém os campos: "+", ".join(name for name in fields if name not in layout))
@@ -3276,7 +3348,7 @@ def _pqavs_bucket(source: dict[str,Any], municipality: str, key: str) -> dict[st
 def _pqavs_source_label(sources: list[dict[str,Any]]) -> str:
     parts=[]
     for item in sources:
-        name=f"{item.get('prefix')}BR{int(item.get('year',0))%100:02d}"
+        name=_national_dbc_name(str(item.get('prefix')),int(item.get('year',0)))
         if item.get("future"): continue
         if item.get("missing"): parts.append(f"{name} (ainda não publicado)")
         else: parts.append(f"{name} · {'base final' if item.get('stage')=='FINAIS' else 'CSV do Portal de Dados Abertos' if item.get('stage')=='CSV' else 'base preliminar'}"+(" · última leitura salva" if item.get("stale") else ""))
@@ -3458,6 +3530,154 @@ def _predefined_chagas_impl(payload: dict[str,Any], progress=None):
         result.update({"view":"detail","establishmentCode":str(month),"establishmentName":f"{month:02d}/{year}"})
     return result
 
+MATERNAL_FILTERS={
+    "deathType":({"maternal":"Óbito materno","fetalPerinatal":"Óbito fetal com 22 semanas ou mais","fetalEarly":"Óbito fetal antes de 22 semanas"},"Tipo de óbito"),
+    "ageGroup":({"under20":"Menos de 20 anos","20-34":"20 a 34 anos","35+":"35 anos ou mais","unknown":"Não informada"},"Idade da mulher ou da mãe"),
+    "deathPlace":({"1":"Hospital","2":"Outro estabelecimento de saúde","3":"Domicílio","4":"Via pública","5":"Outro local","6":"Aldeia indígena","unknown":"Ignorado / não informado"},"Local do óbito"),
+    "investigation":({"yes":"Investigado","no":"Sem investigação registrada"},"Investigação"),
+}
+
+def _maternal_rate(numerator: int, denominator, scale: int):
+    return round(numerator*scale/denominator,1) if denominator else None
+
+def _maternal_detail(items, year: int, month: int):
+    """Death records behind one month, by residence; no names, documents or exact dates."""
+    names=_pqavs_unit_names([item.get("unit") for item in items],year,month)
+    try: municipalities=_sinan_ibge_municipalities()
+    except Exception: municipalities={}
+    try: cid_names=_sim_cid_names()
+    except Exception: cid_names={}
+    def place(code): return municipalities.get(code) or (f"Município {code}" if code else "Não informado")
+    rows=[]
+    for item in items:
+        unit=item.get("unit") or ""
+        cause=item.get("cause") or ""
+        maternal=item.get("type")=="M"
+        if maternal:
+            age=item.get("age")
+            profile=f"Mulher · {age} anos" if age is not None else "Mulher · idade não informada"
+            gestation="—"; moment=SIM_MATERNAL_MOMENT.get(item.get("moment") or "",f"Código {item.get('moment')}")
+            kind="Óbito materno"
+        else:
+            age=item.get("motherAge")
+            profile=f"Mãe · {age} anos" if age is not None else "Idade da mãe não informada"
+            weeks=item.get("weeks"); weight=item.get("weight")
+            gestation=(f"{weeks} semanas" if weeks is not None else SIM_GESTATION_BANDS.get(item.get("gestationBand") or "","Não informada"))+(f" · {weight} g" if weight is not None else "")
+            moment=SIM_FETAL_MOMENT.get(item.get("moment") or "",f"Código {item.get('moment')}")
+            kind="Óbito fetal" + (" · perinatal" if item.get("perinatal") else " · antes de 22 semanas")
+        rows.append({"code":str(month),"unitName":names.get(unit) or (f"CNES {unit}" if unit else "Estabelecimento não informado"),"unitCode":f"CNES {unit}" if unit else "","kind":kind,
+            "cause":f"{cause} · {cid_names.get(cause) or cid_names.get(cause[:3]) or 'descrição não disponível'}" if cause else "Não informada",
+            "profile":profile,"gestation":gestation,"moment":moment,"place":SIM_DEATH_PLACE.get(item.get("place") or "",f"Código {item.get('place')}"),
+            "occurrence":place(item.get("occurrence") or ""),"investigation":"Investigado" if item.get("investigated") else "Sem investigação registrada","order":0 if maternal else 1})
+    rows.sort(key=lambda row:(row.pop("order"),row["kind"],row["cause"]))
+    columns=[
+        {"id":"unit","label":"ESTABELECIMENTO DE OCORRÊNCIA","kind":"primary","primaryField":"unitName","secondaryField":"unitCode","filterFields":["unitName","unitCode"],"sortField":"unitName","type":"text","sticky":True},
+        {"id":"kind","label":"TIPO DE ÓBITO","field":"kind","type":"text"},
+        {"id":"cause","label":"CAUSA BÁSICA · CID-10","field":"cause","type":"text"},
+        {"id":"profile","label":"IDADE","field":"profile","type":"text"},
+        {"id":"gestation","label":"GESTAÇÃO · PESO","field":"gestation","type":"text"},
+        {"id":"moment","label":"MOMENTO DO ÓBITO","field":"moment","type":"text"},
+        {"id":"place","label":"LOCAL DO ÓBITO","field":"place","type":"text"},
+        {"id":"occurrence","label":"MUNICÍPIO DE OCORRÊNCIA","field":"occurrence","type":"text"},
+        {"id":"investigation","label":"INVESTIGAÇÃO","field":"investigation","type":"text"},
+    ]
+    note="Cada linha é uma declaração de óbito materno ou fetal de residente no município, no mês. Óbitos maternos aparecem primeiro. As bases públicas não trazem nome, documento nem data exata."
+    return {"rows":rows,"records":len(rows),"columns":columns,"metrics":[],"detailNote":note,"emptyStateMessage":"Não há óbitos maternos ou fetais de residentes neste mês."}
+
+def _predefined_maternal_impl(payload: dict[str,Any], progress=None):
+    year=payload.get("year"); month=payload.get("month"); municipality=str(payload.get("municipalityCode") or "")
+    uf=str(payload.get("uf") or "").upper()
+    if not isinstance(year,int) or not MATERNAL_FIRST_YEAR<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12:
+        raise ValueError(f"Selecione um mês de {MATERNAL_FIRST_YEAR} em diante.")
+    if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]:
+        raise ValueError("Selecione um município de residência válido.")
+    view=str(payload.get("view") or "summary")
+    if view not in {"summary","detail"}: raise ValueError("Visão inválida.")
+    municipality_name=_report_label(payload.get("municipalityName") or "")[:100] or f"Município {municipality}"
+    raw_filters=payload.get("reportFilters") if isinstance(payload.get("reportFilters"),dict) else {}
+    selected={}
+    for key,(allowed,_label) in MATERNAL_FILTERS.items():
+        values=raw_filters.get(key) or []
+        if not isinstance(values,list) or len(values)>20: raise ValueError("Os filtros selecionados são inválidos.")
+        clean={str(value).strip() for value in values if str(value).strip()}
+        if not clean.issubset(allowed): raise ValueError("Um dos filtros contém uma categoria inválida.")
+        if clean: selected[key]=clean
+    if progress: progress(5,"Preparando os óbitos maternos, fetais e infantis do SIM")
+    sources=[_pqavs_source(prefix,year,uf,progress) for prefix in ("DOMAT","DOFET","DOINF")]
+    if all(item.get("missing") or item.get("future") for item in sources):
+        raise ValueError("O DATASUS ainda não publicou os arquivos do SIM para este período. Isso não significa que houve zero óbitos.")
+    row={"code":str(month),"monthName":PQAVS_MONTHS[month-1],"period":f"{month:02d}/{year}"}
+    keys=("maternal","maternalInvestigated","fetal","fetalPerinatal","fetalAntepartum","fetalInvestigated","earlyNeonatal")
+    row.update({key:0 for key in keys})
+    items=[]
+    for source in sources:
+        bucket=_pqavs_bucket(source,municipality,f"r|{month}")
+        for key in keys: row[key]+=int(bucket.get(key) or 0)
+        items.extend(bucket.get("items") or [])
+    if selected:
+        def item_values(item):
+            maternal=item.get("type")=="M"
+            age=item.get("age") if maternal else item.get("motherAge")
+            place=item.get("place") or ""
+            return {"deathType":"maternal" if maternal else "fetalPerinatal" if item.get("perinatal") else "fetalEarly",
+                "ageGroup":"unknown" if age is None else "under20" if age<20 else "20-34" if age<35 else "35+",
+                "deathPlace":place if place in {"1","2","3","4","5","6"} else "unknown","investigation":"yes" if item.get("investigated") else "no"}
+        items=[item for item in items if all(item_values(item)[key] in allowed for key,allowed in selected.items())]
+        maternal_items=[item for item in items if item.get("type")=="M"]; fetal_items=[item for item in items if item.get("type")=="F"]
+        row.update({"maternal":len(maternal_items),"maternalInvestigated":sum(1 for item in maternal_items if item.get("investigated")),"fetal":len(fetal_items),
+            "fetalPerinatal":sum(1 for item in fetal_items if item.get("perinatal")),"fetalAntepartum":sum(1 for item in fetal_items if item.get("moment")=="1"),"fetalInvestigated":sum(1 for item in fetal_items if item.get("investigated"))})
+    births=None; births_note=""; sinasc_updated=""
+    try:
+        if progress: progress(90,"Somando os nascidos vivos do SINASC por residência da mãe")
+        sinasc=_sinasc_resident_births(year,progress)
+        births=sum(int(item["births"]) for item in sinasc["groups"] if item["municipalityCode"]==municipality and item["month"]==month)
+        sinasc_updated=sinasc.get("updatedAt") or ""
+    except Exception as exc:
+        births_note=f"Os nascidos vivos do SINASC de {year} não puderam ser lidos ({exc}); a razão de mortalidade materna e a taxa perinatal ficam sem cálculo."
+    row["perinatal"]=row["fetalPerinatal"]+row["earlyNeonatal"]
+    row["births"]=births if births is not None else 0
+    perinatal_base=(births or 0)+row["fetalPerinatal"]
+    # Births and early neonatal deaths cannot be filtered by these death attributes, so rates are only shown unfiltered.
+    rates_allowed=births is not None and not selected
+    row["maternalRatio"]=_maternal_rate(row["maternal"],births,100000) if rates_allowed else None
+    row["perinatalRate"]=_maternal_rate(row["perinatal"],perinatal_base,1000) if rates_allowed else None
+    metric_items=[("births","NASCIDOS VIVOS · RESIDÊNCIA DA MÃE"),("maternal","ÓBITOS MATERNOS"),("maternalInvestigated","MATERNOS INVESTIGADOS"),("fetal","ÓBITOS FETAIS"),("fetalPerinatal","FETAIS ≥ 22 SEMANAS"),("fetalAntepartum","FETAIS ANTES DO PARTO"),("fetalInvestigated","FETAIS INVESTIGADOS"),("earlyNeonatal","ÓBITOS NEONATAIS PRECOCES · 0 A 6 DIAS"),("perinatal","ÓBITOS PERINATAIS")]
+    def metric(key,label): return {"id":key,"label":label,"metricId":key,"type":"number","decimals":0}
+    primary={"id":"month","label":"MÊS DO ÓBITO","kind":"primary","primaryField":"monthName","secondaryField":"period","filterFields":["monthName","period"],"sortField":"code","type":"text","sticky":True}
+    columns=[primary,*(metric(key,label) for key,label in metric_items),
+        {"id":"maternalRatio","label":"RMM DO MÊS · POR 100 MIL NV","field":"maternalRatio","type":"number","decimals":1},
+        {"id":"perinatalRate","label":"TAXA PERINATAL DO MÊS · POR MIL","field":"perinatalRate","type":"number","decimals":1},
+        {"id":"detail","label":"DETALHAR","kind":"action","actionLabel":"Óbitos →"}]
+    def rate_value(value,suffix): return {"value":value,"decimals":1,"suffix":suffix} if value is not None else {"text":"—"}
+    kpis=[
+        {"label":"ÓBITOS MATERNOS","value":{"value":row["maternal"]},"kind":"sum"},
+        {"label":"RAZÃO DE MORTALIDADE MATERNA · POR 100 MIL NASCIDOS VIVOS","value":rate_value(row["maternalRatio"],""),"kind":"rate","numeratorField":"maternal","denominatorField":"births","scale":100000,"suffix":""},
+        {"label":"ÓBITOS FETAIS","value":{"value":row["fetal"]},"kind":"sum"},
+        {"label":"TAXA DE MORTALIDADE PERINATAL · POR MIL","value":rate_value(row["perinatalRate"],""),"kind":"rate","numeratorField":"perinatal","denominatorField":"perinatalBase","scale":1000,"suffix":""},
+    ]
+    names={source.get("prefix"):source for source in sources}
+    notes=[
+        "Todos os óbitos e nascimentos são contados pelo município de residência (da falecida, da mãe do natimorto e da mãe do nascido vivo), no mês da data do óbito ou do nascimento.",
+        "Óbito materno: declarações do arquivo DOMAT do SIM, com causa básica no capítulo O da CID-10, sem os óbitos maternos tardios (O96) e por sequelas (O97). Razão de mortalidade materna (RMM) = óbitos maternos ÷ nascidos vivos × 100 mil.",
+        "Óbito fetal: arquivo DOFET. Período perinatal = 22 semanas completas ou mais; sem semanas informadas, peso de 500 g ou mais; sem os dois, a faixa de gestação. Taxa de mortalidade perinatal = (fetais ≥ 22 semanas + óbitos de 0 a 6 dias, do arquivo DOINF) ÷ (nascidos vivos + fetais ≥ 22 semanas) × mil.",
+        "Investigado: no óbito materno, a declaração tem data de investigação ou de conclusão da investigação no SIM; no óbito fetal, também conta a data de conclusão do caso no módulo de investigação de óbito fetal e infantil.",
+        "Com poucos nascimentos, a RMM e a taxa perinatal de um mês variam muito. Para avaliar, selecione os 12 meses: os indicadores do topo são calculados sobre o período inteiro.",
+        f"Fonte: SIM, arquivos nacionais do DATASUS — {_pqavs_source_label(sources)}; SINASC, CSV anual"+(f" atualizado em {sinasc_updated}" if sinasc_updated else "")+". Bases preliminares mudam a cada atualização.",
+    ]
+    applied=[{"label":MATERNAL_FILTERS[key][1],"value":", ".join(MATERNAL_FILTERS[key][0][value] for value in sorted(values))} for key,values in selected.items()]
+    if selected: notes.append("Filtros aplicados aos óbitos maternos e fetais: "+"; ".join(f"{item['label']}: {item['value']}" for item in applied)+". Nascidos vivos e óbitos de 0 a 6 dias não têm esses atributos; por isso a razão de mortalidade materna e a taxa perinatal não são calculadas com filtros.")
+    if births_note: notes.append(births_note)
+    for prefix,label in (("DOMAT","óbitos maternos"),("DOFET","óbitos fetais"),("DOINF","óbitos infantis")):
+        if (names.get(prefix) or {}).get("missing"): notes.append(f"O arquivo de {label} de {year} ainda não foi publicado pelo DATASUS; essas colunas não representam zero óbitos.")
+    if any(item.get("stale") for item in sources): notes.append("Não foi possível atualizar alguma base agora; o resultado usa a última leitura salva neste computador.")
+    result={"ok":True,"report":MATERNAL_REPORT_ID,"view":"summary","flatTable":True,"file":"SIM · SINASC","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality,"filters":applied,"numerator":row["maternal"],"denominator":row["births"] if rates_allowed else 0,"births":row["births"] if rates_allowed else 0,"maternal":row["maternal"],"perinatal":row["perinatal"],"perinatalBase":perinatal_base if rates_allowed else 0,"rows":[row],"records":row["maternal"]+row["fetal"],"columns":columns,"metrics":[{"id":key,"label":label.capitalize(),"decimals":0} for key,label in metric_items],"kpis":kpis,"notes":notes,"emptyStateMessage":"","cachedAt":time.time()}
+    if view=="detail":
+        detail=_maternal_detail(items,year,month)
+        result.update({key:value for key,value in detail.items() if key!="detailNote"})
+        result["notes"]=[detail["detailNote"],*result["notes"]]
+        result.update({"view":"detail","establishmentCode":str(month),"establishmentName":f"{month:02d}/{year}"})
+    return result
+
 def predefined_pqavs(payload: dict[str,Any], progress=None):
     if progress is None: return _predefined_pqavs_impl(payload,None)
     stop=threading.Event(); progress_lock=threading.Lock()
@@ -3483,6 +3703,7 @@ def _pqavs_percent(numerator: int, denominator: int):
 def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
     report_id=str(payload.get("predefinedReport") or "")
     if report_id==CHAGAS_REPORT_ID: return _predefined_chagas_impl(payload,progress)
+    if report_id==MATERNAL_REPORT_ID: return _predefined_maternal_impl(payload,progress)
     spec=PQAVS_REPORTS.get(report_id)
     if spec is None: raise ValueError("Indicador PQA-VS não reconhecido.")
     year=payload.get("year"); month=payload.get("month"); municipality=str(payload.get("municipalityCode") or "")
@@ -3873,6 +4094,218 @@ def _predefined_sinan_dengue_impl(payload: dict[str,Any], progress=None):
         ],"cachedAt":time.time(),"filters":[{"label":"Município notificante","value":place}]+([{"label":"Gestão CNES","value":", ".join(management_labels[value] for value in sorted(selected_management))}] if selected_management else [])+([{"label":"Natureza jurídica CNES","value":", ".join(nature_labels[value] for value in sorted(selected_nature))}] if selected_nature else []),
     }
     if progress: progress(98,"Preparando a tabela e os indicadores do mês")
+    return result
+
+# ---------------------------------------------------------------------------
+# APAC e RAAS do SIA: oncologia (AQ quimioterapia + AR radioterapia), terapia
+# renal substitutiva (ATD) e atenção psicossocial/CAPS (PS). Arquivos mensais
+# por UF, baixados pelo mesmo caminho do SIA/PA. O CNS do paciente vem
+# cifrado pelo DATASUS; serve apenas para contar pacientes distintos.
+# ---------------------------------------------------------------------------
+SIA_APAC_REPORTS={
+    "sia-apac-oncologia":{"kinds":("AQ","AR"),"title":"Oncologia"},
+    "sia-apac-dialise":{"kinds":("ATD",),"title":"Terapia renal substitutiva"},
+    "sia-raas-caps":{"kinds":("PS",),"title":"Atenção psicossocial · CAPS"},
+}
+SIA_APAC_KIND_LABELS={"AQ":"Quimioterapia","AR":"Radioterapia","ATD":"Terapia renal substitutiva","PS":"RAAS psicossocial"}
+
+def _sia_reference_labels(uf: str):
+    """CNES (state CADGER) and SIGTAP procedure names from the official SIA definition."""
+    try:
+        _,definition=archive_def("SIA","PA")
+        if definition is None: return {},{}
+        definition_rows,definition_columns,definition_selections,_,_=parse_def(definition,[{"name":"PA_CODUNI"},{"name":"PA_PROC_ID"}])
+    except Exception:
+        return {},{}
+    options=definition_rows+definition_columns+definition_selections
+    relation=f"cadger{uf.lower()}.dbf"
+    establishment_option=next((item for item in options if item.get("field")=="PA_CODUNI" and PurePosixPath(str(item.get("relation") or "").replace("\\","/")).name.lower()==relation),None)
+    procedure_option=next((item for item in options if item.get("field")=="PA_PROC_ID" and item.get("relation")),None)
+    establishments={}
+    if establishment_option:
+        establishments=_report_relation_index(relation_mapping("SIA",{**establishment_option,"descField":"RAZ_SOCI"}),7)
+        establishments.update(_report_relation_index(relation_mapping("SIA",establishment_option),7))
+    procedures=_report_relation_index(relation_mapping("SIA",procedure_option),10) if procedure_option else {}
+    return establishments,procedures
+
+SIA_APAC_FILTERS={
+    "apacManagement":({"state":"Gestão estadual","municipal":"Gestão municipal"},"Tipo de gestão"),
+    "apacLegalNature":({"1":"Administração pública","2":"Entidade empresarial","3":"Entidade sem fins lucrativos","4":"Pessoa física"},"Natureza jurídica"),
+    "apacSex":({"M":"Masculino","F":"Feminino"},"Sexo do paciente"),
+    "apacAgeGroup":({"0-17":"0 a 17 anos","18-39":"18 a 39 anos","40-59":"40 a 59 anos","60+":"60 anos ou mais"},"Faixa etária do paciente"),
+    "apacResidence":(None,"Município de residência do paciente"),
+}
+
+def _sia_apac_selected_filters(payload: dict[str,Any]) -> dict[str,set[str]]:
+    selected={}
+    for key,(allowed,label) in SIA_APAC_FILTERS.items():
+        raw=payload.get(key) or []
+        if isinstance(raw,(str,int)): raw=[raw]
+        if not isinstance(raw,(list,tuple)) or len(raw)>6000: raise ValueError(f"O filtro {label.lower()} é inválido.")
+        values={str(item).strip().upper() if key=="apacSex" else str(item).strip() for item in raw if str(item).strip()}
+        if allowed is None:
+            if any(not re.fullmatch(r"\d{6}",value) for value in values): raise ValueError("Selecione municípios de residência válidos.")
+        elif not values.issubset(allowed): raise ValueError(f"O filtro {label.lower()} contém uma categoria inválida.")
+        if values: selected[key]=values
+    return selected
+
+def _sia_age_group(unit: str, number: str) -> str:
+    unit=str(unit or "").strip(); digits=re.sub(r"\D","",str(number or ""))
+    years=(int(digits) if digits else None) if unit=="4" else (100+int(digits or 0)) if unit=="5" else 0 if unit in {"0","1","2","3"} else None
+    if years is None: return ""
+    return "0-17" if years<18 else "18-39" if years<40 else "40-59" if years<60 else "60+"
+
+def _sia_patient_key(value: str) -> str:
+    raw=str(value or "").strip()
+    # Blank or placeholder CNS (all the same character once ciphered) does not identify a person.
+    return raw if len(raw)>=11 and len(set(raw))>1 else ""
+
+def predefined_sia_apac(payload: dict[str,Any], progress=None):
+    report_id=str(payload.get("predefinedReport") or "")
+    spec=SIA_APAC_REPORTS[report_id]
+    uf=str(payload.get("uf") or "").strip().upper()
+    if uf not in PREDEFINED_UF_CODES: raise ValueError("Selecione uma unidade da Federação válida.")
+    view=str(payload.get("predefinedView") or "summary")
+    if view not in {"summary","detail"}: raise ValueError("A visualização solicitada não existe.")
+    establishment=_report_code(str(payload.get("establishmentCode") or ""),7) if view=="detail" else ""
+    if view=="detail" and not establishment: raise ValueError("Selecione um estabelecimento válido para detalhar.")
+    municipality=str(payload.get("municipalityCode") or "").strip()
+    if municipality and (not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]):
+        raise ValueError("O município selecionado não pertence à unidade da Federação escolhida.")
+    def component(raw_path,raw_dbf,expected_kind):
+        source=safe_file(raw_path)
+        relative=source.relative_to(UPLOADS).as_posix()
+        system,kind,match=meta(source)
+        if system!="SIA" or kind!=expected_kind or match.group("uf").upper()!=uf:
+            raise ValueError(f"Selecione um arquivo SIA/{expected_kind} de {uf}.")
+        dbf=safe_dbf(str(raw_dbf or converted_relative(relative)),relative)
+        return {"kind":kind,"source":source,"relative":relative,"dbf":dbf,"year":2000+int(match.group("yy")),"month":int(match.group("mm"))}
+    components=[component(payload.get("path",""),payload.get("dbfPath"),spec["kinds"][0])]
+    extras=payload.get("extraSources") or []
+    if not isinstance(extras,list) or len(extras)>len(spec["kinds"]): raise ValueError("Os arquivos adicionais informados são inválidos.")
+    for extra in extras:
+        if not isinstance(extra,dict) or extra.get("kind") not in spec["kinds"][1:]: raise ValueError("Os arquivos adicionais informados são inválidos.")
+        item=component(extra.get("path",""),extra.get("dbfPath"),extra["kind"])
+        if (item["year"],item["month"])!=(components[0]["year"],components[0]["month"]): raise ValueError("Os arquivos precisam ser da mesma competência.")
+        components.append(item)
+    year,month=components[0]["year"],components[0]["month"]
+    present={item["kind"] for item in components}
+    municipality_name=_report_label(payload.get("municipalityName") or "")[:80] if municipality else "Todos os municípios"
+    selected_filters=_sia_apac_selected_filters(payload)
+    identity={"filters":{key:sorted(values) for key,values in selected_filters.items()},"report":report_id+"-v2","sources":[cache_file_identity(item["source"])|{"dbf":cache_file_identity(item["dbf"])} for item in components],"view":view,"establishment":establishment,"uf":uf,"municipality":municipality}
+    target=cache_target("predefined-reports",identity)
+    cached=cache_read(target)
+    if isinstance(cached,dict) and cached.get("ok") is True:
+        if progress: progress(98,"Abrindo o relatório salvo neste computador")
+        return cached
+    if progress: progress(4,"Carregando nomes de estabelecimentos e procedimentos")
+    establishment_names,procedure_names=_sia_reference_labels(uf)
+    groups=defaultdict(lambda:{"patients":set(),"street":set(),"substance":set(),"apacs":defaultdict(int),"values":defaultdict(int),"initial":0,"deaths":0,"transfers":0,"actions":0,"records":0})
+    value_decimals=2
+    total_records=sum(dbf_layout(item["dbf"])[0] for item in components); done_before=0
+    for item in components:
+        count,_,_,fieldinfo=dbf_layout(item["dbf"])
+        is_raas=item["kind"]=="PS"
+        if is_raas: names=["CNES_EXEC","UFMUN","PA_PROC_ID","PA_QTDAPR","CNS_PAC","SIT_RUA","CIDPRI","SEXOPAC","TPIDADEPAC","IDADEPAC","NAT_JUR","GESTAO","MUNPAC"]
+        else: names=["AP_CODUNI","AP_UFMUN","AP_PRIPAL","AP_VL_AP","AP_CNSPCN","AP_TPAPAC","AP_OBITO","AP_TRANSF","AP_SEXO","AP_COIDADE","AP_NUIDADE","AP_NATJUR","AP_GESTAO","AP_MUNPCN"]
+        filter_fields={"sex":"SEXOPAC","ageUnit":"TPIDADEPAC","age":"IDADEPAC","nature":"NAT_JUR","management":"GESTAO","residence":"MUNPAC"} if is_raas else {"sex":"AP_SEXO","ageUnit":"AP_COIDADE","age":"AP_NUIDADE","nature":"AP_NATJUR","management":"AP_GESTAO","residence":"AP_MUNPCN"}
+        missing=[name for name in names if name not in fieldinfo]
+        if missing: raise ValueError(f"O arquivo {item['kind']} desta competência não contém os campos: "+", ".join(missing))
+        if not is_raas: value_decimals=int(fieldinfo["AP_VL_AP"]["decimals"]) or 2
+        quantity_decimals=int(fieldinfo["PA_QTDAPR"]["decimals"]) if is_raas else 0
+        municipality_field="UFMUN" if is_raas else "AP_UFMUN"
+        processed=[0]
+        def scan(done,_total,offset=done_before,kind=item["kind"]):
+            if progress: progress(min(94,6+int(88*(offset+done)/max(1,total_records))),f"Lendo {SIA_APAC_KIND_LABELS[kind].lower()} · {offset+done:,} de {total_records:,} registros".replace(",","."))
+        for record in iter_dbf_fields(item["dbf"],names,pre_filter=(municipality_field,municipality) if municipality else None,processed_counter=processed,scan_callback=scan if progress else None):
+            values=dict(zip(names,record))
+            if selected_filters:
+                checks={"apacSex":values[filter_fields["sex"]].strip().upper(),"apacAgeGroup":_sia_age_group(values[filter_fields["ageUnit"]],values[filter_fields["age"]]),
+                    "apacLegalNature":values[filter_fields["nature"]].strip()[:1],"apacManagement":"state" if values[filter_fields["management"]].strip().endswith("0000") else "municipal",
+                    "apacResidence":re.sub(r"\D","",values[filter_fields["residence"]])[:6]}
+                if any(checks[key] not in allowed for key,allowed in selected_filters.items()): continue
+            cnes=_report_code(values["CNES_EXEC" if is_raas else "AP_CODUNI"],7)
+            if not cnes or (view=="detail" and cnes!=establishment): continue
+            procedure=_report_code(values["PA_PROC_ID" if is_raas else "AP_PRIPAL"],10)
+            key=cnes if view=="summary" else (item["kind"],procedure)
+            group=groups[key]; group["records"]+=1
+            patient=_sia_patient_key(values["CNS_PAC" if is_raas else "AP_CNSPCN"])
+            if patient: group["patients"].add(patient)
+            if is_raas:
+                group["actions"]+=scaled_integer(values["PA_QTDAPR"],quantity_decimals)//(10**quantity_decimals or 1)
+                if patient and values["SIT_RUA"].strip().upper()=="S": group["street"].add(patient)
+                cid=values["CIDPRI"].strip().upper()
+                if patient and re.match(r"F1\d",cid): group["substance"].add(patient)
+            else:
+                group["apacs"][item["kind"]]+=1
+                group["values"][item["kind"]]+=scaled_integer(values["AP_VL_AP"],value_decimals)
+                group["initial"]+=int(values["AP_TPAPAC"].strip()=="1")
+                group["deaths"]+=int(values["AP_OBITO"].strip()=="1")
+                group["transfers"]+=int(values["AP_TRANSF"].strip()=="1")
+        done_before+=count
+    money=lambda cents: round(cents/(10**value_decimals),2)
+    rows=[]
+    for key,group in groups.items():
+        if view=="summary":
+            code=key; label=_report_label(establishment_names.get(code) or f"CNES {code}")
+            row={"code":code,"cnes":code,"label":label,"cnesLabel":f"CNES {code}"}
+        else:
+            kind,code=key; label=_report_label(procedure_names.get(code) or "Descrição indisponível na referência oficial")
+            row={"code":code,"label":label,"procedureCode":code,"kindName":SIA_APAC_KIND_LABELS[kind]}
+        row["patients"]=len(group["patients"]); row["records"]=group["records"]
+        if report_id=="sia-raas-caps":
+            row.update({"actions":group["actions"],"streetPatients":len(group["street"]),"substancePatients":len(group["substance"])})
+        else:
+            row.update({"apacs":sum(group["apacs"].values()),"initial":group["initial"],"deaths":group["deaths"],"value":money(sum(group["values"].values()))})
+            if report_id=="sia-apac-oncologia": row.update({"chemoApacs":group["apacs"].get("AQ",0),"radioApacs":group["apacs"].get("AR",0),"chemoValue":money(group["values"].get("AQ",0)),"radioValue":money(group["values"].get("AR",0))})
+            else: row["transfers"]=group["transfers"]
+        rows.append(row)
+    sort_key="actions" if report_id=="sia-raas-caps" else "value"
+    rows.sort(key=lambda row:(-row.get(sort_key,0),-row["patients"],row["label"].casefold()))
+    def metric(key,label,kind="number",decimals=0): return {"id":key,"label":label,"metricId":key,"type":kind,"decimals":decimals}
+    if view=="summary": primary={"id":"establishment","label":"ESTABELECIMENTO","kind":"primary","primaryField":"label","secondaryField":"cnesLabel","filterFields":["label","code"],"sortField":"label","type":"text","sticky":True}
+    else: primary={"id":"procedure","label":"PROCEDIMENTO PRINCIPAL · SIGTAP","kind":"primary","primaryField":"label","secondaryField":"procedureCode","filterFields":["label","procedureCode"],"sortField":"label","type":"text","sticky":True}
+    if report_id=="sia-raas-caps":
+        metric_items=[metric("patients","PACIENTES DISTINTOS"),metric("actions","AÇÕES APROVADAS"),metric("records","REGISTROS RAAS"),metric("streetPatients","PACIENTES EM SITUAÇÃO DE RUA"),metric("substancePatients","PACIENTES COM CID F10–F19 · ÁLCOOL E DROGAS")]
+    elif report_id=="sia-apac-oncologia":
+        metric_items=[metric("patients","PACIENTES DISTINTOS"),metric("chemoApacs","APACs DE QUIMIOTERAPIA"),metric("radioApacs","APACs DE RADIOTERAPIA"),metric("initial","APACs INICIAIS"),metric("deaths","APACs COM ÓBITO"),metric("chemoValue","VALOR · QUIMIOTERAPIA","currency",2),metric("radioValue","VALOR · RADIOTERAPIA","currency",2),metric("value","VALOR APROVADO TOTAL","currency",2)]
+    else:
+        metric_items=[metric("patients","PACIENTES DISTINTOS"),metric("apacs","APACs"),metric("initial","APACs INICIAIS"),metric("deaths","APACs COM ÓBITO"),metric("transfers","APACs COM TRANSFERÊNCIA"),metric("value","VALOR APROVADO","currency",2)]
+    columns=[primary]
+    if view=="detail" and report_id=="sia-apac-oncologia": columns.append({"id":"kind","label":"TIPO DE APAC","field":"kindName","type":"text"})
+    columns+=metric_items
+    if view=="summary": columns.append({"id":"detail","label":"DETALHAR","kind":"action","actionLabel":"Procedimentos →"})
+    patients_total=len(set().union(*(group["patients"] for group in groups.values()))) if groups else 0
+    if report_id=="sia-raas-caps":
+        kpis=[{"label":"PACIENTES DISTINTOS","value":{"value":patients_total}},{"label":"AÇÕES APROVADAS","value":{"value":sum(row["actions"] for row in rows)}},{"label":"ESTABELECIMENTOS" if view=="summary" else "PROCEDIMENTOS","value":{"value":len(rows)}},{"label":"PACIENTES EM SITUAÇÃO DE RUA","value":{"value":len(set().union(*(group["street"] for group in groups.values()))) if groups else 0}}]
+    else:
+        kpis=[{"label":"PACIENTES DISTINTOS","value":{"value":patients_total}},{"label":"APACs","value":{"value":sum(row["apacs"] for row in rows)}},{"label":"ESTABELECIMENTOS" if view=="summary" else "PROCEDIMENTOS","value":{"value":len(rows)}},{"label":"VALOR APROVADO","value":{"value":round(sum(row["value"] for row in rows),2),"decimals":2,"prefix":"R$ "}}]
+    notes=[f"Fonte: SIA/SUS, arquivos {', '.join(item['source'].name for item in components)} de {month:02d}/{year}, {PREDEFINED_UF_NAMES[uf]}. O município filtra o local do estabelecimento (AP_UFMUN / UFMUN)."]
+    if report_id=="sia-raas-caps":
+        notes+=["Cada registro RAAS é um procedimento informado pelo CAPS no mês. Ações aprovadas somam a quantidade aprovada (PA_QTDAPR). A RAAS não traz valor: os CAPS são custeados por incentivo, e não por procedimento.",
+            "Pacientes distintos usam o CNS cifrado pelo DATASUS, sem identificar a pessoa; registros sem CNS válido entram nas ações, mas não na contagem de pacientes. Somar meses conta a mesma pessoa mais de uma vez."]
+    else:
+        notes+=["Cada APAC é uma autorização de procedimento de alta complexidade apresentada no mês (inicial, continuidade ou única). APACs iniciais marcam o começo de um tratamento; óbito e transferência vêm do motivo de saída da APAC.",
+            "Pacientes distintos usam o CNS cifrado pelo DATASUS, sem identificar a pessoa. Somar meses conta a mesma pessoa mais de uma vez. O valor é o aprovado na APAC (AP_VL_AP)."]
+        if report_id=="sia-apac-oncologia" and "AR" not in present:
+            notes.append("Não há arquivo de radioterapia (AR) desta competência para a UF; as colunas de radioterapia ficam zeradas.")
+    applied=[]
+    if selected_filters:
+        try: municipality_labels=_sinan_ibge_municipalities()
+        except Exception: municipality_labels={}
+        for key,values in selected_filters.items():
+            labels_map,label=SIA_APAC_FILTERS[key]
+            names_list=[(municipality_labels.get(value) or f"Município {value}") if labels_map is None else labels_map[value] for value in sorted(values)]
+            applied.append({"label":label,"value":", ".join(names_list[:3])+(f" e mais {len(names_list)-3}" if len(names_list)>3 else "")})
+        notes.append("Filtros adicionais aplicados a cada registro: "+"; ".join(f"{item['label']}: {item['value']}" for item in applied)+". Gestão estadual = código do gestor terminado em 0000; natureza jurídica pelo primeiro dígito do código do CNES.")
+    if not rows: notes.append("Nenhum registro atende ao recorte desta competência.")
+    title=spec["title"]
+    result={"ok":True,"report":report_id,"view":view,"flatTable":True,"file":" · ".join(item["source"].name for item in components),"path":components[0]["relative"],"year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality or None,
+        "establishmentCode":establishment or None,"establishmentName":_report_label(establishment_names.get(establishment) or f"CNES {establishment}") if establishment else None,
+        "rows":rows,"records":sum(row["records"] for row in rows),"columns":columns,"metrics":[{"id":item["id"],"label":item["label"].capitalize(),"decimals":item["decimals"]} for item in metric_items],"kpis":kpis,"notes":notes,"filters":applied,
+        "emptyStateMessage":f"Não há registros de {title.lower()} nesta competência para o recorte escolhido.","cachedAt":time.time()}
+    if progress: progress(97,"Preparando a tabela")
+    cache_write(target,result,max_bytes=20_000_000,keep=100)
     return result
 
 def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
@@ -5988,7 +6421,7 @@ def tabulate(payload, progress=None):
         return predefined_srag_weekly(payload,progress)
     if payload.get("predefinedReport")=="sisagua-residual-desinfetante":
         return predefined_sisagua_rad(payload,progress)
-    if payload.get("predefinedReport") in PQAVS_REPORTS or payload.get("predefinedReport")==CHAGAS_REPORT_ID:
+    if payload.get("predefinedReport") in PQAVS_REPORTS or payload.get("predefinedReport") in {CHAGAS_REPORT_ID,MATERNAL_REPORT_ID}:
         return predefined_pqavs(payload,progress)
     if payload.get("predefinedReport")=="sim-mortalidade":
         return predefined_sim_mortality(payload,progress)
@@ -5998,6 +6431,8 @@ def tabulate(payload, progress=None):
         return predefined_sinan_dengue(payload,progress)
     if payload.get("predefinedReport") in {"sia-pa-producao","sia-pa-belem"}:
         return predefined_sia_pa_production(payload,progress)
+    if payload.get("predefinedReport") in SIA_APAC_REPORTS:
+        return predefined_sia_apac(payload,progress)
     if payload.get("predefinedReport")=="sih-rd-producao":
         return predefined_sih_rd_production(payload,progress)
     if payload.get("predefinedReport")=="sih-rd-rejeicoes":

@@ -393,6 +393,69 @@
     summaryTitle:'Doença de Chagas por mês de notificação', countMetric:'acuteConfirmed', countLabel:'CONFIRMADOS AGUDA',
     monthlyDetail:true, backLabel:'← Meses', detailTitlePrefix:'Notificações de doença de Chagas', detailItemLabel:'notificações', tableSearchDetail:'Buscar unidade, CNES, residência, forma ou classificação'
   };
+  const siaApacFilterDefinitions = {
+    management:{ label:'Tipo de gestão', field:'apacManagement', nameField:'apacManagementName', queryKey:'gestao', sourceLabel:'SIA · AP_GESTAO / GESTAO', options:[['state','Gestão estadual'],['municipal','Gestão municipal']] },
+    legalNature:{ label:'Natureza jurídica', field:'apacLegalNature', nameField:'apacLegalNatureName', queryKey:'natureza_juridica', sourceLabel:'SIA · AP_NATJUR / NAT_JUR', options:[['1','Administração pública'],['2','Entidade empresarial'],['3','Entidade sem fins lucrativos'],['4','Pessoa física']] },
+    patientResidence:{ label:'Município de residência do paciente', field:'apacResidence', nameField:'apacResidenceName', queryKey:'residencia_paciente', sourceLabel:'SIA · AP_MUNPCN / MUNPAC / IBGE', searchable:true, searchPlaceholder:'Buscar município de residência…' },
+    sex:{ label:'Sexo do paciente', field:'apacSex', nameField:'apacSexName', queryKey:'sexo', sourceLabel:'SIA · AP_SEXO / SEXOPAC', options:[['M','Masculino'],['F','Feminino']] },
+    ageGroup:{ label:'Faixa etária do paciente', field:'apacAgeGroup', nameField:'apacAgeGroupName', queryKey:'faixa_etaria', sourceLabel:'SIA · AP_NUIDADE / IDADEPAC', options:[['0-17','0 a 17 anos'],['18-39','18 a 39 anos'],['40-59','40 a 59 anos'],['60+','60 anos ou mais']] }
+  };
+  const siaApacBase = {
+    system:'sia', systemCode:'SIA', tableMode:'flat', filters:siaApacFilterDefinitions, staticFilterOptions:true, allMunicipalityFilters:['patientResidence'], municipalityLabel:'MUNICÍPIO DO ESTABELECIMENTO',
+    filterNote:'O município escolhido acima filtra o local do estabelecimento. Os filtros adicionais valem para cada registro: gestão estadual é o gestor com código terminado em 0000, e a natureza jurídica usa o primeiro dígito do código do CNES. Use Ctrl ou Command para marcar várias opções.',
+    detailPrefix:'Procedimentos SIGTAP', detailTitlePrefix:'Procedimentos', detailCountLabel:'PROCEDIMENTOS',
+    tableSearchSummary:'Buscar estabelecimento ou CNES', tableSearchDetail:'Buscar código SIGTAP ou procedimento'
+  };
+  reportConfigurations['sia-apac-oncologia'] = {
+    ...siaApacBase, id:'sia-apac-oncologia', kind:'AQ', alwaysOptionalKinds:['AR'], sourceLabel:'APAC de oncologia', systemLabel:'SIA/SUS · APAC',
+    workspaceTitle:'Oncologia · APAC · SIA/SUS', introLabel:'ALTA COMPLEXIDADE · SIA/SUS · APAC', introTitle:'Quimioterapia e radioterapia por estabelecimento.',
+    introDescription:'Pacientes, APACs e valores de quimioterapia (AQ) e radioterapia (AR) por estabelecimento, com detalhamento por procedimento SIGTAP.',
+    setupTitle:'Oncologia · quimioterapia e radioterapia', setupDescription:'Escolha a UF e a competência. Vários meses exigem bases já baixadas. O município é opcional.',
+    emptyMessage:'Escolha a UF e a competência para ver as APACs de quimioterapia e radioterapia.',
+    methodTitle:'Como ler o relatório:', methodText:' cada APAC é uma autorização de alta complexidade apresentada no mês. Pacientes distintos usam o CNS cifrado pelo DATASUS; somar meses conta a mesma pessoa mais de uma vez.',
+    summaryTitle:'Oncologia por estabelecimento', countMetric:'patients', countLabel:'PACIENTES DISTINTOS', valueMetric:'value', valueLabel:'VALOR APROVADO'
+  };
+  reportConfigurations['sia-apac-dialise'] = {
+    ...siaApacBase, id:'sia-apac-dialise', kind:'ATD', sourceLabel:'APAC de terapia renal substitutiva', systemLabel:'SIA/SUS · APAC',
+    workspaceTitle:'Diálise · APAC · SIA/SUS', introLabel:'ALTA COMPLEXIDADE · SIA/SUS · APAC', introTitle:'Terapia renal substitutiva por estabelecimento.',
+    introDescription:'Pacientes em diálise, APACs, novos tratamentos, óbitos e valores por estabelecimento, com detalhamento por procedimento SIGTAP.',
+    setupTitle:'Terapia renal substitutiva · diálise', setupDescription:'Escolha a UF e a competência. Vários meses exigem bases já baixadas. O município é opcional.',
+    emptyMessage:'Escolha a UF e a competência para ver as APACs de terapia renal substitutiva.',
+    methodTitle:'Como ler o relatório:', methodText:' cada APAC é uma autorização de tratamento dialítico apresentada no mês. APACs iniciais marcam novos pacientes; óbito e transferência vêm do motivo de saída da APAC.',
+    summaryTitle:'Diálise por estabelecimento', countMetric:'patients', countLabel:'PACIENTES DISTINTOS', valueMetric:'value', valueLabel:'VALOR APROVADO'
+  };
+  reportConfigurations['sia-raas-caps'] = {
+    ...siaApacBase, id:'sia-raas-caps', kind:'PS', sourceLabel:'RAAS psicossocial', systemLabel:'SIA/SUS · RAAS',
+    workspaceTitle:'CAPS · RAAS · SIA/SUS', introLabel:'SAÚDE MENTAL · SIA/SUS · RAAS', introTitle:'Atenção psicossocial nos CAPS.',
+    introDescription:'Pacientes acompanhados e ações registradas pelos CAPS na RAAS, por estabelecimento, com pacientes em situação de rua e com uso de álcool e drogas.',
+    setupTitle:'Atenção psicossocial · CAPS', setupDescription:'Escolha a UF e a competência. Vários meses exigem bases já baixadas. O município é opcional.',
+    emptyMessage:'Escolha a UF e a competência para ver a produção dos CAPS.',
+    methodTitle:'Como ler o relatório:', methodText:' a RAAS registra as ações de cada paciente no mês; não traz valor, porque os CAPS são custeados por incentivo. Pacientes distintos usam o CNS cifrado pelo DATASUS.',
+    summaryTitle:'CAPS por estabelecimento', countMetric:'patients', countLabel:'PACIENTES DISTINTOS', valueMetric:'actions', valueLabel:'AÇÕES APROVADAS'
+  };
+  reportConfigurations['sim-mortalidade-materna-fetal'] = {
+    ...pqavsBase, id:'sim-mortalidade-materna-fetal', systemCode:'SIM', kind:'DOMAT', firstYear:2010, competenceLabel:'MÊS DO ÓBITO',
+    systemLabel:'SIM · SINASC', sourceLabel:'óbitos e nascidos vivos em bases públicas',
+    workspaceTitle:'Mortalidade materna e fetal', introLabel:'SAÚDE MATERNO-INFANTIL · SIM · SINASC', introTitle:'Mortalidade materna, fetal e perinatal.',
+    introDescription:'Óbitos maternos e fetais de residentes, com razão de mortalidade materna e taxa de mortalidade perinatal sobre os nascidos vivos do SINASC.',
+    setupTitle:'Mortalidade materna e fetal', setupDescription:'Escolha o município de residência e os meses do óbito. Selecione os 12 meses para os indicadores do ano.',
+    emptyMessage:'Escolha o município de residência e os meses para ver os óbitos maternos e fetais.',
+    municipalityLabel:'MUNICÍPIO DE RESIDÊNCIA', monthLabel:'MÊS DO ÓBITO', locationHelp:'Óbitos e nascimentos são contados pelo município de residência.', loaderDetail:'óbitos maternos, fetais e nascidos vivos por residência',
+    missingMunicipalityMessage:'Selecione o município de residência.',
+    monthHelp:'O mês usa a data do óbito e do nascimento. Selecione os 12 meses para a razão de mortalidade materna e a taxa perinatal do ano.',
+    availabilityText:'Escolha os meses · a primeira leitura dos arquivos do SIM e do SINASC pode levar alguns minutos.',
+    showOptionalFilters:true, staticFilterOptions:true,
+    filters:{
+      deathType:{ label:'Tipo de óbito', field:'deathType', nameField:'deathTypeName', queryKey:'tipo_obito', sourceLabel:'SIM · DOMAT / DOFET', options:[['maternal','Óbito materno'],['fetalPerinatal','Óbito fetal com 22 semanas ou mais'],['fetalEarly','Óbito fetal antes de 22 semanas']] },
+      ageGroup:{ label:'Idade da mulher ou da mãe', field:'ageGroup', nameField:'ageGroupName', queryKey:'faixa_etaria', sourceLabel:'SIM · IDADE / IDADEMAE', options:[['under20','Menos de 20 anos'],['20-34','20 a 34 anos'],['35+','35 anos ou mais'],['unknown','Não informada']] },
+      deathPlace:{ label:'Local do óbito', field:'deathPlace', nameField:'deathPlaceName', queryKey:'local_obito', sourceLabel:'SIM · LOCOCOR', options:[['1','Hospital'],['2','Outro estabelecimento de saúde'],['3','Domicílio'],['4','Via pública'],['5','Outro local'],['6','Aldeia indígena'],['unknown','Ignorado / não informado']] },
+      investigation:{ label:'Investigação', field:'investigation', nameField:'investigationName', queryKey:'investigacao', sourceLabel:'SIM · DTINVESTIG / DTCONINV / DTCONCASO', options:[['yes','Investigado'],['no','Sem investigação registrada']] }
+    },
+    filterNote:'Os filtros valem para os óbitos maternos e fetais. Nascidos vivos e óbitos de 0 a 6 dias não são filtrados; por isso, com filtros, a razão de mortalidade materna e a taxa perinatal não são calculadas.', methodTitle:'Como ler o relatório:',
+    methodText:' RMM = óbitos maternos ÷ nascidos vivos × 100 mil. Taxa perinatal = (fetais com 22 semanas ou mais + óbitos de 0 a 6 dias) ÷ (nascidos vivos + fetais com 22 semanas ou mais) × mil. Tudo por município de residência.',
+    summaryTitle:'Óbitos maternos e fetais por mês', countMetric:'maternal', countLabel:'ÓBITOS MATERNOS',
+    monthlyDetail:true, backLabel:'← Meses', detailTitlePrefix:'Óbitos maternos e fetais', detailItemLabel:'óbitos', tableSearchDetail:'Buscar estabelecimento, CNES, causa ou município'
+  };
   const params = new URLSearchParams(location.search);
   const linkedReportId = params.get('relatorio') === 'sia-pa-belem' ? 'sia-pa-producao' : params.get('relatorio');
   let activeReport = reportConfigurations[linkedReportId] || reportConfigurations['sia-pa-producao'];
@@ -1139,20 +1202,21 @@
     if (activeReport.system === 'sinasc' || activeReport.system === 'sim' || activeReport.staticFilterOptions) {
       for (const [type, definition] of Object.entries(filterDefinitions)) if (definition.options) filterCategories[type] = definition.options.map(([value,label]) => ({ value,label }));
     }
-    const simMunicipalityTask = ['sim-mortalidade','sim-mortalidade-infantil'].includes(activeReport.id)
+    const simMunicipalityTask = ['sim-mortalidade','sim-mortalidade-infantil'].includes(activeReport.id) || activeReport.allMunicipalityFilters
       ? api({ action:'municipalities_all' }).then((data) => {
           if (requestId !== filterRequest) return;
           const municipalities = (data.municipalities || []).map((item) => ({ value:String(item.code || ''), label:`${String(item.name || '')} · ${String(item.code || '')}` })).filter((item) => /^\d{6}$/.test(item.value) && item.label.trim());
-          if (activeReport.id === 'sim-mortalidade') {
+          if (activeReport.allMunicipalityFilters) for (const type of activeReport.allMunicipalityFilters) filterCategories[type] = municipalities;
+          else if (activeReport.id === 'sim-mortalidade') {
             filterCategories.residenceMunicipality = municipalities;
             filterCategories.naturalityMunicipality = municipalities;
           } else filterCategories.occurrenceMunicipality = municipalities;
         }).catch(() => {
           if (requestId !== filterRequest) return;
-          for (const type of ['residenceMunicipality','naturalityMunicipality','occurrenceMunicipality']) if (filterDefinitions[type]) filterCategories[type] = [];
+          for (const type of ['residenceMunicipality','naturalityMunicipality','occurrenceMunicipality',...(activeReport.allMunicipalityFilters || [])]) if (filterDefinitions[type]) filterCategories[type] = [];
         })
       : Promise.resolve();
-    const categoryTask = activeReport.remoteSource && activeReport.system !== 'sinan' && activeReport.id !== 'sim-mortalidade-infantil' ? Promise.resolve() : api({ action: 'predefined_filter_options', report:activeReport.id, uf }).then((data) => {
+    const categoryTask = (activeReport.remoteSource && activeReport.system !== 'sinan' && activeReport.id !== 'sim-mortalidade-infantil') || !Object.values(filterDefinitions).some((definition) => definition.responseKey) ? Promise.resolve() : api({ action: 'predefined_filter_options', report:activeReport.id, uf }).then((data) => {
       if (requestId !== filterRequest) return;
       for (const [type, definition] of Object.entries(filterDefinitions)) if (definition.responseKey) filterCategories[type] = data[definition.responseKey] || [];
     }).catch(() => {
@@ -1913,7 +1977,8 @@
 
   function reportKindsForView(view) {
     const requiredKinds = activeReport.kindsByView?.[view] || activeReport.requiredKinds || [activeReport.kind];
-    const optionalKinds = view === 'detail' ? (activeReport.optionalKinds || []) : [];
+    // alwaysOptionalKinds: extra files used in every view when the state publishes them (e.g. radiotherapy AR).
+    const optionalKinds = [...(view === 'detail' ? (activeReport.optionalKinds || []) : []), ...(activeReport.alwaysOptionalKinds || [])];
     return { requiredKinds, optionalKinds, kinds:[...new Set([...requiredKinds, ...optionalKinds])] };
   }
 
@@ -1955,7 +2020,7 @@
       return filesByKind;
     }
 
-    setLoader(true, 'Consultando os arquivos oficiais', `${stateNames[uf]} · ${monthNames[month - 1]} de ${year} · localizando ${kinds.map((kind) => `SIH/${kind}`).join(' e ')} no DATASUS.`, null, true);
+    setLoader(true, 'Consultando os arquivos oficiais', `${stateNames[uf]} · ${monthNames[month - 1]} de ${year} · localizando ${kinds.map((kind) => `${activeReport.systemCode}/${kind}`).join(' e ')} no DATASUS.`, null, true);
     let listing;
     try {
       listing = await api({ action:'files', system:activeReport.system, year:Number(year), month:Number(month), uf });
@@ -1975,7 +2040,7 @@
       if (!file) {
         if (requiredKinds.includes(kind)) {
           updateDownloadTask(year, month, kind, 'error');
-          throw new Error(`O DATASUS ainda não disponibilizou o arquivo SIH/${kind} desta competência para ${stateNames[uf]}.`);
+          throw new Error(`O DATASUS ainda não disponibilizou o arquivo ${activeReport.systemCode}/${kind} desta competência para ${stateNames[uf]}.`);
         }
         updateDownloadTask(year, month, kind, 'unavailable');
         continue;
@@ -2060,6 +2125,12 @@
       const denominator = monthlyResults.reduce((total, result) => total + (Number(result.denominator) || 0), 0);
       return first.map((item, index) => {
         if (item.kind === 'percent') return { ...item, value:denominator ? { value:Math.round(numerator * 1000 / denominator) / 10, decimals:1, suffix:'%' } : { text:'—' } };
+        if (item.kind === 'rate') {
+          // Rates such as deaths per 100 thousand births are recomputed over the whole period, never averaged.
+          const rateNumerator = monthlyResults.reduce((total, result) => total + (Number(result[item.numeratorField]) || 0), 0);
+          const rateDenominator = monthlyResults.reduce((total, result) => total + (Number(result[item.denominatorField]) || 0), 0);
+          return { ...item, value:rateDenominator ? { value:Math.round(rateNumerator * Number(item.scale || 1) * 10 / rateDenominator) / 10, decimals:1, suffix:item.suffix || '' } : { text:'—' } };
+        }
         if (item.kind !== 'sum') return item;
         return { ...item, value:{ ...(item.value || {}), value:monthlyResults.reduce((total, result) => total + (Number(result.kpis?.[index]?.value?.value) || 0), 0) } };
       });
@@ -2188,6 +2259,8 @@
         sourcePaths.errorPath = filesByKind.ER.path;
         sourcePaths.errorDbfPath = dbfPaths.ER;
       }
+    } else if (activeReport.alwaysOptionalKinds) {
+      sourcePaths.extraSources = activeReport.alwaysOptionalKinds.filter((kind) => filesByKind[kind] && dbfPaths[kind]).map((kind) => ({ kind, path:filesByKind[kind].path, dbfPath:dbfPaths[kind] }));
     } else if (activeReport.id === 'sih-rd-ocupacao' && view === 'services') {
       sourcePaths.professionalPath = filesByKind.SP.path;
       sourcePaths.professionalDbfPath = dbfPaths.SP;
