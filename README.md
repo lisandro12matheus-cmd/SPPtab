@@ -36,6 +36,12 @@ O FTP público distribui o ZIP sem transporte criptografado ou checksum autentic
 
 As consultas CNES existentes continuam sob demanda. Classificação de gestão e natureza jurídica usa o cadastro da competência do relatório; se faltar, aparece sem classificação. Atendimento hospitalar SUS, vínculos profissionais e leitos consultados nos serviços atuais do CNES são identificados como dados atuais e renovados em cache a cada sete dias de uso. Um relatório já calculado que contenha dados atuais também expira em até sete dias. Assim, consultar uma competência histórica não transforma o cadastro atual em informação histórica.
 
+### Vacinação (PNI) e release de dados
+
+O relatório **Cobertura vacinal infantil** (PQA-VS, indicador 4) usa as doses aplicadas do PNI publicadas pelo Ministério da Saúde. Cada mês é um arquivo nacional de 1,4 a 4,3 GB, com todos os municípios misturados; por isso o TabulaSUS não lê esses arquivos no computador do usuário. O workflow `.github/workflows/pni-dados.yml` roda toda segunda-feira no GitHub Actions: confere quais meses mudaram na fonte, lê cada um inteiro sem gravar o CSV (`tools/pni/pni_totais.py`) e publica na release `pni-dados-AAAA` um ZIP por UF e mês, com um arquivo de totais por município, mais o manifesto do ano com origem, data e SHA-256. Essa release é marcada como pré-lançamento e o atualizador do programa a ignora.
+
+No relatório, o TabulaSUS baixa o manifesto e, de cada ZIP, só o trecho do município escolhido, por pedidos HTTP de faixa de bytes, conferindo o CRC32 (`engine/pni_source.py`). Os nascidos vivos vêm do CSV anual do SINASC. Meses em que o SINASC preliminar ainda está incompleto mostram as doses, mas ficam sem cobertura. O workflow `pni-teste.yml` permite rodar um mês para um único município e baixar o resultado como SQLite.
+
 - Dados originais: serviço HTTPS ou FTP público do DATASUS, separados em `uploads/{SIA|SIH}/{ano}/{mês}/{família}/`.
 - Definições oficiais: `uploads/DEFINICOES/originais/TAB_{SIA|SIH}.zip`; arquivos DEF e referências ativas ficam em `uploads/DEFINICOES/{sistema}/`.
 - DBFs convertidos: `uploads/CONVERTIDOS/{sistema}/{ano}/{mês}/{família}/`.

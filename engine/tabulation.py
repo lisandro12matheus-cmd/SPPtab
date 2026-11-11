@@ -633,7 +633,7 @@ def write_tabulation_job(job_id: str, state: dict[str,Any]):
 
 def start_tabulation(payload: dict[str,Any]):
     payload=json.loads(json.dumps(payload))
-    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante","pqavs-obitos-arboviroses","pqavs-contatos-hanseniase","pqavs-contatos-tuberculose","pqavs-sifilis-congenita","pqavs-violencia-raca-cor","chagas-aguda-cronica","sim-mortalidade-materna-fetal"}:
+    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante","pqavs-obitos-arboviroses","pqavs-contatos-hanseniase","pqavs-contatos-tuberculose","pqavs-sifilis-congenita","pqavs-violencia-raca-cor","chagas-aguda-cronica","sim-mortalidade-materna-fetal","pqavs-cobertura-vacinal"}:
         year=payload.get("year")
         month=payload.get("month")
         uf=str(payload.get("uf") or "").upper()
@@ -3678,6 +3678,197 @@ def _predefined_maternal_impl(payload: dict[str,Any], progress=None):
         result.update({"view":"detail","establishmentCode":str(month),"establishmentName":f"{month:02d}/{year}"})
     return result
 
+PNI_REPORT_ID="pqavs-cobertura-vacinal"
+PNI_FIRST_YEAR=2026
+PNI_COVERAGE_GOAL=95
+# PQA-VS 2025, indicador 4 (Portaria GM/MS nº 6.878/2025, Anexo II): última dose do esquema
+# aplicada em crianças de até 1 ano, por residência, sobre os nascidos vivos do SINASC.
+PNI_INDICATOR_VACCINES=(
+    {"key":"penta","label":"Pentavalente · 3ª dose","short":"PENTA 3ª","codes":{"42","29","43"},"dose":"3"},
+    {"key":"polio","label":"Poliomielite · 3ª dose","short":"POLIO 3ª","codes":{"22","43"},"dose":"3"},
+    {"key":"pneumo","label":"Pneumocócica 10-valente · 2ª dose","short":"PNEUMO 10 2ª","codes":{"26"},"dose":"2"},
+    {"key":"scr","label":"Tríplice viral · 1ª dose","short":"TRÍPLICE VIRAL 1ª","codes":{"24"},"dose":"1"},
+)
+PNI_INDICATOR_AGES={"0","1"}
+PNI_AGE_GROUPS=(("under1","MENORES DE 1 ANO",{"0"}),("one","1 ANO",{"1"}),("twoToFour","2 A 4 ANOS",{"2","3","4"}),("fiveToNineteen","5 A 19 ANOS",{str(age) for age in range(5,20)}))
+
+def _pni_manifest(year: int):
+    """Manifesto do ano na release de dados; usa a última cópia salva se o GitHub falhar."""
+    from pni_source import fetch_manifest, PniSourceError
+    target=cache_target("pni_manifest",{"version":1,"year":year})
+    with interprocess_lock(target.with_suffix(".lock")):
+        cached=cache_read(target)
+        if isinstance(cached,dict) and isinstance(cached.get("manifest"),dict) and time.time()-float(cached.get("fetched_at",0))<6*3600:
+            return cached["manifest"],False
+        try:
+            manifest=fetch_manifest(year)
+        except PniSourceError as exc:
+            if isinstance(cached,dict) and isinstance(cached.get("manifest"),dict): return cached["manifest"],True
+            raise ValueError(str(exc)) from exc
+        if manifest is None:
+            raise ValueError(f"Os totais do PNI de {year} ainda não foram publicados para o TabulaSUS.")
+        cache_write(target,{"fetched_at":time.time(),"manifest":manifest},max_bytes=4_000_000,keep=6)
+        return manifest,False
+
+def _pni_month_data(year: int, month: int, uf: str, municipality: str, processed_at: str):
+    from pni_source import fetch_municipality, PniSourceError
+    target=cache_target("pni_municipio",{"version":1,"year":year,"month":month,"municipality":municipality,"processed":processed_at})
+    with interprocess_lock(target.with_suffix(".lock")):
+        cached=cache_read(target)
+        if isinstance(cached,dict) and "data" in cached and isinstance(cached.get("dictionaries"),dict):
+            return cached["data"],cached["dictionaries"]
+        try:
+            data,dictionaries=fetch_municipality(year,month,uf,municipality)
+        except PniSourceError as exc:
+            raise ValueError(str(exc)) from exc
+        cache_write(target,{"data":data,"dictionaries":dictionaries},max_bytes=16_000_000,keep=200)
+        return data,dictionaries
+
+def _pni_sinasc_incomplete_from(groups) -> int:
+    """Primeiro mês em que o SINASC preliminar ainda está incompleto (13 = todos completos).
+
+    A base do ano corrente chega aos poucos: o último mês publicado costuma ter só parte dos
+    nascimentos. Um mês com menos de 80% da média nacional dos meses anteriores é tratado
+    como incompleto, assim como todos os seguintes.
+    """
+    totals=[0]*13
+    for item in groups: totals[int(item["month"])]+=int(item["births"])
+    previous=[]
+    for month in range(1,13):
+        if totals[month]==0 or (len(previous)>=2 and totals[month]<0.8*sum(previous)/len(previous)): return month
+        previous.append(totals[month])
+    return 13
+
+def _pni_detail(data, dictionaries, year: int, month: int):
+    """Todas as vacinas e doses de residentes no mês, por faixa de idade."""
+    vaccines=dictionaries.get("vacina") or {}; doses=dictionaries.get("dose") or {}
+    indicator={(code,item["dose"]) for item in PNI_INDICATOR_VACCINES for code in item["codes"]}
+    groups={}
+    for vaccine,dose,age,_sex,_condition,outside,count in (data or {}).get("cobertura") or []:
+        row=groups.get((vaccine,dose))
+        if row is None:
+            info=vaccines.get(vaccine) or {}
+            row=groups[(vaccine,dose)]={"code":str(month),"vaccineName":info.get("sigla") or f"Vacina {vaccine}","vaccineDetail":(info.get("nome") or "")[:120],
+                "dose":doses.get(dose) or (f"Dose {dose}" if dose else "Dose não informada"),"indicator":"Sim" if (vaccine,dose) in indicator else "Não",
+                **{key:0 for key,_label,_ages in PNI_AGE_GROUPS},"adults":0,"unknownAge":0,"total":0,"outside":0}
+        count=int(count)
+        for key,_label,ages in PNI_AGE_GROUPS:
+            if age in ages: row[key]+=count; break
+        else:
+            if age=="ign": row["unknownAge"]+=count
+            else: row["adults"]+=count
+        row["total"]+=count
+        if outside: row["outside"]+=count
+    rows=sorted(groups.values(),key=lambda row:(row["indicator"]!="Sim",-row["total"],row["vaccineName"],row["dose"]))
+    for row in rows: row["outsideShare"]=_pqavs_percent(row["outside"],row["total"])
+    columns=[
+        {"id":"vaccine","label":"VACINA","kind":"primary","primaryField":"vaccineName","secondaryField":"vaccineDetail","filterFields":["vaccineName","vaccineDetail"],"sortField":"vaccineName","type":"text","sticky":True},
+        {"id":"dose","label":"DOSE","field":"dose","type":"text"},
+        {"id":"indicator","label":"ENTRA NO INDICADOR 4","field":"indicator","type":"text"},
+        *({"id":key,"label":label,"field":key,"type":"number","decimals":0} for key,label,_ages in PNI_AGE_GROUPS),
+        {"id":"adults","label":"20 ANOS OU MAIS","field":"adults","type":"number","decimals":0},
+        {"id":"total","label":"TODAS AS IDADES","field":"total","type":"number","decimals":0},
+        {"id":"outsideShare","label":"% APLICADAS EM OUTRO MUNICÍPIO","field":"outsideShare","type":"number","decimals":1},
+    ]
+    note="Cada linha é uma vacina e dose aplicada em moradores do município, no mês, por idade na data da vacinação. As vacinas que entram no indicador 4 aparecem primeiro; a idade só conta para o indicador até 1 ano."
+    return {"rows":rows,"records":sum(row["total"] for row in rows),"columns":columns,"metrics":[],"detailNote":note,"emptyStateMessage":"Não há doses registradas para moradores deste município neste mês."}
+
+def _predefined_pni_impl(payload: dict[str,Any], progress=None):
+    year=payload.get("year"); month=payload.get("month"); municipality=str(payload.get("municipalityCode") or "")
+    uf=str(payload.get("uf") or "").upper()
+    if not isinstance(year,int) or not PNI_FIRST_YEAR<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12:
+        raise ValueError(f"Os totais do PNI estão disponíveis a partir de {PNI_FIRST_YEAR}.")
+    if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]:
+        raise ValueError("Selecione um município de residência válido.")
+    view=str(payload.get("view") or "summary")
+    if view not in {"summary","detail"}: raise ValueError("Visão inválida.")
+    municipality_name=_report_label(payload.get("municipalityName") or "")[:100] or f"Município {municipality}"
+    if progress: progress(5,"Consultando os totais do PNI publicados para o TabulaSUS")
+    manifest,stale=_pni_manifest(year)
+    month_info=(manifest.get("meses") or {}).get(str(month))
+    notes=[]
+    data=None; dictionaries={}
+    if month_info:
+        if progress: progress(30,f"Lendo as doses de {municipality_name} em {PQAVS_MONTHS[month-1].lower()} de {year}")
+        data,dictionaries=_pni_month_data(year,month,uf,municipality,str(month_info.get("processado_em") or ""))
+    published=bool(month_info)
+    counts={item["key"]:0 for item in PNI_INDICATOR_VACCINES}
+    resident_total=0; outside_total=0
+    for vaccine,dose,age,_sex,_condition,outside,count in (data or {}).get("cobertura") or []:
+        count=int(count); resident_total+=count
+        if outside: outside_total+=count
+        if age not in PNI_INDICATOR_AGES: continue
+        for item in PNI_INDICATOR_VACCINES:
+            if dose==item["dose"] and vaccine in item["codes"]: counts[item["key"]]+=count
+    births=None; births_note=""; sinasc_updated=""; sinasc_incomplete=False
+    try:
+        if progress: progress(70,"Somando os nascidos vivos do SINASC por residência da mãe")
+        sinasc=_sinasc_resident_births(year,progress)
+        sinasc_updated=sinasc.get("updatedAt") or ""
+        if month>=_pni_sinasc_incomplete_from(sinasc["groups"]):
+            sinasc_incomplete=True; births=0
+        else:
+            births=sum(int(item["births"]) for item in sinasc["groups"] if item["municipalityCode"]==municipality and item["month"]==month)
+    except Exception as exc:
+        births_note=f"Os nascidos vivos do SINASC de {year} não puderam ser lidos ({exc}); as coberturas ficam sem cálculo."
+    usable=published and bool(births)
+    row={"code":str(month),"monthName":PQAVS_MONTHS[month-1],"period":f"{month:02d}/{year}","births":None if sinasc_incomplete else births}
+    met=0
+    for item in PNI_INDICATOR_VACCINES:
+        key=item["key"]
+        row[key]=counts[key] if published else None
+        coverage=round(100*counts[key]/births,1) if usable else None
+        row[f"{key}Coverage"]=coverage
+        if coverage is not None and coverage>=PNI_COVERAGE_GOAL: met+=1
+    row["goalsMet"]=met if usable else None
+    row["residentDoses"]=resident_total if published else None
+    row["outsideShare"]=_pqavs_percent(outside_total,resident_total) if published else None
+    primary={"id":"month","label":"MÊS DA VACINAÇÃO","kind":"primary","primaryField":"monthName","secondaryField":"period","filterFields":["monthName","period"],"sortField":"code","type":"text","sticky":True}
+    columns=[primary,{"id":"births","label":"NASCIDOS VIVOS · RESIDÊNCIA DA MÃE","field":"births","type":"number","decimals":0}]
+    for item in PNI_INDICATOR_VACCINES:
+        columns.append({"id":item["key"],"label":f"DOSES · {item['short']}","field":item["key"],"type":"number","decimals":0})
+        columns.append({"id":f"{item['key']}Coverage","label":f"COBERTURA · {item['short']} (%)","field":f"{item['key']}Coverage","type":"number","decimals":1})
+    columns+=[
+        {"id":"goalsMet","label":f"VACINAS ≥ {PNI_COVERAGE_GOAL}% NO MÊS","field":"goalsMet","type":"number","decimals":0},
+        {"id":"residentDoses","label":"TODAS AS DOSES DE MORADORES","field":"residentDoses","type":"number","decimals":0},
+        {"id":"outsideShare","label":"% APLICADAS EM OUTRO MUNICÍPIO","field":"outsideShare","type":"number","decimals":1},
+        {"id":"detail","label":"DETALHAR","kind":"action","actionLabel":"Vacinas →"},
+    ]
+    def pct(value): return {"value":value,"decimals":1,"suffix":"%"} if value is not None else {"text":"—"}
+    kpis=[{"label":f"RESULTADO DO INDICADOR · VACINAS COM COBERTURA ≥ {PNI_COVERAGE_GOAL}%","value":{"value":met*25,"decimals":0,"suffix":"%"} if usable else {"text":"—"},"kind":"goalShare","fields":[item["key"] for item in PNI_INDICATOR_VACCINES],"denominatorField":"births","threshold":PNI_COVERAGE_GOAL}]
+    kpis+=[{"label":f"COBERTURA · {item['label'].upper()}","value":pct(row[f"{item['key']}Coverage"]),"kind":"rate","numeratorField":item["key"],"denominatorField":"births","scale":100,"suffix":"%"} for item in PNI_INDICATOR_VACCINES]
+    source=(month_info or {}).get("fonte") or {}
+    notes+=[
+        "Cobertura = doses da última dose do esquema aplicadas em crianças de até 1 ano (idade 0 ou 1 ano na data da vacinação) que moram no município ÷ nascidos vivos do SINASC de mães residentes, no mesmo mês × 100. Fórmula da ficha do indicador 4 do PQA-VS (Portaria GM/MS nº 6.878/2025).",
+        f"Resultado do indicador: cada vacina com cobertura de {PNI_COVERAGE_GOAL}% ou mais vale 25%; as quatro juntas, 100%. A avaliação é anual: selecione os 12 meses para o resultado do ano. Os indicadores do topo são recalculados sobre o período inteiro.",
+        "Vacinas contadas: Pentavalente 3ª dose (inclui a pentavalente acelular e a hexavalente acelular); Poliomielite 3ª dose (VIP e hexavalente acelular); Pneumocócica 10-valente 2ª dose; Tríplice viral 1ª dose. A ficha não lista as vacinas combinadas; confira com a nota técnica de coberturas do Ministério da Saúde.",
+        "Registros excluídos na RNDS não são contados. A idade vem em anos inteiros na base pública; por isso não é possível conferir se a dose foi aplicada na idade recomendada.",
+        f"Fonte: doses aplicadas do PNI (RNDS), arquivos mensais do Ministério da Saúde lidos inteiros e resumidos por município pelo TabulaSUS (release pni-dados-{year}, atualizada semanalmente); SINASC, CSV anual"+(f" atualizado em {sinasc_updated}" if sinasc_updated else "")+". A data de cada arquivo aparece no detalhe do mês.",
+    ]
+    if month_info and view=="detail":
+        notes.append(f"Arquivo de {PQAVS_MONTHS[month-1].lower()} de {year}: publicado pelo Ministério em {source.get('last_modified') or 'data não informada'}; resumido pelo TabulaSUS em {str(month_info.get('processado_em'))[:10]} ({month_info.get('conferencia') or 'sem conferência'}).")
+    if not published: notes.insert(0,f"O Ministério da Saúde ainda não publicou o arquivo de doses aplicadas de {PQAVS_MONTHS[month-1].lower()} de {year}, ou ele ainda não foi processado. As doses e coberturas deste mês não representam zero.")
+    elif data is None: notes.insert(0,f"Não há doses registradas para moradores de {municipality_name} em {PQAVS_MONTHS[month-1].lower()} de {year}.")
+    if year==date.today().year: notes.append("Os dados do ano corrente são preliminares, tanto no PNI quanto no SINASC: os meses mais recentes ainda recebem registros, e a cobertura tende a subir com as atualizações.")
+    if births_note: notes.append(births_note)
+    if published and sinasc_incomplete:
+        notes.insert(0,f"O SINASC de {year} ainda não tem todos os nascidos vivos de {PQAVS_MONTHS[month-1].lower()} (a base preliminar chega com alguns meses de atraso). As doses aparecem, mas a cobertura do mês fica sem cálculo e o mês não entra nos indicadores do topo.")
+    elif published and births==0 and not births_note:
+        notes.insert(0,f"O SINASC de {year} não tem nascidos vivos de mães residentes em {PQAVS_MONTHS[month-1].lower()}; a cobertura do mês fica sem cálculo.")
+    if stale: notes.append("Não foi possível consultar a release de dados agora; o resultado usa a última lista de meses salva neste computador.")
+    totals={item["key"]:(counts[item["key"]] if usable else 0) for item in PNI_INDICATOR_VACCINES}
+    result={"ok":True,"report":PNI_REPORT_ID,"view":"summary","flatTable":True,"file":"PNI · SINASC","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],
+        "municipality":municipality_name,"municipalityCode":municipality,"filters":[],"numerator":met if usable else 0,"denominator":len(PNI_INDICATOR_VACCINES) if usable else 0,
+        "births":births if usable else 0,**totals,"rows":[row],"records":resident_total,"columns":columns,
+        "metrics":[{"id":"births","label":"Nascidos vivos","decimals":0},*({"id":item["key"],"label":item["label"],"decimals":0} for item in PNI_INDICATOR_VACCINES)],
+        "kpis":kpis,"notes":notes,"emptyStateMessage":"","cachedAt":time.time()}
+    if view=="detail":
+        detail=_pni_detail(data,dictionaries,year,month)
+        result.update({key:value for key,value in detail.items() if key!="detailNote"})
+        result["notes"]=[detail["detailNote"],*result["notes"]]
+        result.update({"view":"detail","establishmentCode":str(month),"establishmentName":f"{month:02d}/{year}"})
+    return result
+
 def predefined_pqavs(payload: dict[str,Any], progress=None):
     if progress is None: return _predefined_pqavs_impl(payload,None)
     stop=threading.Event(); progress_lock=threading.Lock()
@@ -3704,6 +3895,7 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
     report_id=str(payload.get("predefinedReport") or "")
     if report_id==CHAGAS_REPORT_ID: return _predefined_chagas_impl(payload,progress)
     if report_id==MATERNAL_REPORT_ID: return _predefined_maternal_impl(payload,progress)
+    if report_id==PNI_REPORT_ID: return _predefined_pni_impl(payload,progress)
     spec=PQAVS_REPORTS.get(report_id)
     if spec is None: raise ValueError("Indicador PQA-VS não reconhecido.")
     year=payload.get("year"); month=payload.get("month"); municipality=str(payload.get("municipalityCode") or "")
@@ -6421,7 +6613,7 @@ def tabulate(payload, progress=None):
         return predefined_srag_weekly(payload,progress)
     if payload.get("predefinedReport")=="sisagua-residual-desinfetante":
         return predefined_sisagua_rad(payload,progress)
-    if payload.get("predefinedReport") in PQAVS_REPORTS or payload.get("predefinedReport") in {CHAGAS_REPORT_ID,MATERNAL_REPORT_ID}:
+    if payload.get("predefinedReport") in PQAVS_REPORTS or payload.get("predefinedReport") in {CHAGAS_REPORT_ID,MATERNAL_REPORT_ID,PNI_REPORT_ID}:
         return predefined_pqavs(payload,progress)
     if payload.get("predefinedReport")=="sim-mortalidade":
         return predefined_sim_mortality(payload,progress)

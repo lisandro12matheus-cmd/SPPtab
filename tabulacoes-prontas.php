@@ -92,6 +92,10 @@
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Vigilância ambiental</div><h3>Residual de desinfetante na água</h3><p>Compare as análises de cloro e dióxido de cloro da vigilância ao mínimo da Diretriz Nacional.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SISAGUA · IBGE</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
+          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-cobertura-vacinal" role="button" tabindex="0" aria-label="Abrir tabulação: cobertura das vacinas do indicador 4 do PQA-VS">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">PQA-VS · Indicador 4</div><h3>Cobertura vacinal infantil</h3><p>Pentavalente, poliomielite, pneumocócica 10 e tríplice viral de moradores sobre os nascidos vivos. Meta: 95%.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">PNI · RNDS · SINASC</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
           <article class="predefined-card" data-category="vigilancia" data-report="pqavs-obitos-arboviroses" role="button" tabindex="0" aria-label="Abrir tabulação: óbitos suspeitos de dengue e chikungunya encerrados em até 60 dias">
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">PQA-VS · Indicador 8</div><h3>Óbitos por arboviroses encerrados</h3><p>Óbitos suspeitos de dengue e chikungunya encerrados em até 60 dias da notificação. Meta: 75%.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · DENGUE · CHIK</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
@@ -173,6 +177,6 @@
       <div class="setup-dialog-footer"><div class="setup-default-actions"><button type="button" id="saveSetupDefault">Salvar filtros adicionais como padrão</button><button type="button" id="clearSetupDefault" hidden>Remover padrão</button><span id="setupDefaultStatus" role="status"></span></div><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=85" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=86" defer></script>
 </body>
 </html>

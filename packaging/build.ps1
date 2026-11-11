@@ -141,7 +141,7 @@ if (-not $SkipSelfTests) {
     $vendorPath = Join-Path $AppFiles 'engine\vendor'
     $enginePath = Join-Path $AppFiles 'engine'
     $dataPathSmoke = Join-Path $BuildRoot 'data-path-selftest'
-    $pythonSmoke = "import os, sys, ftplib, json, zipfile; os.environ['TABWIN2_DATA_DIR']=r'$dataPathSmoke'; sys.path.insert(0, r'$vendorPath'); sys.path.insert(0, r'$enginePath'); import dbfread, dbctodbf, datasus, official_source, storage_lock, sigtap, tabulation; assert datasus.library_folder('sia', 2026, 7) == 'uploads/SIA/2026/07'; print('python-ok')"
+    $pythonSmoke = "import os, sys, ftplib, json, zipfile; os.environ['TABWIN2_DATA_DIR']=r'$dataPathSmoke'; sys.path.insert(0, r'$vendorPath'); sys.path.insert(0, r'$enginePath'); import dbfread, dbctodbf, datasus, official_source, storage_lock, sigtap, tabulation, pni_source; assert datasus.library_folder('sia', 2026, 7) == 'uploads/SIA/2026/07'; print('python-ok')"
     $pythonTest = & $embeddedPython -c $pythonSmoke
     if ($LASTEXITCODE -ne 0 -or $pythonTest -notmatch 'python-ok') { throw 'O Python portátil ou as bibliotecas DBF não passaram pela verificação.' }
 }

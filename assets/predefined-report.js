@@ -456,6 +456,22 @@
     summaryTitle:'Óbitos maternos e fetais por mês', countMetric:'maternal', countLabel:'ÓBITOS MATERNOS',
     monthlyDetail:true, backLabel:'← Meses', detailTitlePrefix:'Óbitos maternos e fetais', detailItemLabel:'óbitos', tableSearchDetail:'Buscar estabelecimento, CNES, causa ou município'
   };
+  reportConfigurations['pqavs-cobertura-vacinal'] = {
+    ...pqavsBase, id:'pqavs-cobertura-vacinal', systemCode:'PNI', kind:'PNI', firstYear:2026, competenceLabel:'MÊS DA VACINAÇÃO',
+    systemLabel:'PNI · SINASC · PQA-VS', sourceLabel:'doses aplicadas do PNI e nascidos vivos do SINASC',
+    workspaceTitle:'Cobertura vacinal infantil · PQA-VS', introLabel:'PQA-VS 2025 · INDICADOR 4 · PNI · SINASC', introTitle:'Cobertura das vacinas selecionadas em crianças de até 1 ano.',
+    introDescription:'Pentavalente (3ª dose), poliomielite (3ª dose), pneumocócica 10-valente (2ª dose) e tríplice viral (1ª dose) de moradores, sobre os nascidos vivos do SINASC. Meta: 95% em cada uma.',
+    setupTitle:'Cobertura vacinal infantil · indicador 4', setupDescription:'Escolha o município de residência e os meses da vacinação. Selecione os 12 meses para o resultado anual.',
+    emptyMessage:'Escolha o município de residência e os meses para ver a cobertura das quatro vacinas.',
+    municipalityLabel:'MUNICÍPIO DE RESIDÊNCIA', monthLabel:'MÊS DA VACINAÇÃO', locationHelp:'Doses e nascimentos são contados pelo município de residência da criança e da mãe.', loaderDetail:'doses aplicadas e nascidos vivos por residência',
+    missingMunicipalityMessage:'Selecione o município de residência.',
+    monthHelp:'O mês usa a data da vacinação. O Ministério publica cada mês com cerca de 6 semanas de atraso; os meses recentes são preliminares.',
+    availabilityText:'Escolha os meses · os totais do PNI são lidos da release de dados do TabulaSUS; a primeira leitura do SINASC pode levar alguns minutos.',
+    filterNote:'Este indicador não tem filtros adicionais.', methodTitle:'Como ler o indicador:',
+    methodText:' cobertura = doses da última dose do esquema em crianças de até 1 ano ÷ nascidos vivos × 100, por residência. Cada vacina com 95% ou mais vale 25% no resultado do indicador.',
+    summaryTitle:'Cobertura das vacinas do indicador 4 por mês', countMetric:'penta', countLabel:'DOSES · PENTA 3ª',
+    monthlyDetail:true, backLabel:'← Meses', detailTitlePrefix:'Vacinas aplicadas em moradores', detailItemLabel:'doses', tableSearchDetail:'Buscar vacina ou dose'
+  };
   const params = new URLSearchParams(location.search);
   const linkedReportId = params.get('relatorio') === 'sia-pa-belem' ? 'sia-pa-producao' : params.get('relatorio');
   let activeReport = reportConfigurations[linkedReportId] || reportConfigurations['sia-pa-producao'];
@@ -2130,6 +2146,13 @@
           const rateNumerator = monthlyResults.reduce((total, result) => total + (Number(result[item.numeratorField]) || 0), 0);
           const rateDenominator = monthlyResults.reduce((total, result) => total + (Number(result[item.denominatorField]) || 0), 0);
           return { ...item, value:rateDenominator ? { value:Math.round(rateNumerator * Number(item.scale || 1) * 10 / rateDenominator) / 10, decimals:1, suffix:item.suffix || '' } : { text:'—' } };
+        }
+        if (item.kind === 'goalShare') {
+          // Share of the listed coverages that reach the goal over the whole period (PQA-VS indicator 4: 25% per vaccine).
+          const shareDenominator = monthlyResults.reduce((total, result) => total + (Number(result[item.denominatorField]) || 0), 0);
+          if (!shareDenominator || !item.fields?.length) return { ...item, value:{ text:'—' } };
+          const reached = item.fields.filter((field) => monthlyResults.reduce((total, result) => total + (Number(result[field]) || 0), 0) * 100 / shareDenominator >= Number(item.threshold)).length;
+          return { ...item, value:{ value:Math.round(reached * 100 / item.fields.length), decimals:0, suffix:'%' } };
         }
         if (item.kind !== 'sum') return item;
         return { ...item, value:{ ...(item.value || {}), value:monthlyResults.reduce((total, result) => total + (Number(result.kpis?.[index]?.value?.value) || 0), 0) } };
