@@ -633,13 +633,14 @@ def write_tabulation_job(job_id: str, state: dict[str,Any]):
 
 def start_tabulation(payload: dict[str,Any]):
     payload=json.loads(json.dumps(payload))
-    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante","pqavs-obitos-arboviroses","pqavs-contatos-hanseniase","pqavs-contatos-tuberculose","pqavs-sifilis-congenita","pqavs-violencia-raca-cor","chagas-aguda-cronica","sim-mortalidade-materna-fetal","pqavs-cobertura-vacinal","pqavs-aplicacoes-estabelecimento"}:
+    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante","pqavs-obitos-arboviroses","pqavs-contatos-hanseniase","pqavs-contatos-tuberculose","pqavs-sifilis-congenita","pqavs-violencia-raca-cor","chagas-aguda-cronica","sim-mortalidade-materna-fetal","pqavs-cobertura-vacinal","pqavs-aplicacoes-estabelecimento","cnes-salas-imunizacao"}:
         year=payload.get("year")
         month=payload.get("month")
         uf=str(payload.get("uf") or "").upper()
         municipality=str(payload.get("municipalityCode") or "")
-        if not isinstance(year,int) or year<2000 or year>date.today().year:
-            raise ValueError("Selecione um ano entre 2000 e o ano atual.")
+        minimum_year=2005 if payload.get("predefinedReport")=="cnes-salas-imunizacao" else 2000
+        if not isinstance(year,int) or year<minimum_year or year>date.today().year:
+            raise ValueError(f"Selecione um ano entre {minimum_year} e o ano atual.")
         if not isinstance(month,int) or month<1 or month>12:
             raise ValueError("Selecione uma competência válida.")
         if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]:
@@ -1265,6 +1266,39 @@ def _report_expand_filter_values(raw_values, spec: dict[str,Any], mapping: dict[
         if len(selected)>20000: raise ValueError(f"A seleção de {spec['label'].lower()} ficou ampla demais. Escolha menos categorias.")
     return sorted(selected)
 
+CNES_VACCINE_ROOMS_REPORT_ID="cnes-salas-imunizacao"
+CNES_ST_DIRECTORY="/dissemin/publicos/CNES/200508_/Dados/ST"
+
+def _cnes_st_competencies(uf: str, year: int) -> list[int]:
+    """List monthly CNES establishment files actually published on the official FTP."""
+    uf=str(uf or "").strip().upper()
+    if uf not in PREDEFINED_UF_CODES or not isinstance(year,int) or not 2005<=year<=date.today().year:
+        raise ValueError("Selecione uma UF e um ano válidos para consultar a estrutura do CNES.")
+    target=cache_target("cnes-st-months",{"version":1,"uf":uf,"year":year})
+    cached=cache_read(target)
+    if isinstance(cached,dict) and isinstance(cached.get("months"),list) and time.time()-float(cached.get("fetched_at",0))<6*3600:
+        return sorted({int(month) for month in cached["months"] if str(month).isdigit() and 1<=int(month)<=12})
+    ftp=FTP("ftp.datasus.gov.br",timeout=20)
+    try:
+        ftp.login(); ftp.set_pasv(True)
+        pattern=f"{CNES_ST_DIRECTORY}/ST{uf}{year%100:02d}*.dbc"
+        try:
+            matches=ftp.nlst(pattern)
+        except Exception:
+            # Some FTP mirrors do not expand wildcards; list and filter locally.
+            matches=ftp.nlst(CNES_ST_DIRECTORY)
+        expression=re.compile(rf"(?:^|/)ST{re.escape(uf)}{year%100:02d}(\d{{2}})\.dbc$",re.I)
+        months=sorted({int(match.group(1)) for item in matches if (match:=expression.search(str(item).replace("\\","/"))) and 1<=int(match.group(1))<=12})
+        cache_write(target,{"fetched_at":time.time(),"months":months},max_bytes=20_000,keep=120)
+        return months
+    except Exception as exc:
+        if isinstance(cached,dict) and isinstance(cached.get("months"),list):
+            return sorted({int(month) for month in cached["months"] if str(month).isdigit() and 1<=int(month)<=12})
+        raise ValueError(f"Não foi possível consultar as competências do CNES no DATASUS: {exc}") from exc
+    finally:
+        try: ftp.close()
+        except OSError: pass
+
 def _report_label(value: Any) -> str:
     """Clean a few legacy DATASUS relation-table encoding artifacts for display."""
     label=repair_mojibake_text(str(value or "")).strip()
@@ -1277,6 +1311,31 @@ def _report_label(value: Any) -> str:
 
 def predefined_filter_options(payload: dict[str,Any]):
     """Return optional filters backed by official categories in the SIA definition."""
+    if payload.get("report") in {"sia-apac-oncologia","sia-apac-dialise","sia-raas-caps"}:
+        uf=str(payload.get("uf") or "").strip().upper()
+        if uf not in PREDEFINED_UF_CODES:
+            raise ValueError("Selecione uma unidade da Federação válida.")
+        prefix=PREDEFINED_UF_CODES[uf]
+        municipalities=_sinan_ibge_municipalities()
+        managers=[{"value":code,"label":f"{name} · {code}"} for code,name in municipalities.items() if code.startswith(prefix)]
+        managers.append({"value":prefix+"0000","label":f"Gestão estadual · {PREDEFINED_UF_NAMES[uf]}"})
+        managers.sort(key=lambda item:(item["label"].casefold(),item["value"]))
+        return {"ok":True,"uf":uf,"apacManagers":managers}
+    if payload.get("report") in {"pqavs-aplicacoes-estabelecimento","sinasc-maternidades",CNES_VACCINE_ROOMS_REPORT_ID}:
+        uf=str(payload.get("uf") or "").strip().upper()
+        result={"ok":True,"uf":uf,
+            "cnesManagementTypes":[
+                {"value":"MUNICIPAL","label":"Gestão municipal"},
+                {"value":"ESTADUAL","label":"Gestão estadual"},
+                {"value":"DUPLA","label":"Dupla gestão"},
+                {"value":"NAO_INFORMADA","label":"Gestão não informada no CNES"},
+            ]}
+        if payload.get("report")==CNES_VACCINE_ROOMS_REPORT_ID and payload.get("year") is not None:
+            year=payload.get("year")
+            if not isinstance(year,int) or not 2005<=year<=date.today().year:
+                raise ValueError("Selecione um ano entre 2005 e o ano atual.")
+            result["months"]=_cnes_st_competencies(uf,year)
+        return result
     if payload.get("report") in {"sinan-dengue","sinan-chikungunya","sinan-zika"}:
         return {"ok":True,"uf":"PA",
             "cnesManagementTypes":[
@@ -1941,13 +2000,16 @@ SINASC_FILTER_VALUES={
 
 def _sinasc_selected_filters(payload):
     submitted=payload.get("sinascFilters") or {}
-    if not isinstance(submitted,dict) or set(submitted)-set(SINASC_FILTER_VALUES)-{"residenceMunicipality"}:
+    if isinstance(submitted,dict) and "cnesManagement" in submitted and "cnesManagementCode" not in submitted:
+        submitted={**submitted,"cnesManagementCode":submitted.get("cnesManagement")}
+        submitted.pop("cnesManagement",None)
+    if not isinstance(submitted,dict) or set(submitted)-set(SINASC_FILTER_VALUES)-{"residenceMunicipality","cnesManagementCode"}:
         raise ValueError("Os filtros do SINASC são inválidos.")
     selected={}
     for key,values in submitted.items():
         if not isinstance(values,list) or len(values)>30 or any(not isinstance(value,str) for value in values):
             raise ValueError("Os filtros do SINASC são inválidos.")
-        allowed=SINASC_FILTER_VALUES.get(key)
+        allowed={"MUNICIPAL","ESTADUAL","DUPLA","NAO_INFORMADA"} if key=="cnesManagementCode" else SINASC_FILTER_VALUES.get(key)
         distinct=sorted(set(values))
         if any(not (re.fullmatch(r"\d{6}",value) if key=="residenceMunicipality" else value in allowed) for value in distinct):
             raise ValueError("Uma categoria selecionada não existe no SINASC.")
@@ -1996,13 +2058,17 @@ def _sinasc_birth_categories(birth):
 def _sinasc_matches_filters(birth,selected):
     if not selected: return True
     categories=_sinasc_birth_categories(birth)
-    return all(categories[key] in values for key,values in selected.items())
+    return all(key=="cnesManagementCode" or categories[key] in values for key,values in selected.items())
 
-def _sinasc_maternity_names(codes: list[str], include_neighborhood: bool=False):
+def _sinasc_maternity_names(codes: list[str], include_neighborhood: bool=False, include_management: bool=False):
     valid=sorted({code for code in codes if re.fullmatch(r"\d{7}",code) and code!="0000000"})
-    if not valid: return ({},0,{}) if include_neighborhood else ({},0)
+    if not valid:
+        if include_neighborhood and include_management: return {},0,{},{},{}
+        if include_management: return {},0,{},{}
+        if include_neighborhood: return {},0,{}
+        return {},0
     target=cache_target("sinasc_maternity_names",{"version":1})
-    now=time.time(); names={}; neighborhoods={}; missing=[]; failed=0
+    now=time.time(); names={}; neighborhoods={}; management={}; management_updated={}; missing=[]; failed=0
     with interprocess_lock(target.with_suffix(".lock")):
         cached=cache_read(target)
         entries=cached.get("names",{}) if isinstance(cached,dict) and isinstance(cached.get("names"),dict) else {}
@@ -2010,29 +2076,41 @@ def _sinasc_maternity_names(codes: list[str], include_neighborhood: bool=False):
             entry=entries.get(code,{})
             fresh=now-float(entry.get("checkedAt",0))<(30*86400 if entry.get("name") else 86400)
             neighborhood_checked=bool(entry.get("neighborhoodChecked"))
-            if fresh and (not include_neighborhood or neighborhood_checked):
+            management_checked=bool(entry.get("managementChecked")) and now-float(entry.get("managementCheckedAt",0))<7*86400
+            if fresh and (not include_neighborhood or neighborhood_checked) and (not include_management or management_checked):
                 names[code]=entry.get("name") or ""
                 neighborhoods[code]=entry.get("neighborhood") or ""
+                management[code]=entry.get("management") or "NAO_INFORMADA"
+                management_updated[code]=entry.get("managementUpdatedAt") or ""
             else: missing.append(code)
         def lookup(code):
             data,ok=_cnes_open_data_json(f"/cnes/estabelecimentos/{code}")
-            if not ok: return code,"","",False
-            if not isinstance(data,dict): return code,"","",True
+            if not ok: return code,"","","NAO_INFORMADA","",False
+            if not isinstance(data,dict): return code,"","","NAO_INFORMADA","",False
             returned=re.sub(r"\D","",str(data.get("codigo_cnes") or data.get("co_cnes") or "")).zfill(7)
-            if returned!=code: return code,"","",True
+            if returned!=code: return code,"","","NAO_INFORMADA","",False
             name=_report_label(data.get("nome_fantasia") or data.get("nome_razao_social") or "")[:180]
             neighborhood=_report_label(data.get("bairro_estabelecimento") or "")[:120]
-            return code,name,neighborhood,True
+            manager=_normalize_cnes_management(data.get("tipo_gestao"))
+            updated=_report_label(data.get("data_atualizacao") or "")[:20]
+            return code,name,neighborhood,manager,updated,True
         if missing:
             with ThreadPoolExecutor(max_workers=min(8,len(missing)),thread_name_prefix="sinasc-cnes") as executor:
                 for future in as_completed([executor.submit(lookup,code) for code in missing]):
-                    try: code,name,neighborhood,ok=future.result()
+                    try: code,name,neighborhood,manager,updated,ok=future.result()
                     except Exception: failed+=1; continue
                     if not ok: failed+=1; continue
-                    entries[code]={"name":name,"neighborhood":neighborhood,"neighborhoodChecked":True,"checkedAt":now}
+                    previous=entries.get(code,{})
+                    entries[code]={**previous,"name":name or previous.get("name") or "","neighborhood":neighborhood or previous.get("neighborhood") or "",
+                        "management":manager,"managementChecked":True,"managementCheckedAt":now,"managementUpdatedAt":updated,
+                        "neighborhoodChecked":True,"checkedAt":now}
                     names[code]=name; neighborhoods[code]=neighborhood
+                    management[code]=manager; management_updated[code]=updated
             cache_write(target,{"names":entries},max_bytes=2_000_000,keep=2)
-    return (names,failed,neighborhoods) if include_neighborhood else (names,failed)
+    if include_neighborhood and include_management: return names,failed,neighborhoods,management,management_updated
+    if include_neighborhood: return names,failed,neighborhoods
+    if include_management: return names,failed,management,management_updated
+    return names,failed
 
 def predefined_sinasc_maternity(payload: dict[str,Any], progress=None):
     year=payload.get("year"); month=payload.get("month"); uf=str(payload.get("uf") or "").upper(); municipality=str(payload.get("municipalityCode") or "")
@@ -2055,7 +2133,15 @@ def predefined_sinasc_maternity(payload: dict[str,Any], progress=None):
     else:
         selected=[dict(row) for row in data["groups"] if row["month"]==month and row["occurrenceCode"]==municipality]
     if progress: progress(93,"Identificando os estabelecimentos no CNES")
-    names,lookup_failures=_sinasc_maternity_names([row["cnes"] for row in selected])
+    management_selected=selected_filters.get("cnesManagementCode",set())
+    if management_selected:
+        names,lookup_failures,management_by_cnes,management_updated=_sinasc_maternity_names([row["cnes"] for row in selected],include_management=True)
+        if lookup_failures:
+            raise RuntimeError("Não foi possível consultar a gestão atual no CNES para todas as maternidades. Tente novamente quando o cadastro estiver disponível.")
+        selected=[row for row in selected if management_by_cnes.get(row["cnes"]) in management_selected]
+    else:
+        names,lookup_failures=_sinasc_maternity_names([row["cnes"] for row in selected])
+        management_by_cnes={}; management_updated={}
     for row in selected:
         row["name"]=names.get(row["cnes"]) or ("Estabelecimento sem CNES informado" if row["cnes"]=="0000000" else f"CNES {row['cnes']}")
         for result,numerator,denominator in (("cesareanPct","cesarean","deliveryKnown"),("prenatal7Pct","prenatal7","prenatalKnown"),("prematurePct","premature","gestationKnown"),("lowWeightPct","lowWeight","weightKnown")):
@@ -2075,7 +2161,12 @@ def predefined_sinasc_maternity(payload: dict[str,Any], progress=None):
         *( [f"{totals['unknownResidence']} registro(s) não tinham município de residência identificável e não entram nas duas colunas de residência."] if totals["unknownResidence"] else [] ),
         *( [f"O CNES não respondeu para {lookup_failures} estabelecimento(s); seus códigos e indicadores foram preservados."] if lookup_failures else [] ),
         *( ["Este arquivo é uma prévia e os dados ainda podem ser revistos pela fonte oficial."] if year>=date.today().year-1 else [] )]
-    if selected_filters: notes.insert(1,f"{len(selected_filters)} filtro(s) opcional(is) aplicado(s) aos registros antes de calcular os totais.")
+    if selected_filters:
+        notes.insert(1,f"{len(selected_filters)} filtro(s) opcional(is) aplicado(s) aos registros antes de calcular os totais.")
+        if management_selected:
+            manager_dates=sorted({value for value in management_updated.values() if value})
+            notes.insert(2,"Gestão consultada no cadastro atual do CNES; a classificação pode ser diferente da competência histórica do nascimento.")
+            if manager_dates: notes.insert(3,f"O CNES informa datas de atualização entre {manager_dates[0]} e {manager_dates[-1]} para as unidades consultadas.")
     empty_message="Nenhum nascimento corresponde aos filtros selecionados neste período. Ajuste ou remova um filtro para ampliar o recorte." if selected_filters else f"O arquivo oficial do SINASC de {year} ainda não apresenta nascimentos em estabelecimentos de {municipality_name} em {month:02d}/{year}. Isso pode refletir atraso de atualização; não confirma ausência de nascimentos."
     if progress: progress(98,"Concluindo o perfil materno-infantil")
     return {"ok":True,"report":"sinasc-maternidades","view":"full","flatTable":True,"file":"SINASC · CSV oficial","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality,"updatedAt":data["updatedAt"],"rows":selected,"records":totals["births"],"columns":columns,"metrics":metrics,"kpis":[{"label":"NASCIDOS VIVOS","value":{"value":totals["births"]}},{"label":"UNIDADES COM REGISTROS","value":{"value":len(selected)}},{"label":"NASCIDOS POR CESÁREA · TIPO INFORMADO","value":{"value":round(100*totals["cesarean"]/totals["deliveryKnown"],1),"decimals":1,"suffix":"%"} if totals["deliveryKnown"] else {"text":"—"}},{"label":"BAIXO PESO · PESOS INFORMADOS","value":{"value":round(100*totals["lowWeight"]/totals["weightKnown"],1),"decimals":1,"suffix":"%"} if totals["weightKnown"] else {"text":"—"}}],"notes":notes,"emptyStateMessage":empty_message,"cachedAt":time.time()}
@@ -2239,6 +2330,7 @@ def _sinasc_resident_births(year: int, progress=None):
 
 def _sim_infant_selected_filters(payload: dict[str,Any]) -> dict[str,set[str]]:
     allowed={
+        "cnesManagementCode":{"MUNICIPAL","ESTADUAL","DUPLA","NAO_INFORMADA"},
         "ageBand":{"early","late","post"},"sex":{"male","female","unknown"},
         "race":{"1","2","3","4","5","unknown"},"causeGroup":set(_sim_cid_names())|{"NI"},
         "birthWeightBand":{"under1500","1500-2499","2500+","unknown"},
@@ -2270,9 +2362,20 @@ def predefined_sim_infant_mortality(payload: dict[str,Any], progress=None):
     cid_names=_sim_cid_names(); rows=[]
     try: municipality_names=_sinan_ibge_municipalities()
     except Exception: municipality_names={}
+    management_selected=selected_filters.get("cnesManagementCode",set())
+    management_by_cnes={}
+    management_lookup_failed=0
+    if management_selected:
+        cnes_codes=sorted({str(item.get("establishmentCode") or "") for item in sim["groups"] if item.get("municipalityCode")==municipality and item.get("month")==month and re.fullmatch(r"\d{7}",str(item.get("establishmentCode") or ""))})
+        management_by_cnes,_,management_lookup_failed=_sinan_cnes_unit_metadata(cnes_codes,year,month,progress)
+        if management_lookup_failed:
+            raise RuntimeError("Não foi possível confirmar a gestão de todas as unidades no CNES. Tente novamente quando o cadastro estiver disponível.")
     def matches(item):
         values={"ageBand":item.get("ageBand","unknown"),"sex":item.get("sexCode","unknown"),"race":item.get("raceCode","unknown"),"causeGroup":item.get("causeGroup","NI"),"birthWeightBand":item.get("birthWeightBand","unknown"),"gestationBand":item.get("gestationBand","unknown"),"maternalAgeBand":item.get("maternalAgeBand","unknown"),"delivery":item.get("deliveryCode","unknown"),"deathPlace":item.get("placeCode","unknown"),"medicalCare":item.get("medicalCareCode","unknown"),"occurrenceMunicipality":item.get("occurrenceCode","")}
-        return all(values[key] in values_selected for key,values_selected in selected_filters.items())
+        if management_selected:
+            establishment=str(item.get("establishmentCode") or "")
+            if not re.fullmatch(r"\d{7}",establishment) or management_by_cnes.get(establishment,{}).get("management") not in management_selected: return False
+        return all(values[key] in values_selected for key,values_selected in selected_filters.items() if key!="cnesManagementCode")
     for item in sim["groups"]:
         if item["municipalityCode"]!=municipality or item["month"]!=month or not matches(item): continue
         cid=item["causeCode"]; cid3=cid[:3]
@@ -2283,8 +2386,8 @@ def predefined_sim_infant_mortality(payload: dict[str,Any], progress=None):
     births=sum(item["births"] for item in sinasc["groups"] if item["municipalityCode"]==municipality and item["month"]==month)
     if progress: progress(98,"Preparando mortalidade infantil e nascidos vivos")
     municipality_name=str(payload.get("municipalityName") or municipality)[:120]
-    filter_labels={"ageBand":"Faixa etária do óbito","sex":"Sexo da criança","race":"Raça/cor da criança","causeGroup":"Causa básica · CID-10","birthWeightBand":"Peso ao nascer","gestationBand":"Semanas de gestação","maternalAgeBand":"Idade da mãe","delivery":"Tipo de parto","deathPlace":"Local do óbito","medicalCare":"Assistência médica","occurrenceMunicipality":"Município de ocorrência"}
-    filter_values={"ageBand":{"early":"0 a 6 dias","late":"7 a 27 dias","post":"28 a 364 dias"},"sex":{"male":"Masculino","female":"Feminino","unknown":"Ignorado / não informado"},"race":{"1":"Branca","2":"Preta","3":"Amarela","4":"Parda","5":"Indígena","unknown":"Ignorada / não informada"},"birthWeightBand":{"under1500":"Menos de 1.500 g","1500-2499":"1.500 a 2.499 g","2500+":"2.500 g ou mais","unknown":"Não informado"},"gestationBand":{"under28":"Menos de 28 semanas","28-31":"28 a 31 semanas","32-36":"32 a 36 semanas","37-41":"37 a 41 semanas","42+":"42 semanas ou mais","unknown":"Não informada"},"maternalAgeBand":{"under20":"Menos de 20 anos","20-34":"20 a 34 anos","35+":"35 anos ou mais","unknown":"Não informada"},"delivery":{"1":"Vaginal","2":"Cesáreo","unknown":"Não informado"},"deathPlace":{"1":"Hospital","2":"Outro estabelecimento de saúde","3":"Domicílio","4":"Via pública","5":"Outro local","6":"Aldeia indígena","unknown":"Ignorado / não informado"},"medicalCare":{"1":"Sim","2":"Não","unknown":"Ignorada / não informada"}}
+    filter_labels={"cnesManagementCode":"Gestão do estabelecimento de ocorrência","ageBand":"Faixa etária do óbito","sex":"Sexo da criança","race":"Raça/cor da criança","causeGroup":"Causa básica · CID-10","birthWeightBand":"Peso ao nascer","gestationBand":"Semanas de gestação","maternalAgeBand":"Idade da mãe","delivery":"Tipo de parto","deathPlace":"Local de ocorrência","medicalCare":"Assistência médica","occurrenceMunicipality":"Município de ocorrência"}
+    filter_values={"cnesManagementCode":{"MUNICIPAL":"Gestão municipal","ESTADUAL":"Gestão estadual","DUPLA":"Dupla gestão","NAO_INFORMADA":"Gestão não informada"},"ageBand":{"early":"0 a 6 dias","late":"7 a 27 dias","post":"28 a 364 dias"},"sex":{"male":"Masculino","female":"Feminino","unknown":"Ignorado / não informado"},"race":{"1":"Branca","2":"Preta","3":"Amarela","4":"Parda","5":"Indígena","unknown":"Ignorada / não informada"},"birthWeightBand":{"under1500":"Menos de 1.500 g","1500-2499":"1.500 a 2.499 g","2500+":"2.500 g ou mais","unknown":"Não informado"},"gestationBand":{"under28":"Menos de 28 semanas","28-31":"28 a 31 semanas","32-36":"32 a 36 semanas","37-41":"37 a 41 semanas","42+":"42 semanas ou mais","unknown":"Não informada"},"maternalAgeBand":{"under20":"Menos de 20 anos","20-34":"20 a 34 anos","35+":"35 anos ou mais","unknown":"Não informada"},"delivery":{"1":"Vaginal","2":"Cesáreo","unknown":"Não informado"},"deathPlace":{"1":"Hospital","2":"Outro estabelecimento de saúde","3":"Domicílio","4":"Via pública","5":"Outro local","6":"Aldeia indígena","unknown":"Ignorado / não informado"},"medicalCare":{"1":"Sim","2":"Não","unknown":"Ignorada / não informada"}}
     applied_filters=[]
     for key,values in selected_filters.items():
         labels=[]
@@ -2297,7 +2400,7 @@ def predefined_sim_infant_mortality(payload: dict[str,Any], progress=None):
         "columns":[{"id":"cause","label":"CAUSA BÁSICA · CID-10","kind":"primary","primaryField":"causeName","secondaryField":"causeCode","filterFields":["causeName","causeCode"],"sortField":"causeName","type":"text","sticky":True},{"id":"chapter","label":"CAPÍTULO","field":"chapterName","type":"text"},{"id":"ageGroup","label":"FAIXA ETÁRIA","field":"ageGroup","type":"text"},{"id":"ageDays","label":"IDADE EM DIAS","field":"ageDays","type":"number"},{"id":"sex","label":"SEXO","field":"sex","type":"text"},{"id":"race","label":"RAÇA/COR","field":"race","type":"text"},{"id":"birthWeight","label":"PESO AO NASCER · G","field":"birthWeight","type":"number"},{"id":"gestationWeeks","label":"GESTAÇÃO · SEMANAS","field":"gestationWeeks","type":"number"},{"id":"maternalAge","label":"IDADE DA MÃE","field":"maternalAge","type":"number"},{"id":"delivery","label":"TIPO DE PARTO","field":"delivery","type":"text"},{"id":"place","label":"LOCAL DO ÓBITO","field":"place","type":"text"},{"id":"occurrence","label":"MUNICÍPIO DO ÓBITO","field":"occurrenceName","type":"text"},{"id":"establishment","label":"CNES DO ÓBITO","field":"establishmentCode","type":"text"},{"id":"medicalCare","label":"ASSISTÊNCIA MÉDICA","field":"medicalCare","type":"text"},{"id":"deaths","label":"ÓBITOS","metricId":"deaths","type":"number","decimals":0}],
         "metrics":[{"id":"deaths","label":"Óbitos < 1 ano","decimals":0}],
         "hasFilters":bool(selected_filters),"filters":applied_filters,
-        "notes":[f"SIM atualizado em {sim.get('updatedAt') or 'data não informada'}; SINASC atualizado em {sinasc.get('updatedAt') or 'data não informada'}. Óbitos pela residência da criança e nascidos vivos pela residência da mãe, independentemente do local de ocorrência.","Cada linha da tabela é um registro público não fetal do SIM, sem nome, documento ou datas exatas. Os campos de peso, gestação, idade da mãe, parto, local e assistência aparecem somente quando informados. A faixa etária usa a diferença entre data de nascimento e data do óbito; registros sem as duas datas válidas não entram no numerador.","A taxa anual bruta por mil nascidos vivos só é mostrada para um ano completo anterior ao atual e sem filtros de mortalidade. A contagem de nascidos vivos é da população residente no município e período, mesmo quando filtros de perfil do óbito são aplicados. Dados recentes podem ser preliminares e revistos pelas fontes oficiais."],"cachedAt":time.time()}
+        "notes":[f"SIM atualizado em {sim.get('updatedAt') or 'data não informada'}; SINASC atualizado em {sinasc.get('updatedAt') or 'data não informada'}. Óbitos pela residência da criança e nascidos vivos pela residência da mãe, independentemente do local de ocorrência.","Cada linha da tabela é um registro público não fetal do SIM, sem nome, documento ou datas exatas. Os campos de peso, gestação, idade da mãe, parto, local e assistência aparecem somente quando informados. A faixa etária usa a diferença entre data de nascimento e data do óbito; registros sem as duas datas válidas não entram no numerador.","A taxa anual bruta por mil nascidos vivos só é mostrada para um ano completo anterior ao atual e sem filtros de mortalidade. A contagem de nascidos vivos é da população residente no município e período, mesmo quando filtros de perfil do óbito são aplicados. Dados recentes podem ser preliminares e revistos pelas fontes oficiais.",*( ["O filtro de gestão associa o CNES de ocorrência à classificação CNES da competência, com cadastro atual como alternativa quando o histórico não existe. Óbitos sem CNES ou sem classificação confirmável ficam fora desse recorte; os nascidos vivos usados no contexto permanecem pelo total municipal." ] if management_selected else [] )],"cachedAt":time.time()}
 
 def _sim_mortality_age_group(value: Any) -> str:
     raw=re.sub(r"\D","",str(value or ""))
@@ -2318,7 +2421,8 @@ def _sim_mortality_selected_filters(payload: dict[str,Any]) -> dict[str,set[str]
         "ageGroup":{"under1","1-17","18-29","30-59","60+","unknown"},"sex":{"1","2","unknown"},
         "race":{"1","2","3","4","5","unknown"},"education":{"0","1","2","3","4","5","unknown"},
         "maritalStatus":{"1","2","3","4","5","unknown"},"deathPlace":{"1","2","3","4","5","6","unknown"},
-        "medicalAssistance":{"1","2","unknown"},"necropsy":{"1","2","unknown"},"certifier":{"1","2","3","4","5","unknown"}}
+        "medicalAssistance":{"1","2","unknown"},"necropsy":{"1","2","unknown"},"certifier":{"1","2","3","4","5","unknown"},
+        "cnesManagementCode":{"MUNICIPAL","ESTADUAL","DUPLA","NAO_INFORMADA"}}
     raw=payload.get("simFilters") or {}
     if not isinstance(raw,dict) or len(raw)>len(allowed): raise ValueError("Os filtros do SIM são inválidos.")
     selected={}
@@ -2417,8 +2521,20 @@ def predefined_sim_mortality(payload: dict[str,Any], progress=None):
             profiles=[{**dict(zip(fields,key)),"deaths":count} for key,count in grouped.items()]
             cache_write(target,{"fetched_at":time.time(),"updatedAt":updated_at,"profiles":profiles},max_bytes=48_000_000,keep=10)
 
+    management_selected=selected_filters.get("cnesManagementCode",set())
+    management_by_cnes={}; cnes_lookup_failures=0
+    if management_selected:
+        def normalized_cnes(value):
+            code=re.sub(r"\D","",str(value or ""))
+            if len(code)==8 and code.startswith("0"): code=code[-7:]
+            return code if re.fullmatch(r"\d{7}",code) else ""
+        establishment_codes=sorted({normalized_cnes(profile.get("establishmentCode")) for profile in profiles if normalized_cnes(profile.get("establishmentCode"))})
+        metadata,_,cnes_lookup_failures=_sinan_cnes_unit_metadata(establishment_codes,year,month,progress)
+        management_by_cnes={code:item.get("management") for code,item in metadata.items() if isinstance(item,dict)}
     def matches(profile):
-        values={"residenceOrigin":"local" if profile["residenceCode"]==municipality else "outside" if profile["residenceCode"] else "unknown","residenceMunicipality":profile["residenceCode"],"naturalityMunicipality":profile["naturalityCode"],"ageGroup":profile["ageGroup"],"sex":profile["sexCode"],"race":profile["raceCode"],"education":profile["educationCode"],"maritalStatus":profile["maritalCode"],"deathPlace":profile["deathPlaceCode"],"medicalAssistance":profile["medicalAssistanceCode"],"necropsy":profile["necropsyCode"],"certifier":profile["certifierCode"]}
+        establishment_code=re.sub(r"\D","",str(profile.get("establishmentCode") or ""))
+        if len(establishment_code)==8 and establishment_code.startswith("0"): establishment_code=establishment_code[-7:]
+        values={"residenceOrigin":"local" if profile["residenceCode"]==municipality else "outside" if profile["residenceCode"] else "unknown","residenceMunicipality":profile["residenceCode"],"naturalityMunicipality":profile["naturalityCode"],"ageGroup":profile["ageGroup"],"sex":profile["sexCode"],"race":profile["raceCode"],"education":profile["educationCode"],"maritalStatus":profile["maritalCode"],"deathPlace":profile["deathPlaceCode"],"medicalAssistance":profile["medicalAssistanceCode"],"necropsy":profile["necropsyCode"],"certifier":profile["certifierCode"],"cnesManagementCode":management_by_cnes.get(establishment_code,"")}
         return all(values[key] in selected for key,selected in selected_filters.items())
     selected=[profile for profile in profiles if profile["month"]==month and matches(profile)]
     if view=="detail":
@@ -2495,10 +2611,13 @@ def predefined_sim_mortality(payload: dict[str,Any], progress=None):
         if view=="full": columns.extend([{"id":"cause","label":"CAUSA BÁSICA · CID-10","kind":"primary","primaryField":"causeName","secondaryField":"causeCode","filterFields":["causeName","causeCode"],"sortField":"causeName","type":"text"},{"id":"chapter","label":"CAPÍTULO · CID-10","field":"chapterName","type":"text"}])
         columns.extend([{"id":"deaths","label":"ÓBITOS NÃO FETAIS","metricId":"deaths","type":"number","decimals":0},{"id":"residents","label":f"RESIDENTES EM {place.upper()}","metricId":"residents","type":"number","decimals":0},{"id":"otherResidents","label":"RESIDENTES DE OUTROS MUNICÍPIOS","metricId":"otherResidents","type":"number","decimals":0},{"id":"unknownResidence","label":"RESIDÊNCIA NÃO INFORMADA","metricId":"unknownResidence","type":"number","decimals":0},{"id":"detail","label":"DETALHAMENTO","kind":"action","actionType":"sim-detail","actionLabel":"Detalhar →"}])
     metric_labels=(("deaths","Óbitos não fetais"),("residents",f"Residentes em {place}"),("otherResidents","Residentes de outros municípios"),("unknownResidence","Residência não informada"))
-    filter_labels={"residenceOrigin":"Origem da residência","residenceMunicipality":"Município de residência","naturalityMunicipality":"Município de nascimento","ageGroup":"Faixa etária","sex":"Sexo","race":"Raça/cor","education":"Escolaridade","maritalStatus":"Situação conjugal","deathPlace":"Local do óbito","medicalAssistance":"Assistência médica","necropsy":"Necropsia","certifier":"Tipo de atestante"}
-    filter_value_labels={"residenceOrigin":{"local":f"Residente em {place}","outside":"Residente em outro município","unknown":"Residência não informada"},"ageGroup":{"under1":"Menor de 1 ano","1-17":"1 a 17 anos","18-29":"18 a 29 anos","30-59":"30 a 59 anos","60+":"60 anos ou mais","unknown":"Não informado"},"sex":{"1":"Masculino","2":"Feminino","unknown":"Ignorado / não informado"},"race":{"1":"Branca","2":"Preta","3":"Amarela","4":"Parda","5":"Indígena","unknown":"Ignorada / não informada"},"education":{"0":"Sem escolaridade","1":"Fundamental I","2":"Fundamental II","3":"Ensino médio","4":"Superior incompleto","5":"Superior completo","unknown":"Ignorada / não informada"},"maritalStatus":{"1":"Solteiro(a)","2":"Casado(a)","3":"Viúvo(a)","4":"Separado(a) / divorciado(a)","5":"União estável","unknown":"Ignorada / não informada"},"deathPlace":{"1":"Hospital","2":"Outro estabelecimento de saúde","3":"Domicílio","4":"Via pública","5":"Outro local","6":"Aldeia indígena","unknown":"Ignorado / não informado"},"medicalAssistance":{"1":"Sim","2":"Não","unknown":"Ignorada / não informada"},"necropsy":{"1":"Sim","2":"Não","unknown":"Ignorada / não informada"},"certifier":{"1":"Médico assistente","2":"Médico substituto","3":"IML","4":"SVO","5":"Outro médico","unknown":"Ignorado / não informado"}}
+    filter_labels={"residenceOrigin":"Origem da residência","residenceMunicipality":"Município de residência","naturalityMunicipality":"Município de nascimento","ageGroup":"Faixa etária","sex":"Sexo","race":"Raça/cor","education":"Escolaridade","maritalStatus":"Situação conjugal","deathPlace":"Local do óbito","medicalAssistance":"Assistência médica","necropsy":"Necropsia","certifier":"Tipo de atestante","cnesManagementCode":"Gestão do estabelecimento de ocorrência"}
+    filter_value_labels={"cnesManagementCode":{"MUNICIPAL":"Gestão municipal","ESTADUAL":"Gestão estadual","DUPLA":"Dupla gestão","NAO_INFORMADA":"Gestão não informada"},"residenceOrigin":{"local":f"Residente em {place}","outside":"Residente em outro município","unknown":"Residência não informada"},"ageGroup":{"under1":"Menor de 1 ano","1-17":"1 a 17 anos","18-29":"18 a 29 anos","30-59":"30 a 59 anos","60+":"60 anos ou mais","unknown":"Não informado"},"sex":{"1":"Masculino","2":"Feminino","unknown":"Ignorado / não informado"},"race":{"1":"Branca","2":"Preta","3":"Amarela","4":"Parda","5":"Indígena","unknown":"Ignorada / não informada"},"education":{"0":"Sem escolaridade","1":"Fundamental I","2":"Fundamental II","3":"Ensino médio","4":"Superior incompleto","5":"Superior completo","unknown":"Ignorada / não informada"},"maritalStatus":{"1":"Solteiro(a)","2":"Casado(a)","3":"Viúvo(a)","4":"Separado(a) / divorciado(a)","5":"União estável","unknown":"Ignorada / não informada"},"deathPlace":{"1":"Hospital","2":"Outro estabelecimento de saúde","3":"Domicílio","4":"Via pública","5":"Outro local","6":"Aldeia indígena","unknown":"Ignorado / não informado"},"medicalAssistance":{"1":"Sim","2":"Não","unknown":"Ignorada / não informada"},"necropsy":{"1":"Sim","2":"Não","unknown":"Ignorada / não informada"},"certifier":{"1":"Médico assistente","2":"Médico substituto","3":"IML","4":"SVO","5":"Outro médico","unknown":"Ignorado / não informado"}}
     filters=[{"label":filter_labels[key],"value":", ".join(filter_value_labels.get(key,{}).get(value,f"Código IBGE {value}" if key in {"residenceMunicipality","naturalityMunicipality"} else value) for value in sorted(values))} for key,values in selected_filters.items()]
     notes=[f"Fonte: SIM, arquivo anual público atualizado em {updated_at or 'data não informada'}. Recorte por município de ocorrência; competência pelo mês da data do óbito.","A tabela principal conta óbitos não fetais (TIPOBITO = 2). A semana epidemiológica é calculada pela data do óbito, de domingo a sábado. Dados recentes podem ser preliminares e revistos.","O detalhamento apresenta contagens agrupadas por residência e características disponíveis na declaração. Não exibe nomes, documentos ou datas individuais; campos ausentes são identificados como não informados.","O estabelecimento é o local de ocorrência registrado no SIM (CODESTAB), com nome consultado no CNES atual. Não significa necessariamente a unidade notificadora, e o cadastro pode diferir do histórico.",f"Residência não informada não entra nas contagens de {place} ou de outros municípios."]
+    if management_selected:
+        notes.insert(0,"A gestão foi vinculada ao CNES informado como estabelecimento de ocorrência, usando a competência quando disponível e o cadastro atual como alternativa. Registros sem CNES válido ou sem gestão identificada ficam fora do filtro.")
+        if cnes_lookup_failures: notes.append(f"O CNES não respondeu para {cnes_lookup_failures} estabelecimento(s); registros sem gestão confirmada foram excluídos do filtro.")
     return {"ok":True,"report":"sim-mortalidade","view":view,"flatTable":True,"file":"SIM · CSV oficial","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":place,"municipalityCode":municipality,"establishmentCode":str(week_index) if week_index else None,"establishmentName":week_label,"rows":rows,"records":total,"columns":columns,"metrics":[{"id":key,"label":label,"decimals":0} for key,label in metric_labels],"kpis":[{"label":"ÓBITOS NÃO FETAIS","value":{"value":total}},{"label":f"RESIDENTES EM {place.upper()}","value":{"value":resident_total}},{"label":"OUTROS MUNICÍPIOS","value":{"value":other_total}},{"label":"RESIDÊNCIA NÃO INFORMADA","value":{"value":unknown_total}}],"filters":filters,"emptyStateMessage":f"Não há óbitos não fetais em {place} em {month:02d}/{year} com os filtros selecionados. Os dados recentes podem ser preliminares.","notes":notes,"cachedAt":time.time()}
 
 SRAG_METRICS=(
@@ -3063,15 +3182,19 @@ def _pqavs_collect_leprosy(_file_year: int):
         municipality=_pqavs_municipality(current_residence) or _pqavs_municipality(resident)
         if diagnosis is None or not municipality: return ()
         output=[(municipality,f"{diagnosis.year}|{diagnosis.month}|all",{"notifications":1},None)]
+        unit_code=re.sub(r"\D","",_sinan_code(unit))[:7]
+        unit_code=unit_code.zfill(7) if unit_code else ""
+        if unit_code:
+            output.append((municipality,f"{diagnosis.year}|{diagnosis.month}|all|{unit_code}",{"notifications":1},None))
         if _sinan_code(entry)!="1" or _sinan_code(exit_type) in {"3","4","5","8","9"}: return tuple(output)
         current_class=_sinan_code(current_class); current_scheme=_sinan_code(current_scheme)
         group="pb" if current_class=="1" and current_scheme=="1" else "mb" if current_class=="2" and current_scheme=="2" else ""
         if group:
             registered=_pqavs_int(registered); examined=_pqavs_int(examined)
-            def unit_code(value):
+            def normalized_unit(value):
                 code=re.sub(r"\D","",_sinan_code(value))[:7]
                 return code.zfill(7) if code else ""
-            item={"diagnosed":diagnosis.isoformat(),"group":group,"unit":unit_code(unit),"currentUnit":unit_code(current_unit),"registered":registered,"examined":examined,"exit":_sinan_code(exit_type)}
+            item={"diagnosed":diagnosis.isoformat(),"group":group,"unit":unit_code,"currentUnit":normalized_unit(current_unit),"registered":registered,"examined":examined,"exit":_sinan_code(exit_type)}
             output.append((municipality,f"{diagnosis.year}|{diagnosis.month}|{group}",{"cases":1,"registered":registered,"examined":examined},None,item))
         return tuple(output)
     return fields,collect
@@ -3250,7 +3373,7 @@ PQAVS_SOURCES={
     "DOINF":("dbc",_sim_collect_infant),
 }
 
-PQAVS_COLLECTOR_VERSIONS={"SIFC":3,"HANS":3,"TUBE":4,"DENG":2,"CHIK":2,"CHAG":1,"DCCR":1,"DOMAT":1,"DOFET":2,"DOINF":1}
+PQAVS_COLLECTOR_VERSIONS={"SIFC":3,"HANS":4,"TUBE":4,"DENG":2,"CHIK":2,"CHAG":1,"DCCR":1,"DOMAT":1,"DOFET":2,"DOINF":1}
 
 def _pqavs_source_target(prefix: str, year: int, uf: str):
     identity={"version":2,"prefix":prefix,"year":year,"uf":uf}
@@ -3491,6 +3614,14 @@ def _predefined_chagas_impl(payload: dict[str,Any], progress=None):
     filters=payload.get("reportFilters") if isinstance(payload.get("reportFilters"),dict) else {}
     basis_values=[str(item) for item in (filters.get("basis") or []) if str(item) in {"notification","residence"}]
     basis="n" if basis_values[:1]==["notification"] else "r"
+    raw_management=filters.get("cnesManagementCode") or []
+    if isinstance(raw_management,str): raw_management=[raw_management]
+    valid_management={"MUNICIPAL","ESTADUAL","DUPLA","NAO_INFORMADA"}
+    if not isinstance(raw_management,(list,tuple)) or len(raw_management)>4:
+        raise ValueError("O filtro de gestão do CNES é inválido.")
+    management_selected={str(value or "").strip().upper() for value in raw_management if str(value or "").strip()}
+    if not management_selected.issubset(valid_management):
+        raise ValueError("O filtro de gestão contém uma categoria inválida.")
     basis_label="notificação" if basis=="n" else "residência"
     municipality_name=_report_label(payload.get("municipalityName") or "")[:100] or f"Município {municipality}"
     if progress: progress(5,"Preparando as bases de doença de Chagas")
@@ -3507,6 +3638,28 @@ def _predefined_chagas_impl(payload: dict[str,Any], progress=None):
         bucket=_pqavs_bucket(source,municipality,f"{basis}|{month}")
         for key in keys: row[key]+=int(bucket.get(key) or 0)
         items.extend(bucket.get("items") or [])
+    cnes_lookup_failures=0
+    if management_selected:
+        cnes_codes=sorted({item.get("unit") for item in items if re.fullmatch(r"\d{7}",str(item.get("unit") or ""))})
+        metadata,_,cnes_lookup_failures=_sinan_cnes_unit_metadata(cnes_codes,year,month,progress)
+        items=[item for item in items if item.get("unit") and metadata.get(item["unit"],{}).get("management") in management_selected]
+        row.update({key:0 for key in keys})
+        for item in items:
+            if item.get("type")=="A":
+                confirmed=item.get("classification")=="1"
+                row["acuteNotified"]+=1
+                row["acuteConfirmed"]+=int(confirmed)
+                row["acuteOral"]+=int(confirmed and item.get("route")=="5")
+                row["acuteOpen"]+=int(item.get("classification")=="")
+                row["acuteDeaths"]+=int(confirmed and item.get("evolution")=="2")
+            elif item.get("type")=="C":
+                form=_chagas_text(item.get("form")); closing=_chagas_text(item.get("closing"))
+                row["chronicNotified"]+=1
+                row["chronicCardiac"]+=int(form in {"cardiaca leve/moderada","cardiaca avancada"})
+                row["chronicDigestive"]+=int(form in {"digestiva","cardiodigestiva"})
+                row["chronicBlank"]+=int(form=="")
+                row["chronicTreated"]+=int(bool(item.get("treatment")))
+                row["chronicDeaths"]+=int(closing=="obito por d. chagas")
     acute_missing=bool(sources[0].get("missing")); chronic_missing=chronic_available and bool(sources[1].get("missing"))
     metric_items=[("acuteNotified","AGUDA · NOTIFICAÇÕES"),("acuteConfirmed","AGUDA · CONFIRMADOS"),("acuteOral","AGUDA · CONFIRMADOS POR VIA ORAL"),("acuteOpen","AGUDA · SEM CLASSIFICAÇÃO FINAL"),("acuteDeaths","AGUDA · ÓBITOS PELO AGRAVO")]
     if chronic_available: metric_items+=[("chronicNotified","CRÔNICA · NOTIFICAÇÕES"),("chronicCardiac","CRÔNICA · FORMA CARDÍACA"),("chronicDigestive","CRÔNICA · DIGESTIVA OU CARDIODIGESTIVA"),("chronicBlank","CRÔNICA · FORMA NÃO PREENCHIDA"),("chronicTreated","CRÔNICA · COM PRESCRIÇÃO DE BNZ/NFX"),("chronicDeaths","CRÔNICA · ÓBITOS POR CHAGAS")]
@@ -3527,8 +3680,15 @@ def _predefined_chagas_impl(payload: dict[str,Any], progress=None):
     if acute_missing: notes.append(f"A base da forma aguda de {year} ainda não foi publicada pelo DATASUS; as colunas da forma aguda não representam zero casos.")
     if chronic_missing: notes.append(f"A base da forma crônica de {year} ainda não foi publicada pelo DATASUS; as colunas da forma crônica não representam zero casos.")
     if any(item.get("stale") for item in sources): notes.append("Não foi possível atualizar alguma base agora; o resultado usa a última leitura salva neste computador.")
+    if management_selected:
+        labels={"MUNICIPAL":"Gestão municipal","ESTADUAL":"Gestão estadual","DUPLA":"Dupla gestão","NAO_INFORMADA":"Gestão não informada"}
+        notes.insert(0,"Gestão da unidade notificadora: " + ", ".join(labels[value] for value in sorted(management_selected)) + ". A classificação usa o CNES da competência quando disponível e o cadastro atual como alternativa.")
+        notes.append("Registros sem CNES válido ou sem classificação de gestão não entram neste recorte.")
+        if cnes_lookup_failures: notes.append(f"O CNES não respondeu para {cnes_lookup_failures} unidade(s); registros sem gestão confirmada foram excluídos do filtro.")
     total=row["acuteNotified"]+row["chronicNotified"]
-    result={"ok":True,"report":CHAGAS_REPORT_ID,"view":"summary","flatTable":True,"file":"SINAN · e-SUS Notifica","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality,"filters":[{"label":"Município considerado","value":basis_label}],"numerator":row["acuteConfirmed"],"denominator":row["acuteNotified"],"rows":[row],"records":total,"columns":columns,"metrics":[{"id":key,"label":label.capitalize(),"decimals":0} for key,label in metric_items],"kpis":kpis,"notes":notes,"emptyStateMessage":"","cachedAt":time.time()}
+    applied_filters=[{"label":"Município considerado","value":basis_label}]
+    if management_selected: applied_filters.append({"label":"Gestão da unidade notificadora","value":", ".join({"MUNICIPAL":"Municipal","ESTADUAL":"Estadual","DUPLA":"Dupla","NAO_INFORMADA":"Não informada"}[value] for value in sorted(management_selected))})
+    result={"ok":True,"report":CHAGAS_REPORT_ID,"view":"summary","flatTable":True,"file":"SINAN · e-SUS Notifica","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality,"filters":applied_filters,"numerator":row["acuteConfirmed"],"denominator":row["acuteNotified"],"rows":[row],"records":total,"columns":columns,"metrics":[{"id":key,"label":label.capitalize(),"decimals":0} for key,label in metric_items],"kpis":kpis,"notes":notes,"emptyStateMessage":"","cachedAt":time.time()}
     if view=="detail":
         detail=_chagas_detail(items,year,month)
         result.update({key:value for key,value in detail.items() if key!="detailNote"})
@@ -3684,6 +3844,135 @@ def _predefined_maternal_impl(payload: dict[str,Any], progress=None):
         result.update({"view":"detail","establishmentCode":str(month),"establishmentName":f"{month:02d}/{year}"})
     return result
 
+def _cnes_st_download(uf: str, year: int, month: int, progress=None) -> Path | None:
+    """Download one validated CNES ST DBC from the public DATASUS FTP."""
+    uf=str(uf or "").strip().upper()
+    if uf not in PREDEFINED_UF_CODES or not isinstance(year,int) or not 2005<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12:
+        raise ValueError("A competência informada para o CNES é inválida.")
+    if month not in _cnes_st_competencies(uf,year): return None
+    folder=UPLOADS/".cache"/"cnes-st-files"
+    folder.mkdir(parents=True,exist_ok=True)
+    name=f"ST{uf}{year%100:02d}{month:02d}.dbc"
+    target=folder/name
+    metadata=target.with_suffix(".json")
+    remote=f"{CNES_ST_DIRECTORY}/{name}"
+    from ftplib import error_perm
+    with interprocess_lock(target.with_suffix(".lock")):
+        ftp=FTP("ftp.datasus.gov.br",timeout=30)
+        try:
+            ftp.login(); ftp.set_pasv(True)
+            try: size=ftp.size(remote)
+            except error_perm as exc:
+                if "550" in str(exc): return None
+                raise
+            if size is None or not 64<=size<=128*1024*1024:
+                raise ValueError("O arquivo mensal de estabelecimentos do CNES tem tamanho inválido.")
+            remote_mtime=""
+            try: remote_mtime=ftp.sendcmd("MDTM "+remote).strip().split()[-1]
+            except Exception: pass
+            saved=cache_read(metadata) or {}
+            same_remote_version=saved.get("remoteMtime")==remote_mtime and (bool(remote_mtime) or time.time()-float(saved.get("fetchedAt",0))<12*3600)
+            if target.is_file() and target.stat().st_size==size and saved.get("size")==size and same_remote_version:
+                if progress: progress(35,f"Arquivo CNES {name} já está salvo neste computador")
+                return target
+            if progress: progress(20,f"Baixando a competência CNES {month:02d}/{year}")
+            fd,temp_name=tempfile.mkstemp(prefix=f"{name}.",suffix=".part",dir=str(folder)); os.close(fd)
+            temporary=Path(temp_name)
+            try:
+                with temporary.open("wb") as stream:
+                    ftp.retrbinary("RETR "+remote,stream.write,blocksize=1024*1024)
+                if temporary.stat().st_size!=size:
+                    raise ValueError("O arquivo CNES chegou incompleto do DATASUS.")
+                dbc_header(temporary)
+                os.replace(temporary,target)
+                cache_write(metadata,{"size":size,"remoteMtime":remote_mtime,"fetchedAt":time.time()},max_bytes=5_000,keep=200)
+            finally: temporary.unlink(missing_ok=True)
+            return target
+        except (OSError,TimeoutError,ValueError) as exc:
+            raise ValueError(f"Não foi possível ler a competência {month:02d}/{year} do CNES no DATASUS: {exc}") from exc
+        finally:
+            try: ftp.close()
+            except OSError: pass
+
+def _cnes_st_dbf(dbc: Path, progress=None) -> Path:
+    dbf=dbc.with_suffix(".dbf")
+    fields,records=dbc_header(dbc)
+    expected=32+32*len(fields)+1+records*(1+sum(item["length"] for item in fields))+1
+    if not dbf.is_file() or dbf.stat().st_mtime_ns<dbc.stat().st_mtime_ns:
+        if progress: progress(45,"Preparando a leitura do cadastro mensal do CNES")
+        decompress(dbc,expected_size=expected,output_path=dbf)
+    count,header,record_len,fieldinfo=dbf_layout(dbf)
+    if count!=records or dbf.stat().st_size<32+records*record_len:
+        dbf.unlink(missing_ok=True)
+        raise ValueError("A leitura do arquivo mensal do CNES ficou incompleta.")
+    required={"CNES","CODUFMUN","TPGESTAO","VINC_SUS","QTINST26","COMPETEN"}
+    missing=required-set(fieldinfo)
+    if missing:
+        raise ValueError("O leiaute desta competência CNES não contém os campos necessários: "+", ".join(sorted(missing)))
+    return dbf
+
+def _cnes_vaccine_room_report(payload: dict[str,Any], progress=None):
+    year=payload.get("year"); month=payload.get("month")
+    uf=str(payload.get("uf") or "").strip().upper()
+    municipality=str(payload.get("municipalityCode") or "")
+    if not isinstance(year,int) or not 2005<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12:
+        raise ValueError("Selecione uma competência válida do CNES, a partir de 2005.")
+    if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]:
+        raise ValueError("Selecione um município válido para consultar as salas de imunização.")
+    raw_filters=payload.get("reportFilters") if isinstance(payload.get("reportFilters"),dict) else {}
+    raw_management=raw_filters.get("cnesManagement") or []
+    if isinstance(raw_management,str): raw_management=[raw_management]
+    allowed={"MUNICIPAL","ESTADUAL","DUPLA","NAO_INFORMADA"}
+    if not isinstance(raw_management,(list,tuple)) or len(raw_management)>4:
+        raise ValueError("O filtro de gestão do CNES é inválido.")
+    selected={str(value or "").strip().upper() for value in raw_management if str(value or "").strip()}
+    if not selected.issubset(allowed): raise ValueError("O filtro de gestão contém uma categoria inválida.")
+    if progress: progress(8,"Consultando competências oficiais do CNES")
+    dbc=_cnes_st_download(uf,year,month,progress)
+    if dbc is None:
+        return {"ok":True,"report":CNES_VACCINE_ROOMS_REPORT_ID,"view":"summary","flatTable":True,"file":"CNES · ST","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":_report_label(payload.get("municipalityName") or "")[:100],"municipalityCode":municipality,"rows":[],"records":0,"columns":[],"metrics":[],"kpis":[],"notes":[],"emptyStateMessage":f"A competência {month:02d}/{year} ainda não está publicada no DATASUS/CNES."}
+    dbf=_cnes_st_dbf(dbc,progress)
+    if progress: progress(58,"Lendo as instalações cadastradas no município")
+    selected_rows=[]; processed=[0]
+    for cnes,location,management,sus,room_count,competence in iter_dbf_fields(dbf,["CNES","CODUFMUN","TPGESTAO","VINC_SUS","QTINST26","COMPETEN"],pre_filter=("CODUFMUN",municipality),processed_counter=processed):
+        code=re.sub(r"\D","",str(cnes or ""))
+        if not code or len(code)>7: continue
+        code=code.zfill(7)
+        try: rooms=max(0,int(float(str(room_count or "0").replace(",","."))))
+        except (TypeError,ValueError): rooms=0
+        if rooms<=0: continue
+        manager=_normalize_cnes_management(management)
+        if selected and manager not in selected: continue
+        sus_code=str(sus or "").strip().upper()
+        sus_label={"S":"Sim","N":"Não","1":"Sim","0":"Não"}.get(sus_code,"Não informado")
+        selected_rows.append({"cnes":code,"code":code,"establishmentName":f"CNES {code}","neighborhood":"Não informado no CNES","managementCode":manager,
+            "managementName":{"MUNICIPAL":"Municipal","ESTADUAL":"Estadual","DUPLA":"Dupla","NAO_INFORMADA":"Não informada"}[manager],
+            "susLink":sus_label,"vaccineRoomCount":rooms,"competence":f"{month:02d}/{year}"})
+    if progress: progress(75,"Completando nomes e bairros pelo cadastro público do CNES")
+    names,lookup_failures,neighborhoods=_sinasc_maternity_names([row["cnes"] for row in selected_rows],include_neighborhood=True)
+    for row in selected_rows:
+        row["establishmentName"]=names.get(row["cnes"]) or f"CNES {row['cnes']}"
+        row["neighborhood"]=neighborhoods.get(row["cnes"]) or "Não informado no CNES"
+    selected_rows.sort(key=lambda row:(row["establishmentName"].casefold(),row["cnes"]))
+    municipality_name=_report_label(payload.get("municipalityName") or "")[:100] or f"Município {municipality}"
+    notes=["Fonte estrutural: arquivo mensal ST do CNES, filtrado pelo município e pelo código de instalação 26 (sala de imunização). O nome e o bairro vêm do cadastro público atual do CNES.",
+        "O quantitativo representa salas cadastradas na competência; não confirma funcionamento, equipe, estoque, horário ou disponibilidade de vacinação.",
+        "A gestão e o vínculo SUS vêm do arquivo da competência. O nome e o bairro são atributos do cadastro atual e podem ter mudado desde o período consultado."]
+    if selected: notes.insert(0,"Filtro de gestão aplicado conforme o cadastro CNES da competência selecionada.")
+    if lookup_failures: notes.append("Alguns nomes ou bairros não responderam nesta consulta; o código CNES permanece disponível na tabela.")
+    columns=[
+        {"id":"establishment","label":"ESTABELECIMENTO","kind":"primary","primaryField":"establishmentName","secondaryField":"cnes","secondaryPrefix":"CNES ","filterFields":["establishmentName","cnes"],"sortField":"establishmentName","type":"text","sticky":True},
+        {"id":"neighborhood","label":"BAIRRO DA UNIDADE","field":"neighborhood","type":"text"},
+        {"id":"management","label":"GESTÃO · COMPETÊNCIA","field":"managementName","type":"text"},
+        {"id":"sus","label":"VÍNCULO SUS","field":"susLink","type":"text"},
+        {"id":"rooms","label":"SALAS DE IMUNIZAÇÃO CADASTRADAS","field":"vaccineRoomCount","type":"number","decimals":0,"totalField":"vaccineRoomCount"},
+    ]
+    if progress: progress(96,"Concluindo o painel de estrutura vacinal")
+    return {"ok":True,"report":CNES_VACCINE_ROOMS_REPORT_ID,"view":"summary","flatTable":True,"file":dbc.name,"year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality,
+        "rows":selected_rows,"records":len(selected_rows),"columns":columns,"metrics":[{"id":"vaccineRoomCount","label":"Salas de imunização cadastradas","decimals":0}],
+        "kpis":[{"label":"UNIDADES COM SALA DE IMUNIZAÇÃO","value":{"value":len(selected_rows)}},{"label":"SALAS CADASTRADAS NA COMPETÊNCIA","value":{"value":sum(row["vaccineRoomCount"] for row in selected_rows)}},{"label":"UNIDADES COM VÍNCULO SUS","value":{"value":sum(row["susLink"]=="Sim" for row in selected_rows)}}],
+        "notes":notes,"emptyStateMessage":"Não há unidades com sala de imunização cadastrada para este município e competência, com os filtros selecionados.","cachedAt":time.time()}
+
 PNI_REPORT_ID="pqavs-cobertura-vacinal"
 PNI_FACILITY_REPORT_ID="pqavs-aplicacoes-estabelecimento"
 PNI_FIRST_YEAR=2026
@@ -3805,7 +4094,7 @@ def _pni_facility_age_band(value: str) -> str:
     return f"{decade} a {decade+9} anos"
 
 
-def _pni_establishment_report(data, dictionaries, year: int, month: int, uf: str, municipality: str, municipality_name: str, stale: bool=False, published: bool=True, month_info: dict | None=None, progress=None):
+def _pni_establishment_report(data, dictionaries, year: int, month: int, uf: str, municipality: str, municipality_name: str, stale: bool=False, published: bool=True, month_info: dict | None=None, management_selected: set[str] | None=None, progress=None):
     """Doses registradas por unidade, preservando dimensões disponíveis no pacote PNI."""
     try: data_format=int((data or {}).get("formato") or (month_info or {}).get("formato") or 1)
     except (TypeError,ValueError): data_format=1
@@ -3873,11 +4162,20 @@ def _pni_establishment_report(data, dictionaries, year: int, month: int, uf: str
                 "doses":count,
             })
         if progress: progress(84,"Identificando as unidades no CNES")
-        names,lookup_failures,neighborhoods=_sinasc_maternity_names([row["cnes"] for row in rows if row["cnes"]],include_neighborhood=True)
+        names,lookup_failures,neighborhoods,management_by_cnes,management_updated=_sinasc_maternity_names(
+            [row["cnes"] for row in rows if row["cnes"]],include_neighborhood=True,include_management=True
+        )
+        if management_selected and lookup_failures:
+            raise RuntimeError("Não foi possível consultar a gestão atual no CNES para todas as unidades. Tente novamente quando o cadastro estiver disponível.")
         for row in rows:
             if row["cnes"]:
                 row["establishmentName"]=names.get(row["cnes"]) or f"CNES {row['cnes']}"
                 row["facilityNeighborhood"]=neighborhoods.get(row["cnes"]) or "Não informado no CNES"
+                row["cnesManagementCode"]=management_by_cnes.get(row["cnes"])
+                row["cnesManagementName"]={"MUNICIPAL":"Gestão municipal","ESTADUAL":"Gestão estadual","DUPLA":"Dupla gestão","NAO_INFORMADA":"Gestão não informada no CNES"}.get(row["cnesManagementCode"],"Gestão não consultada")
+                row["cnesManagementUpdatedAt"]=management_updated.get(row["cnes"],"")
+        if management_selected:
+            rows=[row for row in rows if row.get("cnesManagementCode") in management_selected]
         rows.sort(key=lambda row:(row["establishmentName"].casefold(),row["vaccineName"].casefold(),row["doseName"].casefold(),row["strategyName"].casefold(),row["residenceOrigin"]))
     if published and not rows:
         notes.insert(0,f"Não há aplicações compatíveis registradas em {PQAVS_MONTHS[month-1].lower()} de {year} no município selecionado.")
@@ -3891,6 +4189,11 @@ def _pni_establishment_report(data, dictionaries, year: int, month: int, uf: str
         notes.append("Sexo e raça/cor ainda não são discriminados na versão do pacote disponível para esta competência.")
     notes.append("Esta é uma tabela de produção, não de cobertura por unidade. A cobertura oficial usa o município de residência e nascidos vivos do SINASC; a base não fornece denominador equivalente por CNES.")
     notes.append("O bairro exibido é o endereço cadastral da unidade no CNES; o arquivo do PNI não informa o bairro de residência do usuário. A residência distingue moradores do município, moradores de outros municípios e residência não identificada.")
+    notes.append("A gestão exibida e usada no filtro vem do cadastro atual do CNES; ela pode diferir da situação da unidade na competência da aplicação.")
+    if management_selected:
+        management_labels={"MUNICIPAL":"Gestão municipal","ESTADUAL":"Gestão estadual","DUPLA":"Dupla gestão","NAO_INFORMADA":"Gestão não informada no CNES"}
+        chosen=[management_labels[value] for value in sorted(management_selected)]
+        notes.insert(0,"Filtro de gestão atual do CNES: " + ", ".join(chosen) + ".")
     if lookup_failures: notes.append("Alguns nomes não puderam ser confirmados no CNES nesta consulta; nesses casos, o código CNES permanece visível.")
     if stale: notes.append("A release de dados não respondeu; foi usada a lista de competências já armazenada neste computador.")
     if month_info:
@@ -3904,7 +4207,7 @@ def _pni_establishment_report(data, dictionaries, year: int, month: int, uf: str
     empty_message=(f"Os totais de {PQAVS_MONTHS[month-1].lower()} de {year} ainda não estão disponíveis no conjunto do PNI." if not published else f"Não há aplicações compatíveis registradas em {PQAVS_MONTHS[month-1].lower()} de {year} no município selecionado.")
     return {"ok":True,"report":PNI_FACILITY_REPORT_ID,"view":"summary","flatTable":True,"facilityAgeAvailable":age_available,"facilitySexAvailable":sex_available,"facilityRaceAvailable":race_available,"facilityFormat":data_format,"facilityDataPublished":published,"facilityCompatible":True,
         "file":"PNI · CNES","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality,
-        "filters":[],"rows":rows,"records":sum(row["doses"] for row in rows),"columns":columns,"metrics":[{"id":"doses","label":"Doses aplicadas","decimals":0}],
+        "filters":[{"label":"Gestão atual · CNES","value":", ".join({"MUNICIPAL":"Municipal","ESTADUAL":"Estadual","DUPLA":"Dupla","NAO_INFORMADA":"Não informada"}[value] for value in sorted(management_selected or set()))}] if management_selected else [],"rows":rows,"records":sum(row["doses"] for row in rows),"columns":columns,"metrics":[{"id":"doses","label":"Doses aplicadas","decimals":0}],
         "notes":notes,"emptyStateMessage":empty_message,"cachedAt":time.time()}
 
 def _predefined_pni_impl(payload: dict[str,Any], progress=None, report_id: str=PNI_REPORT_ID):
@@ -3929,7 +4232,16 @@ def _predefined_pni_impl(payload: dict[str,Any], progress=None, report_id: str=P
         data,dictionaries=_pni_month_data(year,month,uf,municipality,str(month_info.get("processado_em") or ""))
     published=bool(month_info)
     if report_id==PNI_FACILITY_REPORT_ID:
-        return _pni_establishment_report(data,dictionaries,year,month,uf,municipality,municipality_name,stale,published,month_info,progress)
+        raw_filters=payload.get("reportFilters") if isinstance(payload.get("reportFilters"),dict) else {}
+        raw_management=raw_filters.get("cnesManagement") or raw_filters.get("cnesManagementCode") or []
+        if isinstance(raw_management,(str,int,float)): raw_management=[raw_management]
+        allowed_management={"MUNICIPAL","ESTADUAL","DUPLA","NAO_INFORMADA"}
+        if not isinstance(raw_management,(list,tuple)) or len(raw_management)>4:
+            raise ValueError("O filtro de gestão do CNES é inválido.")
+        management_selected={str(value or "").strip().upper() for value in raw_management if str(value or "").strip()}
+        if not management_selected.issubset(allowed_management):
+            raise ValueError("O filtro de gestão contém uma categoria inválida.")
+        return _pni_establishment_report(data,dictionaries,year,month,uf,municipality,municipality_name,stale,published,month_info,management_selected,progress)
     counts={item["key"]:0 for item in PNI_INDICATOR_VACCINES}
     resident_total=0; outside_total=0
     for vaccine,dose,age,_sex,_condition,outside,count in (data or {}).get("cobertura") or []:
@@ -4029,6 +4341,17 @@ def predefined_pqavs(payload: dict[str,Any], progress=None):
 def _pqavs_percent(numerator: int, denominator: int):
     return round(100*numerator/denominator,1) if denominator else None
 
+def _pqavs_selected_management(filters: dict[str,Any]) -> set[str]:
+    raw=filters.get("cnesManagementCode") or []
+    if isinstance(raw,str): raw=[raw]
+    allowed={"MUNICIPAL","ESTADUAL","DUPLA","NAO_INFORMADA"}
+    if not isinstance(raw,(list,tuple)) or len(raw)>4:
+        raise ValueError("O filtro de gestão do CNES é inválido.")
+    selected={str(value or "").strip().upper() for value in raw if str(value or "").strip()}
+    if not selected.issubset(allowed):
+        raise ValueError("O filtro de gestão contém uma categoria inválida.")
+    return selected
+
 def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
     report_id=str(payload.get("predefinedReport") or "")
     if report_id==CHAGAS_REPORT_ID: return _predefined_chagas_impl(payload,progress)
@@ -4057,6 +4380,9 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
         basis_values=[str(item) for item in (filters.get("basis") or []) if str(item) in {"notification","residence"}]
         basis="r" if basis_values[:1]==["residence"] else "n"
         filter_summary.append({"label":"Município considerado","value":"residência" if basis=="r" else "notificação"})
+        management_selected=_pqavs_selected_management(filters)
+        if management_selected:
+            filter_summary.append({"label":"Gestão da unidade notificadora","value":", ".join({"MUNICIPAL":"Municipal","ESTADUAL":"Estadual","DUPLA":"Dupla","NAO_INFORMADA":"Não informada"}[value] for value in sorted(management_selected))})
         if progress: progress(5,"Preparando dengue e chikungunya do SINAN")
         dengue=_pqavs_source("DENG",year,uf,progress); chik=_pqavs_source("CHIK",year,uf,progress)
         today=date.today()
@@ -4067,6 +4393,25 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
             open_dates=[_pqavs_date(item) for item in bucket.get("open") or []]
             open_window=sum(1 for item in open_dates if item and (today-item).days<=60)
             values[prefix]={"deaths":int(bucket.get("deaths") or 0),"onTime":int(bucket.get("onTime") or 0),"openWindow":open_window,"openLate":len(open_dates)-open_window}
+        if management_selected:
+            unit_codes=sorted({str(item.get("unit") or "") for item in case_items if re.fullmatch(r"\d{7}",str(item.get("unit") or ""))})
+            unit_metadata,_,lookup_failures=_sinan_cnes_unit_metadata(unit_codes,year,month,progress)
+            if lookup_failures:
+                raise RuntimeError("Não foi possível confirmar a gestão de todas as unidades no CNES. Tente novamente quando o cadastro estiver disponível.")
+            case_items=[item for item in case_items if item.get("unit") and unit_metadata.get(item["unit"],{}).get("management") in management_selected]
+            values={"dengue":{"deaths":0,"onTime":0,"openWindow":0,"openLate":0},"chik":{"deaths":0,"onTime":0,"openWindow":0,"openLate":0}}
+            valid_classes={"dengue":{"10","11","12","5"},"chik":{"13","5"}}
+            for item in case_items:
+                category="dengue" if item.get("disease")=="DENG" else "chik"
+                notified=_pqavs_date(item.get("notified")); closed=_pqavs_date(item.get("closed"))
+                values[category]["deaths"]+=1
+                if closed:
+                    if notified and item.get("classification") in valid_classes[category] and 0<=(closed-notified).days<=60:
+                        values[category]["onTime"]+=1
+                elif notified and (today-notified).days<=60:
+                    values[category]["openWindow"]+=1
+                else:
+                    values[category]["openLate"]+=1
         numerator=values["dengue"]["onTime"]+values["chik"]["onTime"]
         denominator=sum(item["deaths"]-item["openWindow"] for item in values.values())
         row.update({"dengueDeaths":values["dengue"]["deaths"],"dengueOnTime":values["dengue"]["onTime"],"chikDeaths":values["chik"]["deaths"],"chikOnTime":values["chik"]["onTime"],"openWindow":values["dengue"]["openWindow"]+values["chik"]["openWindow"],"openLate":values["dengue"]["openLate"]+values["chik"]["openLate"],"numerator":numerator,"denominator":denominator})
@@ -4081,6 +4426,8 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
             "Período: semana epidemiológica da notificação no ano selecionado; o mês usa a data de notificação. Para o resultado anual, selecione os 12 meses.",
             f"Município considerado: {'residência' if basis=='r' else 'notificação'} (troque em Alterar recorte). A ficha não define o município de agregação. Municípios sem óbitos suspeitos não pontuam no PQA-VS.",
         ]
+        if management_selected:
+            notes.append("O filtro por gestão associa o CNES da unidade notificadora à classificação CNES da competência, com cadastro atual como alternativa quando o histórico não existe. Registros sem CNES válido ou sem classificação confirmável ficam fora deste recorte; o resultado filtrado não substitui a apuração municipal oficial do PQA-VS.")
     elif report_id=="pqavs-sifilis-congenita":
         if progress: progress(5,"Preparando sífilis congênita e em gestantes do SINAN")
         sources=[]; congenital=0; pregnant=0
@@ -4116,13 +4463,22 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
         ]
     elif report_id=="pqavs-contatos-hanseniase":
         if progress: progress(5,"Preparando as coortes de hanseníase do SINAN")
+        management_selected=_pqavs_selected_management(filters)
+        if management_selected:
+            filter_summary.append({"label":"Gestão da unidade notificadora","value":", ".join({"MUNICIPAL":"Municipal","ESTADUAL":"Estadual","DUPLA":"Dupla","NAO_INFORMADA":"Não informada"}[value] for value in sorted(management_selected))})
         pb_year,mb_year=year-1,year-2
         sources=[]; totals={"pb":{"cases":0,"registered":0,"examined":0},"mb":{"cases":0,"registered":0,"examined":0}}
-        all_cases=0
+        all_cases=0; all_cases_by_unit=defaultdict(int)
         for file_year in (year,year+1):
             source=_pqavs_source("HANS",file_year,uf,progress)
             if source not in sources: sources.append(source)
             all_cases+=int(_pqavs_bucket(source,municipality,f"{year}|{month}|all").get("notifications") or 0)
+            if management_selected:
+                key_prefix=f"{year}|{month}|all|"
+                for bucket_key,bucket in (((source.get("municipalities") or {}).get(municipality) or {}).items()):
+                    if not bucket_key.startswith(key_prefix): continue
+                    unit_code=bucket_key[len(key_prefix):]
+                    if re.fullmatch(r"\d{7}",unit_code): all_cases_by_unit[unit_code]+=int(bucket.get("notifications") or 0)
         for group,diagnosis_year in (("pb",pb_year),("mb",mb_year)):
             for file_year in (diagnosis_year,diagnosis_year+1):
                 source=_pqavs_source("HANS",file_year,uf,progress)
@@ -4130,6 +4486,26 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
                 bucket=_pqavs_bucket(source,municipality,f"{diagnosis_year}|{month}|{group}")
                 case_items.extend({**item,"cohortYear":diagnosis_year} for item in bucket.get("items") or [])
                 for key in totals[group]: totals[group][key]+=int(bucket.get(key) or 0)
+        if management_selected:
+            all_metadata,_,lookup_failures=_sinan_cnes_unit_metadata(sorted(all_cases_by_unit),year,month,progress)
+            if lookup_failures:
+                raise RuntimeError("Não foi possível confirmar a gestão de todas as unidades no CNES. Tente novamente quando o cadastro estiver disponível.")
+            all_cases=sum(count for code,count in all_cases_by_unit.items() if all_metadata.get(code,{}).get("management") in management_selected)
+            cohort_management={}
+            for cohort_year in sorted({int(item.get("cohortYear") or 0) for item in case_items}):
+                codes=sorted({str(item.get("unit") or "") for item in case_items if int(item.get("cohortYear") or 0)==cohort_year and re.fullmatch(r"\d{7}",str(item.get("unit") or ""))})
+                metadata,_,lookup_failures=_sinan_cnes_unit_metadata(codes,cohort_year,month,progress)
+                if lookup_failures:
+                    raise RuntimeError("Não foi possível confirmar a gestão de todas as unidades das coortes no CNES. Tente novamente quando o cadastro estiver disponível.")
+                cohort_management.update({(cohort_year,code):item.get("management") for code,item in metadata.items()})
+            case_items=[item for item in case_items if item.get("unit") and cohort_management.get((int(item.get("cohortYear") or 0),item.get("unit"))) in management_selected]
+            totals={"pb":{"cases":0,"registered":0,"examined":0},"mb":{"cases":0,"registered":0,"examined":0}}
+            for item in case_items:
+                group=item.get("group")
+                if group not in totals: continue
+                totals[group]["cases"]+=1
+                totals[group]["registered"]+=int(item.get("registered") or 0)
+                totals[group]["examined"]+=int(item.get("examined") or 0)
         numerator=totals["pb"]["examined"]+totals["mb"]["examined"]
         denominator=totals["pb"]["registered"]+totals["mb"]["registered"]
         row.update({"allCases":all_cases,"pbCases":totals["pb"]["cases"],"pbRegistered":totals["pb"]["registered"],"pbExamined":totals["pb"]["examined"],"mbCases":totals["mb"]["cases"],"mbRegistered":totals["mb"]["registered"],"mbExamined":totals["mb"]["examined"],"numerator":numerator,"denominator":denominator,"period":f"PB {month:02d}/{pb_year} · MB {month:02d}/{mb_year}"})
@@ -4143,6 +4519,8 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
             "A coluna de notificações conta os registros da ficha no SINAN no mês de diagnóstico; não representa pessoas únicas. O indicador de contatos mantém, em separado, as coortes e regras oficiais.",
             "Para o resultado da avaliação, selecione os 12 meses. Municípios com casos novos e sem contatos registrados não cumprem a meta; sem casos novos nas coortes, não pontuam.",
         ]
+        if management_selected:
+            notes.append("O filtro por gestão associa o CNES da unidade notificadora à classificação CNES do mês de diagnóstico; quando o histórico cadastral não existe, usa o cadastro atual. Registros sem CNES válido ou classificação confirmável ficam fora deste recorte, que é uma análise gerencial e não substitui a apuração municipal oficial do PQA-VS.")
     elif report_id=="pqavs-contatos-tuberculose":
         basis_values=[str(item) for item in (filters.get("basis") or []) if str(item) in {"residence","current","notification"}]
         basis=basis_values[0] if basis_values else "residence"
@@ -4459,6 +4837,7 @@ def _sia_reference_labels(uf: str):
     return establishments,procedures
 
 SIA_APAC_FILTERS={
+    "apacManagerCode":(None,"Gestor da produção"),
     "apacManagement":({"state":"Gestão estadual","municipal":"Gestão municipal"},"Tipo de gestão"),
     "apacLegalNature":({"1":"Administração pública","2":"Entidade empresarial","3":"Entidade sem fins lucrativos","4":"Pessoa física"},"Natureza jurídica"),
     "apacSex":({"M":"Masculino","F":"Feminino"},"Sexo do paciente"),
@@ -4474,7 +4853,13 @@ def _sia_apac_selected_filters(payload: dict[str,Any]) -> dict[str,set[str]]:
         if not isinstance(raw,(list,tuple)) or len(raw)>6000: raise ValueError(f"O filtro {label.lower()} é inválido.")
         values={str(item).strip().upper() if key=="apacSex" else str(item).strip() for item in raw if str(item).strip()}
         if allowed is None:
-            if any(not re.fullmatch(r"\d{6}",value) for value in values): raise ValueError("Selecione municípios de residência válidos.")
+            if any(not re.fullmatch(r"\d{6}",value) for value in values):
+                message="Selecione códigos válidos de município gestor." if key=="apacManagerCode" else "Selecione municípios de residência válidos."
+                raise ValueError(message)
+            if key=="apacManagerCode":
+                prefix=PREDEFINED_UF_CODES.get(str(payload.get("uf") or "").strip().upper())
+                if not prefix or any(not value.startswith(prefix) or value==prefix+"9999" for value in values):
+                    raise ValueError("Selecione gestores vinculados à unidade da Federação escolhida.")
         elif not values.issubset(allowed): raise ValueError(f"O filtro {label.lower()} contém uma categoria inválida.")
         if values: selected[key]=values
     return selected
@@ -4552,6 +4937,7 @@ def predefined_sia_apac(payload: dict[str,Any], progress=None):
             if selected_filters:
                 checks={"apacSex":values[filter_fields["sex"]].strip().upper(),"apacAgeGroup":_sia_age_group(values[filter_fields["ageUnit"]],values[filter_fields["age"]]),
                     "apacLegalNature":values[filter_fields["nature"]].strip()[:1],"apacManagement":"state" if values[filter_fields["management"]].strip().endswith("0000") else "municipal",
+                    "apacManagerCode":_report_code(values[filter_fields["management"]],6),
                     "apacResidence":re.sub(r"\D","",values[filter_fields["residence"]])[:6]}
                 if any(checks[key] not in allowed for key,allowed in selected_filters.items()): continue
             cnes=_report_code(values["CNES_EXEC" if is_raas else "AP_CODUNI"],7)
@@ -6751,6 +7137,8 @@ def tabulate(payload, progress=None):
         return predefined_srag_weekly(payload,progress)
     if payload.get("predefinedReport")=="sisagua-residual-desinfetante":
         return predefined_sisagua_rad(payload,progress)
+    if payload.get("predefinedReport")==CNES_VACCINE_ROOMS_REPORT_ID:
+        return _cnes_vaccine_room_report(payload,progress)
     if payload.get("predefinedReport") in PQAVS_REPORTS or payload.get("predefinedReport") in {CHAGAS_REPORT_ID,MATERNAL_REPORT_ID,PNI_REPORT_ID,PNI_FACILITY_REPORT_ID}:
         return predefined_pqavs(payload,progress)
     if payload.get("predefinedReport")=="sim-mortalidade":

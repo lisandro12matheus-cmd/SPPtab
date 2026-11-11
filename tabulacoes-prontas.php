@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>Tabulações prontas · TabulaSUS</title>
-      <link rel="stylesheet" href="assets/app.css?v=22"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=55"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
+      <link rel="stylesheet" href="assets/app.css?v=22"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=57"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
   <link rel="stylesheet" href="assets/rating.css?v=1"><script src="assets/sidebar.js?v=3" defer></script><script src="assets/rating.js?v=1" defer></script>
 </head>
 <body>
@@ -28,8 +28,17 @@
       <section class="intro predefined-report-intro"><div class="eyebrow"><span class="eyebrow-line"></span> <span id="predefinedIntroLabel">RELATÓRIOS PRÉ-DEFINIDOS</span></div><h1 id="predefinedIntroTitle">Tabulações prontas para consultar.</h1><p id="predefinedIntroDescription">Escolha um relatório e informe a competência. Novas tabulações serão adicionadas a esta área.</p></section>
 
       <section class="predefined-catalog" id="predefinedCatalog" aria-labelledby="catalogTitle">
-        <div class="catalog-heading"><div><h2 id="catalogTitle">Relatórios</h2><p>Escolha a análise que precisa.</p></div><span class="catalog-count" id="catalogCount">19 relatórios</span></div>
-        <label class="catalog-search"><span aria-hidden="true">⌕</span><input id="catalogSearch" type="search" placeholder="Buscar relatório, assunto ou fonte" autocomplete="off" aria-label="Buscar tabulações prontas"></label>
+        <div class="catalog-heading"><div><h1 id="catalogTitle">Pesquisa de relatórios</h1><p>Encontre tabulações por nome, tema, indicador ou fonte de dados.</p></div></div>
+        <form class="catalog-search-form" id="catalogSearchForm" role="search">
+          <label class="catalog-search"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path></svg><input id="catalogSearch" type="search" placeholder="Busque por relatório, categoria ou indicador..." autocomplete="off" aria-label="Buscar tabulações prontas"></label>
+          <button class="catalog-search-submit" type="submit">Pesquisar</button>
+        </form>
+        <div class="catalog-filter-row" aria-label="Filtros de relatórios">
+          <label class="catalog-filter"><span>Filtrar por indicador</span><select id="catalogIndicatorFilter"><option value="">Todos os indicadores</option></select></label>
+          <label class="catalog-filter"><span>Filtrar por categoria</span><select id="catalogCategoryFilter"><option value="">Todas as categorias</option><option value="ambulatorial">Produção ambulatorial</option><option value="hospitalar">Produção hospitalar</option><option value="materno-infantil">Materno-infantil</option><option value="mortalidade">Mortalidade</option><option value="vigilancia">Vigilância em saúde</option><option value="ambiental">Vigilância ambiental</option></select></label>
+          <button class="catalog-clear-filters" id="catalogClearFilters" type="button">Limpar filtros</button>
+        </div>
+        <div class="catalog-results-heading"><strong id="catalogCount">Relatórios</strong><span class="catalog-indicator-count" id="catalogIndicatorCount">6 indicadores PQA-VS 2025</span><label class="catalog-sort"><span>Ordenar por</span><select id="catalogSort" aria-label="Ordenar relatórios"><option value="relevance">Relevância</option><option value="title-asc">Nome: A–Z</option><option value="title-desc">Nome: Z–A</option><option value="category">Categoria</option></select></label></div>
         <p class="catalog-no-results" id="catalogNoResults" hidden>Nenhum relatório corresponde à busca.</p>
         <div class="predefined-card-grid">
           <article class="predefined-card" data-category="ambulatorial" data-report="sia-pa-producao" role="button" tabindex="0" aria-label="Abrir tabulação: Produção ambulatorial por estabelecimento">
@@ -92,32 +101,36 @@
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Vigilância ambiental</div><h3>Residual de desinfetante na água</h3><p>Compare as análises de cloro e dióxido de cloro da vigilância ao mínimo da Diretriz Nacional.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SISAGUA · IBGE</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
-          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-cobertura-vacinal" role="button" tabindex="0" aria-label="Abrir tabulação: cobertura das vacinas do indicador 4 do PQA-VS">
-            <div class="predefined-card-content"><div class="predefined-card-eyebrow">PQA-VS · Indicador 4</div><h3>Cobertura vacinal infantil</h3><p>Pentavalente, poliomielite, pneumocócica 10 e tríplice viral por residência. Meta: 95%.</p></div>
+          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-cobertura-vacinal" data-pqavs-indicator="4" role="button" tabindex="0" aria-label="Abrir tabulação: cobertura das vacinas do indicador 4 do PQA-VS">
+            <div class="predefined-card-content"><div class="predefined-card-taxonomy"><span class="predefined-card-eyebrow">Vigilância epidemiológica</span><span class="predefined-card-indicator">PQA-VS 2025 · Indicador 04</span></div><h3>Cobertura vacinal infantil</h3><p>Pentavalente, poliomielite, pneumocócica 10 e tríplice viral por residência. Meta: 95%.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">PNI · RNDS · SINASC</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
           <article class="predefined-card" data-category="vigilancia" data-report="pqavs-aplicacoes-estabelecimento" role="button" tabindex="0" aria-label="Abrir relatório: aplicações de vacinas por estabelecimento">
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Imunização · Produção</div><h3>Aplicações por estabelecimento</h3><p>Consulte as doses registradas por unidade vacinadora, vacina, dose, estratégia e origem dos usuários.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">PNI · RNDS · CNES</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
-          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-obitos-arboviroses" role="button" tabindex="0" aria-label="Abrir tabulação: óbitos suspeitos de dengue e chikungunya encerrados em até 60 dias">
-            <div class="predefined-card-content"><div class="predefined-card-eyebrow">PQA-VS · Indicador 8</div><h3>Óbitos por arboviroses encerrados</h3><p>Óbitos suspeitos de dengue e chikungunya encerrados em até 60 dias da notificação. Meta: 75%.</p></div>
+          <article class="predefined-card" data-category="vigilancia" data-report="cnes-salas-imunizacao" role="button" tabindex="0" aria-label="Abrir relatório: salas de imunização cadastradas por estabelecimento no CNES">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Imunização · Estrutura</div><h3>Salas de imunização por estabelecimento</h3><p>Veja as salas cadastradas no CNES por competência, município, gestão e vínculo SUS.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">CNES · instalações físicas · arquivo mensal</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
+          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-obitos-arboviroses" data-pqavs-indicator="8" role="button" tabindex="0" aria-label="Abrir tabulação: óbitos suspeitos de dengue e chikungunya encerrados em até 60 dias">
+            <div class="predefined-card-content"><div class="predefined-card-taxonomy"><span class="predefined-card-eyebrow">Vigilância epidemiológica</span><span class="predefined-card-indicator">PQA-VS 2025 · Indicador 08</span></div><h3>Óbitos por arboviroses encerrados</h3><p>Óbitos suspeitos de dengue e chikungunya encerrados em até 60 dias da notificação. Meta: 75%.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · DENGUE · CHIK</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
-          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-contatos-hanseniase" role="button" tabindex="0" aria-label="Abrir tabulação: contatos examinados de casos novos de hanseníase">
-            <div class="predefined-card-content"><div class="predefined-card-eyebrow">SINAN · PQA-VS · Indicador 9</div><h3>Hanseníase: casos e contatos</h3><p>Veja os casos registrados e o acompanhamento de contatos nas coortes do indicador.</p></div>
+          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-contatos-hanseniase" data-pqavs-indicator="9" role="button" tabindex="0" aria-label="Abrir tabulação: contatos examinados de casos novos de hanseníase">
+            <div class="predefined-card-content"><div class="predefined-card-taxonomy"><span class="predefined-card-eyebrow">Vigilância epidemiológica · SINAN</span><span class="predefined-card-indicator">PQA-VS 2025 · Indicador 09</span></div><h3>Hanseníase: casos e contatos</h3><p>Veja os casos registrados e o acompanhamento de contatos nas coortes do indicador.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · HANSENÍASE</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
-          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-contatos-tuberculose" role="button" tabindex="0" aria-label="Abrir tabulação: contatos examinados de casos novos de tuberculose pulmonar">
-            <div class="predefined-card-content"><div class="predefined-card-eyebrow">SINAN · PQA-VS · Indicador 10</div><h3>Tuberculose: casos e contatos</h3><p>Veja os casos registrados, os casos elegíveis e o acompanhamento de contatos.</p></div>
+          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-contatos-tuberculose" data-pqavs-indicator="10" role="button" tabindex="0" aria-label="Abrir tabulação: contatos examinados de casos novos de tuberculose pulmonar">
+            <div class="predefined-card-content"><div class="predefined-card-taxonomy"><span class="predefined-card-eyebrow">Vigilância epidemiológica · SINAN</span><span class="predefined-card-indicator">PQA-VS 2025 · Indicador 10</span></div><h3>Tuberculose: casos e contatos</h3><p>Veja os casos registrados, os casos elegíveis e o acompanhamento de contatos.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · TUBERCULOSE</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
-          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-sifilis-congenita" role="button" tabindex="0" aria-label="Abrir tabulação: sífilis congênita em relação à sífilis em gestantes">
-            <div class="predefined-card-content"><div class="predefined-card-eyebrow">PQA-VS · Indicador 11</div><h3>Sífilis congênita × sífilis em gestantes</h3><p>Casos de sífilis congênita em menores de 1 ano sobre casos em gestantes, por residência.</p></div>
+          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-sifilis-congenita" data-pqavs-indicator="11" role="button" tabindex="0" aria-label="Abrir tabulação: sífilis congênita em relação à sífilis em gestantes">
+            <div class="predefined-card-content"><div class="predefined-card-taxonomy"><span class="predefined-card-eyebrow">Vigilância epidemiológica · SINAN</span><span class="predefined-card-indicator">PQA-VS 2025 · Indicador 11</span></div><h3>Sífilis congênita × sífilis em gestantes</h3><p>Casos de sífilis congênita em menores de 1 ano sobre casos em gestantes, por residência.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · SÍFILIS</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
-          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-violencia-raca-cor" role="button" tabindex="0" aria-label="Abrir tabulação: preenchimento de raça/cor nas notificações de violência">
-            <div class="predefined-card-content"><div class="predefined-card-eyebrow">PQA-VS · Indicador 14</div><h3>Raça/cor nas notificações de violência</h3><p>Notificações de violência interpessoal e autoprovocada com raça/cor válida. Meta: 95%.</p></div>
+          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-violencia-raca-cor" data-pqavs-indicator="14" role="button" tabindex="0" aria-label="Abrir tabulação: preenchimento de raça/cor nas notificações de violência">
+            <div class="predefined-card-content"><div class="predefined-card-taxonomy"><span class="predefined-card-eyebrow">Vigilância epidemiológica · SINAN</span><span class="predefined-card-indicator">PQA-VS 2025 · Indicador 14</span></div><h3>Raça/cor nas notificações de violência</h3><p>Notificações de violência interpessoal e autoprovocada com raça/cor válida. Meta: 95%.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SINAN · VIOLÊNCIA</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
           <article class="predefined-card" data-category="mortalidade" data-report="sim-mortalidade" role="button" tabindex="0" aria-label="Abrir tabulação: Óbitos por semana">
@@ -186,6 +199,6 @@
       <div class="setup-dialog-footer"><div class="setup-default-actions"><button type="button" id="saveSetupDefault">Salvar filtros adicionais como padrão</button><button type="button" id="clearSetupDefault" hidden>Remover padrão</button><span id="setupDefaultStatus" role="status"></span></div><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=89" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=92" defer></script>
 </body>
 </html>

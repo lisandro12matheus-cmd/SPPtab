@@ -108,6 +108,7 @@
     cnesNatureGroup:{ ...sihSpFilterDefinitions.cnesNatureGroup, sourceLabel:'Cadastro atual do CNES' }
   };
   const sinascFilterDefinitions = {
+    cnesManagement:{ ...sihSpFilterDefinitions.cnesManagement, label:'Gestão atual do estabelecimento · CNES', sourceLabel:'Cadastro atual do CNES' },
     residenceOrigin:{ label:'Origem da residência', field:'residenceOrigin', nameField:'residenceOriginName', queryKey:'origem_residencia', sourceLabel:'SINASC · município de residência', options:[['local','Mesmo município'],['outside','Outro município'],['unknown','Não informado']] },
     residenceMunicipality:{ label:'Município de residência na UF', field:'residenceMunicipality', nameField:'residenceMunicipalityName', queryKey:'municipio_residencia', sourceLabel:'SINASC · município de residência', searchable:true },
     delivery:{ label:'Tipo de parto', field:'deliveryType', nameField:'deliveryTypeName', queryKey:'parto', sourceLabel:'SINASC · PARTO', options:[['1','Vaginal'],['2','Cesárea'],['unknown','Não informado']] },
@@ -123,6 +124,7 @@
     anomaly:{ label:'Anomalia congênita registrada', field:'anomalyStatus', nameField:'anomalyStatusName', queryKey:'anomalia', sourceLabel:'SINASC · IDANOMAL', options:[['1','Sim'],['2','Não'],['unknown','Não informado']] }
   };
   const simMortalityFilterDefinitions = {
+    cnesManagement:{ label:'Gestão do estabelecimento de ocorrência', field:'cnesManagementCode', nameField:'cnesManagementName', queryKey:'cnes_gestao', sourceLabel:'CNES na competência · cadastro atual se ausente', options:[['MUNICIPAL','Gestão municipal'],['ESTADUAL','Gestão estadual'],['DUPLA','Dupla gestão'],['NAO_INFORMADA','Gestão não informada']] },
     residenceOrigin:{ label:'Residência no município do óbito ou em outro', field:'residenceOrigin', nameField:'residenceOriginName', queryKey:'origem_residencia', sourceLabel:'SIM · CODMUNRES', options:[['local','Residente no município de ocorrência'],['outside','Residente em outro município'],['unknown','Residência não informada']] },
     residenceMunicipality:{ label:'Município de residência', field:'residenceMunicipality', nameField:'residenceMunicipalityName', queryKey:'municipio_residencia', sourceLabel:'SIM · CODMUNRES / IBGE', searchable:true },
     naturalityMunicipality:{ label:'Município de nascimento', field:'naturalityMunicipality', nameField:'naturalityMunicipalityName', queryKey:'municipio_nascimento', sourceLabel:'SIM · CODMUNNATU / IBGE', searchable:true, searchPlaceholder:'Buscar município de nascimento…' },
@@ -137,6 +139,7 @@
     certifier:{ label:'Tipo de atestante', field:'certifier', nameField:'certifierName', queryKey:'atestante', sourceLabel:'SIM · ATESTANTE', options:[['1','Médico assistente'],['2','Médico substituto'],['3','IML'],['4','SVO'],['5','Outro médico'],['unknown','Ignorado / não informado']] }
   };
   const simInfantMortalityFilterDefinitions = {
+    cnesManagement:{ label:'Gestão do estabelecimento de ocorrência', field:'cnesManagementCode', nameField:'cnesManagementName', queryKey:'cnes_gestao', sourceLabel:'CNES na competência · cadastro atual se ausente', options:[['MUNICIPAL','Gestão municipal'],['ESTADUAL','Gestão estadual'],['DUPLA','Dupla gestão'],['NAO_INFORMADA','Gestão não informada']] },
     ageBand:{ label:'Faixa etária do óbito', field:'ageBand', nameField:'ageBandName', queryKey:'faixa_etaria', sourceLabel:'SIM · diferença entre nascimento e óbito', options:[['early','0 a 6 dias'],['late','7 a 27 dias'],['post','28 a 364 dias']] },
     sex:{ label:'Sexo da criança', field:'sex', nameField:'sexName', queryKey:'sexo', sourceLabel:'SIM · SEXO', options:[['male','Masculino'],['female','Feminino'],['unknown','Ignorado / não informado']] },
     race:{ label:'Raça/cor da criança', field:'race', nameField:'raceName', queryKey:'raca_cor', sourceLabel:'SIM · RACACOR', options:[['1','Branca'],['2','Preta'],['3','Amarela'],['4','Parda'],['5','Indígena'],['unknown','Ignorada / não informada']] },
@@ -338,8 +341,11 @@
     emptyMessage:'Escolha o município e os meses de notificação para acompanhar o encerramento dos óbitos suspeitos.',
     municipalityLabel:'MUNICÍPIO', monthLabel:'MÊS DA NOTIFICAÇÃO', locationHelp:'O município pode ser o de notificação (padrão) ou o de residência.', loaderDetail:'óbitos suspeitos de dengue e chikungunya',
     showOptionalFilters:true, staticFilterOptions:true,
-    filters:{ basis:{ label:'Município considerado', field:'basis', nameField:'basisName', queryKey:'base', parameter:true, defaultValue:'notification', sourceLabel:'SINAN · ID_MUNICIP (notificação) / ID_MN_RESI (residência)', options:[['notification','Município de notificação'],['residence','Município de residência']] } },
-    filterNote:'A ficha do PQA-VS não diz se os óbitos são contados pelo município de notificação ou de residência. Escolha o critério usado pela sua vigilância; o padrão é o de notificação.',
+    filters:{
+      basis:{ label:'Município considerado', field:'basis', nameField:'basisName', queryKey:'base', parameter:true, defaultValue:'notification', sourceLabel:'SINAN · ID_MUNICIP (notificação) / ID_MN_RESI (residência)', options:[['notification','Município de notificação'],['residence','Município de residência']] },
+      cnesManagement:{ label:'Gestão da unidade notificadora', field:'cnesManagementCode', nameField:'cnesManagementName', queryKey:'cnes_gestao', sourceLabel:'CNES na competência · cadastro atual se ausente', options:[['MUNICIPAL','Gestão municipal'],['ESTADUAL','Gestão estadual'],['DUPLA','Dupla gestão'],['NAO_INFORMADA','Gestão não informada']] }
+    },
+    filterNote:'A gestão é associada ao CNES da unidade notificadora. Este filtro cria um recorte analítico por gestão; o resultado filtrado não substitui a apuração municipal oficial do PQA-VS.',
     methodText:' numerador = óbitos (evolução 2, 3 ou 4) com classificação final de dengue, chikungunya ou descartado, encerrados em até 60 dias da notificação. Denominador = todos os óbitos suspeitos, menos os ainda abertos dentro dos 60 dias. Dengue e chikungunya são somados.',
     summaryTitle:'Encerramento dos óbitos suspeitos de arboviroses',
     monthlyDetail:true, backLabel:'← Meses', detailTitlePrefix:'Óbitos suspeitos notificados', detailItemLabel:'óbitos suspeitos', tableSearchDetail:'Buscar unidade, CNES, classificação ou situação'
@@ -352,6 +358,9 @@
     emptyMessage:'Escolha o município de residência e o ano da avaliação para ver as coortes de hanseníase.',
     municipalityLabel:'MUNICÍPIO DE RESIDÊNCIA ATUAL', monthLabel:'MÊS DO DIAGNÓSTICO', monthHelp:'O ano é o da avaliação; cada mês soma os casos PB diagnosticados naquele mês do ano anterior e os MB de dois anos antes. Selecione os 12 meses para o resultado.',
     locationHelp:'Os casos são contados pelo município de residência atual.', loaderDetail:'coortes de hanseníase (PB e MB)',
+    showOptionalFilters:true, staticFilterOptions:true,
+    filters:{ cnesManagement:{ label:'Gestão da unidade notificadora', field:'cnesManagementCode', nameField:'cnesManagementName', queryKey:'cnes_gestao', sourceLabel:'CNES na competência · cadastro atual se ausente', options:[['MUNICIPAL','Gestão municipal'],['ESTADUAL','Gestão estadual'],['DUPLA','Dupla gestão'],['NAO_INFORMADA','Gestão não informada']] } },
+    filterNote:'A gestão usa o CNES da unidade notificadora. O recorte por gestão exclui registros sem CNES válido e é uma análise da coorte, não a pontuação municipal oficial do PQA-VS.',
     methodText:' numerador = contatos examinados e denominador = contatos registrados dos casos novos das coortes (PB do ano anterior, MB de dois anos antes), excluindo erro diagnóstico e transferências para fora do município.',
     summaryTitle:'Contatos examinados nas coortes de hanseníase',
     monthlyDetail:true, backLabel:'← Meses', detailTitlePrefix:'Casos novos das coortes', detailItemLabel:'casos novos', tableSearchDetail:'Buscar unidade, CNES, coorte ou situação'
@@ -401,13 +410,17 @@
     monthHelp:'Selecione os 12 meses para ver o ano inteiro. Bases preliminares mudam a cada atualização do DATASUS.',
     availabilityText:'Escolha os meses · a primeira leitura das bases nacionais pode levar alguns minutos.',
     showOptionalFilters:true, staticFilterOptions:true,
-    filters:{ basis:{ label:'Município considerado', field:'basis', nameField:'basisName', queryKey:'base', parameter:true, defaultValue:'residence', sourceLabel:'SINAN · ID_MN_RESI / ID_MUNICIP · e-SUS Notifica · CD_MN_RESI / CD_MUNICIP', options:[['residence','Município de residência'],['notification','Município de notificação']] } },
-    filterNote:'Escolha se os casos são contados pelo município de residência (padrão) ou pelo de notificação.',
+    filters:{
+      basis:{ label:'Município considerado', field:'basis', nameField:'basisName', queryKey:'base', parameter:true, defaultValue:'residence', sourceLabel:'SINAN · ID_MN_RESI / ID_MUNICIP · e-SUS Notifica · CD_MN_RESI / CD_MUNICIP', options:[['residence','Município de residência'],['notification','Município de notificação']] },
+      cnesManagement:{ label:'Gestão da unidade notificadora', field:'cnesManagementCode', nameField:'cnesManagementName', queryKey:'cnes_gestao', sourceLabel:'CNES na competência · cadastro atual se ausente', options:[['MUNICIPAL','Gestão municipal'],['ESTADUAL','Gestão estadual'],['DUPLA','Dupla gestão'],['NAO_INFORMADA','Gestão não informada']] }
+    },
+    filterNote:'A gestão é associada ao CNES da unidade notificadora. O município considerado continua sendo residência ou notificação, conforme sua seleção.',
     methodTitle:'Como ler o relatório:', methodText:' na forma aguda, confirmados = classificação final confirmada e óbitos = evolução "óbito por doença de Chagas aguda". A forma crônica vem da base tratada pelo Ministério da Saúde no e-SUS Notifica, disponível a partir de 2023.',
     summaryTitle:'Doença de Chagas por mês de notificação', countMetric:'acuteConfirmed', countLabel:'CONFIRMADOS AGUDA',
     monthlyDetail:true, backLabel:'← Meses', detailTitlePrefix:'Notificações de doença de Chagas', detailItemLabel:'notificações', tableSearchDetail:'Buscar unidade, CNES, residência, forma ou classificação'
   };
   const siaApacFilterDefinitions = {
+    manager:{ label:'Gestor da produção', field:'apacManagerCode', nameField:'apacManagerName', responseKey:'apacManagers', queryKey:'gestor', sourceLabel:'SIA · AP_GESTAO / GESTAO', searchable:true, searchPlaceholder:'Buscar município gestor…' },
     management:{ label:'Tipo de gestão', field:'apacManagement', nameField:'apacManagementName', queryKey:'gestao', sourceLabel:'SIA · AP_GESTAO / GESTAO', options:[['state','Gestão estadual'],['municipal','Gestão municipal']] },
     legalNature:{ label:'Natureza jurídica', field:'apacLegalNature', nameField:'apacLegalNatureName', queryKey:'natureza_juridica', sourceLabel:'SIA · AP_NATJUR / NAT_JUR', options:[['1','Administração pública'],['2','Entidade empresarial'],['3','Entidade sem fins lucrativos'],['4','Pessoa física']] },
     patientResidence:{ label:'Município de residência do paciente', field:'apacResidence', nameField:'apacResidenceName', queryKey:'residencia_paciente', sourceLabel:'SIA · AP_MUNPCN / MUNPAC / IBGE', searchable:true, searchPlaceholder:'Buscar município de residência…' },
@@ -416,7 +429,7 @@
   };
   const siaApacBase = {
     system:'sia', systemCode:'SIA', tableMode:'flat', filters:siaApacFilterDefinitions, staticFilterOptions:true, allMunicipalityFilters:['patientResidence'], municipalityLabel:'MUNICÍPIO DO ESTABELECIMENTO',
-    filterNote:'O município escolhido acima filtra o local do estabelecimento. Os filtros adicionais valem para cada registro: gestão estadual é o gestor com código terminado em 0000, e a natureza jurídica usa o primeiro dígito do código do CNES. Use Ctrl ou Command para marcar várias opções.',
+    filterNote:'O município escolhido acima filtra o local do estabelecimento. Gestor da produção usa o código municipal registrado em AP_GESTAO / GESTAO; ao ativar Gestão municipal no início, esse código é aplicado automaticamente. Tipo de gestão distingue gestor municipal ou estadual. A natureza jurídica usa o primeiro dígito do código CNES.',
     detailPrefix:'Procedimentos SIGTAP', detailTitlePrefix:'Procedimentos', detailCountLabel:'PROCEDIMENTOS',
     tableSearchSummary:'Buscar estabelecimento ou CNES', tableSearchDetail:'Buscar código SIGTAP ou procedimento'
   };
@@ -501,7 +514,28 @@
     filterNote:'A matriz mostra totais agregados por estabelecimento e vacina. O bairro é o endereço cadastral da unidade no CNES; a base não informa o bairro de residência do usuário.',
     methodTitle:'Como interpretar esta tabela:',
     methodText:' apresenta doses registradas por unidade aplicadora e vacina. A faixa etária e o sexo são dimensões do registro PNI quando disponíveis; o bairro corresponde ao endereço cadastral da unidade no CNES. A matriz não representa cobertura vacinal por estabelecimento.',
-    summaryTitle:'Aplicações por estabelecimento', tableSearchSummary:'Buscar unidade, CNES, vacina, dose ou estratégia', filters:{}
+    summaryTitle:'Aplicações por estabelecimento', tableSearchSummary:'Buscar unidade, CNES, vacina, dose ou estratégia', filters:{
+      cnesManagement:{ ...sihSpFilterDefinitions.cnesManagement, label:'Gestão atual do estabelecimento · CNES', sourceLabel:'Cadastro atual do CNES' }
+    }
+  };
+  reportConfigurations['cnes-salas-imunizacao'] = {
+    ...pqavsBase, id:'cnes-salas-imunizacao', system:'cnes', systemCode:'CNES', kind:'ST', remoteSource:true, tableMode:'flat', firstYear:2005,
+    systemLabel:'CNES · INSTALAÇÕES FÍSICAS', sourceLabel:'salas de imunização cadastradas por estabelecimento',
+    workspaceTitle:'Salas de imunização · CNES', introLabel:'ATENÇÃO PRIMÁRIA · ESTRUTURA', introTitle:'Salas de imunização por estabelecimento.',
+    introDescription:'Consulte as salas de imunização registradas no CNES por competência, município e gestão.',
+    setupTitle:'Estrutura de imunização no CNES', setupDescription:'Escolha o município e uma ou mais competências publicadas. O painel considera o cadastro estrutural mensal do CNES.',
+    emptyMessage:'Escolha o município e ao menos uma competência publicada para consultar as salas de imunização cadastradas.',
+    municipalityLabel:'MUNICÍPIO DO ESTABELECIMENTO', locationHelp:'O município se refere ao endereço cadastrado para a unidade de saúde.',
+    monthLabel:'COMPETÊNCIA DO CNES', loaderDetail:'estabelecimentos e salas de imunização cadastradas',
+    missingMunicipalityMessage:'Selecione o município dos estabelecimentos.',
+    monthHelp:'A lista mostra apenas competências que já têm arquivo ST publicado no DATASUS.',
+    availabilityText:'Escolha uma ou mais competências publicadas · instalações físicas do cadastro mensal do CNES.',
+    showOptionalFilters:true, staticFilterOptions:true,
+    filterNote:'A quantidade é a estrutura cadastrada no CNES. Ela não confirma que a sala esteja aberta ou em funcionamento.',
+    methodTitle:'Como interpretar este painel:',
+    methodText:' o CNES identifica sala de imunização pelo código de instalação 26 no cadastro mensal de estabelecimentos. O nome e o bairro vêm do cadastro público atual; gestão e vínculo SUS vêm da competência selecionada. O dado descreve estrutura registrada, não capacidade operacional.',
+    summaryTitle:'Unidades com sala de imunização cadastrada', tableSearchSummary:'Buscar estabelecimento, CNES ou bairro',
+    filters:{ cnesManagement:{ ...sihSpFilterDefinitions.cnesManagement, label:'Tipo de gestão · CNES', sourceLabel:'Arquivo da competência selecionada' } }
   };
   const params = new URLSearchParams(location.search);
   const linkedReportId = params.get('relatorio') === 'sia-pa-belem' ? 'sia-pa-producao' : params.get('relatorio');
@@ -533,7 +567,22 @@
       : params.getAll(definition.queryKey);
     linkedFilters[definition.field] = values;
   }
-  if (activeReport.system === 'sinan' && savedGlobalLocation?.useMunicipalManager && Boolean(savedGlobalMunicipality) && !params.has('cnes_gestao')) linkedFilters.cnesManagementCode = ['MUNICIPAL'];
+
+  function applyGlobalManagerPreference(filters, searchParams = null) {
+    if (!savedGlobalLocation?.useMunicipalManager || !savedGlobalMunicipality
+      || savedGlobalUf !== selectedUf() || String(filters.municipalityCode || '') !== savedGlobalMunicipality) return filters;
+    const entries = Object.entries(filterDefinitions);
+    const manager = entries.find(([type]) => type === 'manager')
+      || entries.find(([, definition]) => definition.field === 'cnesManagementCode');
+    if (!manager) return filters;
+    const [type, definition] = manager;
+    if ((searchParams?.has(definition.queryKey)) || normalizeSelectedValues(filters[definition.field]).length) return filters;
+    filters[definition.field] = type === 'manager'
+      ? [savedGlobalMunicipality]
+      : ['MUNICIPAL'];
+    return filters;
+  }
+  applyGlobalManagerPreference(linkedFilters, params);
 
   function normalizeSelectedValues(value) {
     const values = Array.isArray(value) ? value : value == null || value === '' ? [] : [value];
@@ -572,8 +621,7 @@
   function filtersFromParams(searchParams) {
     const preferred = { municipalityCode:activeReport.fixedMunicipalityCode || searchParams.get('municipio') || (searchParams.get('relatorio') === 'sia-pa-belem' ? '150140' : '') };
     for (const definition of Object.values(filterDefinitions)) preferred[definition.field] = searchParams.getAll(definition.queryKey);
-    if (activeReport.system === 'sinan' && savedGlobalLocation?.useMunicipalManager && Boolean(savedGlobalMunicipality) && !searchParams.has('cnes_gestao')) preferred.cnesManagementCode = ['MUNICIPAL'];
-    return preferred;
+    return applyGlobalManagerPreference(preferred, searchParams);
   }
 
   function selectedUf() { return activeReport.fixedUf || ufSelect.value || 'PA'; }
@@ -675,7 +723,7 @@
     ufSelect.disabled = Boolean(activeReport.fixedUf);
     municipalitySelect.disabled = Boolean(activeReport.fixedMunicipalityCode);
     const optionalSection = document.querySelector('.setup-optional-section');
-    if (optionalSection) optionalSection.hidden = Boolean(activeReport.remoteSource && !activeReport.showOptionalFilters && !['sinan','sinasc'].includes(activeReport.system) && !['sim-mortalidade','sim-mortalidade-infantil'].includes(activeReport.id));
+    if (optionalSection) optionalSection.hidden = Boolean(activeReport.remoteSource && !activeReport.showOptionalFilters && !['sinan','sinasc'].includes(activeReport.system) && !['sim-mortalidade','sim-mortalidade-infantil','pqavs-aplicacoes-estabelecimento'].includes(activeReport.id));
     const monthLabel = $('reportMonthLabel');
     if (monthLabel) {
       const qualifier = document.createElement('small');
@@ -810,7 +858,7 @@
     const municipalityCode = activeReport.fixedMunicipalityCode
       || (savedGlobalUf === uf ? savedGlobalMunicipality : '')
       || (String(activeReport.defaultMunicipalityCode || '').startsWith(stateCodes[uf]) ? activeReport.defaultMunicipalityCode : '');
-    return { ...(saved?.filters || {}), ...(municipalityCode ? { municipalityCode } : {}) };
+    return applyGlobalManagerPreference({ ...(saved?.filters || {}), ...(municipalityCode ? { municipalityCode } : {}) });
   }
 
   function updateScopeDescription() {
@@ -1066,6 +1114,25 @@
 
   async function refreshCompetencies(year, preferred = [], uf = selectedUf()) {
     const requestId = ++competencyRequest;
+    if (activeReport.id === 'cnes-salas-imunizacao') {
+      monthSelect.disabled = true;
+      monthSelect.replaceChildren(new Option('Consultando competências do CNES…', ''));
+      updateMonthPicker();
+      openButton.disabled = true;
+      setAvailability('Consultando as competências publicadas no CNES.', 'loading');
+      try {
+        const response = await api({ action:'predefined_filter_options', report:activeReport.id, uf, year:Number(year) });
+        if (requestId !== competencyRequest) return;
+        const available = Array.isArray(response.months) ? response.months.map(Number).filter((month) => month >= 1 && month <= 12) : [];
+        setMonthOptions(available, preferred);
+        setAvailability(available.length ? `${available.length} competência(s) CNES publicada(s) para ${uf} em ${year}.` : `O CNES ainda não publicou arquivos de ${uf} para ${year}.`, available.length ? 'good' : '');
+      } catch (error) {
+        if (requestId !== competencyRequest) return;
+        setMonthOptions([], []);
+        setAvailability(error.message || 'Não foi possível consultar as competências do CNES.', 'error');
+      }
+      return;
+    }
     if (activeReport.remoteSource) {
       const now = new Date();
       const monthCount = year === now.getFullYear() && !activeReport.allMonthsAvailable ? now.getMonth() + 1 : 12;
@@ -1263,7 +1330,7 @@
           for (const type of ['residenceMunicipality','naturalityMunicipality','occurrenceMunicipality',...(activeReport.allMunicipalityFilters || [])]) if (filterDefinitions[type]) filterCategories[type] = [];
         })
       : Promise.resolve();
-    const categoryTask = (activeReport.remoteSource && activeReport.system !== 'sinan' && activeReport.id !== 'sim-mortalidade-infantil') || !Object.values(filterDefinitions).some((definition) => definition.responseKey) ? Promise.resolve() : api({ action: 'predefined_filter_options', report:activeReport.id, uf }).then((data) => {
+    const categoryTask = (activeReport.remoteSource && activeReport.system !== 'sinan' && activeReport.id !== 'sim-mortalidade-infantil' && !['sinasc-maternidades','pqavs-aplicacoes-estabelecimento'].includes(activeReport.id)) || !Object.values(filterDefinitions).some((definition) => definition.responseKey) ? Promise.resolve() : api({ action: 'predefined_filter_options', report:activeReport.id, uf }).then((data) => {
       if (requestId !== filterRequest) return;
       for (const [type, definition] of Object.entries(filterDefinitions)) if (definition.responseKey) filterCategories[type] = data[definition.responseKey] || [];
     }).catch(() => {
@@ -1278,6 +1345,7 @@
         else if (activeReport.system === 'sinan') setAvailability('Unidades cadastradas no município · gestão e natureza jurídica do CNES são opcionais.', '');
         else if (activeReport.system === 'srag') setAvailability('Município de residência · escolha o mês do início dos sintomas.', '');
         else if (activeReport.system === 'sinasc') setAvailability('Município do nascimento · escolha o mês da ocorrência.', '');
+        else if (activeReport.id === 'cnes-salas-imunizacao') setAvailability('Estrutura cadastrada por competência · gestão e vínculo SUS do arquivo mensal do CNES.', '');
         else setAvailability(activeReport.id === 'sim-mortalidade-infantil' ? 'Município de residência · filtros opcionais disponíveis · escolha o mês do óbito e do nascimento.' : 'Óbitos ocorridos no município · filtros opcionais disponíveis · escolha o mês da ocorrência.', '');
         updateOpenButton();
       }
@@ -1499,14 +1567,16 @@
     const vaccines = new Map();
     for (const row of rows) {
       const key = pniFacilityValue(row, 'vaccine');
-      if (!vaccines.has(key)) vaccines.set(key, { key, code:String(row.vaccineCode || ''), name:String(row.vaccineName || 'Vacina sem descrição') });
+      const vaccine = vaccines.get(key) || { key, code:String(row.vaccineCode || ''), name:String(row.vaccineName || 'Vacina sem descrição'), total:0 };
+      vaccine.total += Math.max(0, Number(row.doses) || 0);
+      vaccines.set(key, vaccine);
     }
     const facilities = new Map();
     for (const row of rows) {
       const key = String(row.cnes || `nome:${row.establishmentName || ''}`);
       let facility = facilities.get(key);
       if (!facility) {
-        facility = { key, cnes:String(row.cnes || ''), name:String(row.establishmentName || 'Estabelecimento sem nome'), neighborhood:String(row.facilityNeighborhood || ''), total:0, dosesByVaccine:new Map() };
+        facility = { key, cnes:String(row.cnes || ''), name:String(row.establishmentName || 'Estabelecimento sem nome'), neighborhood:String(row.facilityNeighborhood || ''), managementName:String(row.cnesManagementName || ''), total:0, dosesByVaccine:new Map() };
         facilities.set(key, facility);
       }
       const vaccineKey = pniFacilityValue(row, 'vaccine');
@@ -1514,8 +1584,9 @@
       facility.total += doses;
       facility.dosesByVaccine.set(vaccineKey, (facility.dosesByVaccine.get(vaccineKey) || 0) + doses);
       if (!facility.neighborhood && row.facilityNeighborhood) facility.neighborhood = row.facilityNeighborhood;
+      if (!facility.managementName && row.cnesManagementName) facility.managementName = row.cnesManagementName;
     }
-    const sortedVaccines = [...vaccines.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { numeric:true, sensitivity:'base' }));
+    const sortedVaccines = [...vaccines.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'pt-BR', { numeric:true, sensitivity:'base' }));
     const sortedFacilities = [...facilities.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'pt-BR', { sensitivity:'base' }));
     return { vaccines:sortedVaccines, facilities:sortedFacilities };
   }
@@ -1544,7 +1615,7 @@
       const tr = document.createElement('tr');
       const unitCell = document.createElement('td');
       unitCell.append(buildCell('span', facility.name, 'pni-facility-establishment'));
-      const meta = [facility.cnes ? `CNES ${facility.cnes}` : '', facility.neighborhood && facility.neighborhood !== 'Não informado no CNES' ? `Bairro · ${facility.neighborhood}` : ''].filter(Boolean).join(' · ');
+      const meta = [facility.cnes ? `CNES ${facility.cnes}` : '', facility.managementName && facility.managementName !== 'Gestão não consultada' ? facility.managementName : '', facility.neighborhood && facility.neighborhood !== 'Não informado no CNES' ? `Bairro · ${facility.neighborhood}` : ''].filter(Boolean).join(' · ');
       if (meta) unitCell.append(buildCell('small', meta, 'pni-facility-establishment-meta'));
       tr.append(unitCell);
       for (const vaccine of data.vaccines) {
@@ -2417,6 +2488,20 @@
     const first = monthlyResults[0]?.kpis;
     if (!Array.isArray(first)) return undefined;
     if (months.length === 1) return first;
+    if (activeReport.id === 'cnes-salas-imunizacao') {
+      const uniqueFacilities = new Map();
+      for (const row of rows) {
+        const code = String(row.cnes || row.code || '');
+        if (code && !uniqueFacilities.has(code)) uniqueFacilities.set(code, row);
+      }
+      const unique = [...uniqueFacilities.values()];
+      return [
+        { label:'UNIDADES COM SALA CADASTRADA', value:{ value:unique.length } },
+        { label:'SALAS REGISTRADAS NAS COMPETÊNCIAS', value:{ value:rows.reduce((sum, row) => sum + (Number(row.vaccineRoomCount) || 0), 0) } },
+        { label:'UNIDADES COM VÍNCULO SUS', value:{ value:unique.filter((row) => row.susLink === 'Sim').length } },
+        { label:'COMPETÊNCIAS CONSULTADAS', value:{ value:months.length } }
+      ];
+    }
     if (activeReport.system === 'pqavs') {
       const numerator = monthlyResults.reduce((total, result) => total + (Number(result.numerator) || 0), 0);
       const denominator = monthlyResults.reduce((total, result) => total + (Number(result.denominator) || 0), 0);
@@ -2505,7 +2590,7 @@
       for (const message of monthlyResults.filter((result) => !(result.rows || []).length).map((result) => result.emptyStateMessage).filter(Boolean)) {
         if (!notes.includes(message)) notes.push(message);
       }
-    } else if (emptyMonths.length && activeReport.id !== 'pqavs-aplicacoes-estabelecimento') notes.push(`Sem registros compatíveis nos meses: ${emptyMonths.join(', ')} de ${year}.`);
+    } else if (emptyMonths.length && !['pqavs-aplicacoes-estabelecimento','cnes-salas-imunizacao'].includes(activeReport.id)) notes.push(`Sem registros compatíveis nos meses: ${emptyMonths.join(', ')} de ${year}.`);
     const combined = {
       ...first,
       year,
@@ -2514,7 +2599,7 @@
       rows,
       records:monthlyResults.reduce((total, result) => total + (Number(result.records) || 0), 0),
       files,
-      file:activeReport.id === 'pqavs-aplicacoes-estabelecimento' ? 'PNI · totais agregados' : activeReport.remoteSource ? `${activeReport.systemCode} · CSV oficial` : files.length === 1 ? files[0] : `${files.length} arquivos DATASUS`,
+      file:activeReport.id === 'pqavs-aplicacoes-estabelecimento' ? 'PNI · totais agregados' : activeReport.id === 'cnes-salas-imunizacao' ? 'CNES · ST' : activeReport.remoteSource ? `${activeReport.systemCode} · CSV oficial` : files.length === 1 ? files[0] : `${files.length} arquivos DATASUS`,
       emptyStateMessage:monthlyResults.filter((result) => !(result.rows || []).length).map((result) => result.emptyStateMessage).filter(Boolean).join(' '),
       notes,
       kpis:combineMonthlyKpis(monthlyResults, rows, months, year)
@@ -2550,7 +2635,7 @@
     if (activeReport.remoteSource) {
       const pniLoaderDetail = activeReport.loaderDetail;
       setLoader(true, `Lendo arquivo oficial do ${activeReport.systemCode} · ${monthIndex + 1} de ${monthCount}`, `${monthNames[month - 1]} de ${year} · ${pniLoaderDetail || (activeReport.id === 'sim-mortalidade-infantil' ? 'óbitos e nascidos vivos por residência' : activeReport.system === 'sim' ? `óbitos ocorridos em ${filters.municipalityName || 'município escolhido'}` : activeReport.system === 'sinasc' ? 'nascidos vivos por estabelecimento' : activeReport.system === 'srag' ? 'casos por município de residência' : `unidades notificadoras de ${filters.municipalityName || 'município escolhido'}`)}.`, null, true);
-      let job = await api({ action:'tabulate_start', predefinedReport:activeReport.id, view, uf:filters.uf, year, month, municipalityCode:filters.municipalityCode, municipalityName:filters.municipalityName, ...(activeReport.system === 'pqavs' ? { reportFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])) } : {}), ...(activeReport.system === 'sinasc' ? { sinascFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { establishmentCode:cnes } : {}) } : {}), ...(activeReport.id === 'sim-mortalidade' ? { simFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { weekIndex:Number(cnes), causeCode:activeSimCauseCode } : {}) } : {}), ...(activeReport.id === 'sim-mortalidade-infantil' ? { simInfantFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])) } : {}), ...(activeReport.system === 'sinan' ? { cnesManagementCode:filters.cnesManagementCode, cnesNatureGroupCode:filters.cnesNatureGroupCode, ...(view === 'detail' ? { weekIndex:Number(cnes) } : {}) } : ['sim','srag'].includes(activeReport.system) && view === 'detail' ? { weekIndex:Number(cnes) } : {}) });
+      let job = await api({ action:'tabulate_start', predefinedReport:activeReport.id, view, uf:filters.uf, year, month, municipalityCode:filters.municipalityCode, municipalityName:filters.municipalityName, ...(activeReport.system === 'pqavs' || activeReport.id === 'cnes-salas-imunizacao' ? { reportFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])) } : {}), ...(activeReport.system === 'sinasc' ? { sinascFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { establishmentCode:cnes } : {}) } : {}), ...(activeReport.id === 'sim-mortalidade' ? { simFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { weekIndex:Number(cnes), causeCode:activeSimCauseCode } : {}) } : {}), ...(activeReport.id === 'sim-mortalidade-infantil' ? { simInfantFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])) } : {}), ...(activeReport.system === 'sinan' ? { cnesManagementCode:filters.cnesManagementCode, cnesNatureGroupCode:filters.cnesNatureGroupCode, ...(view === 'detail' ? { weekIndex:Number(cnes) } : {}) } : ['sim','srag'].includes(activeReport.system) && view === 'detail' ? { weekIndex:Number(cnes) } : {}) });
       if (job.done && job.result) return stampMonthlyResult(job.result, year, month);
       if (!job.job_id) throw new Error(`O TabulaSUS não retornou uma consulta válida ao ${activeReport.systemCode}.`);
       const jobId = job.job_id;
@@ -2759,17 +2844,116 @@
   }
 
   const catalogSearch = $('catalogSearch');
-  catalogSearch?.addEventListener('input', () => {
-    const query = catalogSearch.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
-    let visible = 0;
-    for (const card of document.querySelectorAll('.predefined-card[data-report]')) {
-      const words = card.textContent.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
-      card.hidden = Boolean(query && !words.includes(query));
-      if (!card.hidden) visible += 1;
+  const catalogCards = [...document.querySelectorAll('.predefined-card[data-report]')];
+  const catalogCategoryFilter = $('catalogCategoryFilter');
+  const catalogIndicatorFilter = $('catalogIndicatorFilter');
+  const catalogSort = $('catalogSort');
+  const normalizeCatalogText = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').trim();
+  const catalogCategoryNames = {
+    ambiental: 'Vigilância ambiental',
+    ambulatorial: 'Produção ambulatorial',
+    hospitalar: 'Produção hospitalar',
+    'materno-infantil': 'Materno-infantil',
+    mortalidade: 'Mortalidade',
+    vigilancia: 'Vigilância em saúde'
+  };
+  const catalogOriginalIndex = new Map(catalogCards.map((card, index) => [card, index]));
+
+  const indicatorOptions = new Map();
+  for (const card of catalogCards) {
+    const indicator = card.dataset.pqavsIndicator;
+    if (!indicator || indicatorOptions.has(indicator)) continue;
+    const indicatorLabel = card.querySelector('.predefined-card-indicator')?.textContent.trim() || `Indicador ${String(indicator).padStart(2, '0')}`;
+    const title = card.querySelector('h3')?.textContent.trim();
+    indicatorOptions.set(indicator, `${indicatorLabel}${title ? ` · ${title}` : ''}`);
+  }
+  if (catalogIndicatorFilter) {
+    for (const [value, label] of [...indicatorOptions].sort((a, b) => Number(a[0]) - Number(b[0]))) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      catalogIndicatorFilter.append(option);
     }
-    $('catalogCount').textContent = `${visible} ${visible === 1 ? 'relatório' : 'relatórios'}`;
-    $('catalogNoResults').hidden = visible > 0;
+  }
+
+  for (const card of catalogCards) {
+    if (!card.querySelector('.predefined-row-icon')) {
+      const icon = document.createElement('span');
+      icon.className = 'predefined-row-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none"><path d="M4 19.5V12m5 7.5V7m5 12.5v-5m5 5V4.5"/><path d="M2.75 20.5h18.5"/></svg>';
+      card.prepend(icon);
+    }
+    const openLabel = card.querySelector('.predefined-card-open');
+    const labelNode = openLabel && [...openLabel.childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
+    if (labelNode) labelNode.textContent = 'Ver detalhes ';
+  }
+
+  function updateCatalogCounts() {
+    const visibleCards = catalogCards.filter((card) => !card.hidden);
+    const count = visibleCards.length;
+    $('catalogCount').textContent = `${count} ${count === 1 ? 'relatório encontrado' : 'relatórios encontrados'}`;
+    const visibleIndicators = new Set(visibleCards.map((card) => card.dataset.pqavsIndicator).filter(Boolean)).size;
+    $('catalogIndicatorCount').textContent = `${visibleIndicators} ${visibleIndicators === 1 ? 'indicador' : 'indicadores'} PQA-VS 2025`;
+    $('catalogNoResults').hidden = count > 0;
+  }
+
+  function catalogRelevance(card, query) {
+    if (!query) return 0;
+    const title = normalizeCatalogText(card.querySelector('h3')?.textContent);
+    const content = normalizeCatalogText(card.textContent);
+    if (title === query) return 0;
+    if (title.startsWith(query)) return 1;
+    if (title.includes(query)) return 2;
+    return content.includes(query) ? 3 : 4;
+  }
+
+  function applyCatalogFilters() {
+    const query = normalizeCatalogText(catalogSearch?.value);
+    const category = catalogCategoryFilter?.value || '';
+    const indicator = catalogIndicatorFilter?.value || '';
+    const sort = catalogSort?.value || 'relevance';
+    for (const card of catalogCards) {
+      const matchesQuery = !query || normalizeCatalogText(card.textContent).includes(query);
+      const matchesCategory = !category || card.dataset.category === category;
+      const matchesIndicator = !indicator || card.dataset.pqavsIndicator === indicator;
+      card.hidden = !(matchesQuery && matchesCategory && matchesIndicator);
+    }
+
+    const sorted = [...catalogCards].sort((a, b) => {
+      const titleA = a.querySelector('h3')?.textContent.trim() || '';
+      const titleB = b.querySelector('h3')?.textContent.trim() || '';
+      if (sort === 'title-asc') return titleA.localeCompare(titleB, 'pt-BR', { sensitivity: 'base', numeric: true });
+      if (sort === 'title-desc') return titleB.localeCompare(titleA, 'pt-BR', { sensitivity: 'base', numeric: true });
+      if (sort === 'category') {
+        const categoryA = catalogCategoryNames[a.dataset.category] || a.dataset.category || '';
+        const categoryB = catalogCategoryNames[b.dataset.category] || b.dataset.category || '';
+        return categoryA.localeCompare(categoryB, 'pt-BR', { sensitivity: 'base' }) || titleA.localeCompare(titleB, 'pt-BR', { sensitivity: 'base' });
+      }
+      return catalogRelevance(a, query) - catalogRelevance(b, query) || catalogOriginalIndex.get(a) - catalogOriginalIndex.get(b);
+    });
+    const grid = document.querySelector('.predefined-card-grid');
+    if (grid) grid.append(...sorted);
+    updateCatalogCounts();
+  }
+
+  $('catalogSearchForm')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    applyCatalogFilters();
   });
+  catalogSearch?.addEventListener('input', applyCatalogFilters);
+  catalogCategoryFilter?.addEventListener('change', applyCatalogFilters);
+  catalogIndicatorFilter?.addEventListener('change', applyCatalogFilters);
+  catalogSort?.addEventListener('change', applyCatalogFilters);
+  $('catalogClearFilters')?.addEventListener('click', () => {
+    if (catalogSearch) catalogSearch.value = '';
+    if (catalogCategoryFilter) catalogCategoryFilter.value = '';
+    if (catalogIndicatorFilter) catalogIndicatorFilter.value = '';
+    if (catalogSort) catalogSort.value = 'relevance';
+    applyCatalogFilters();
+    catalogSearch?.focus();
+  });
+  applyCatalogFilters();
   for (const reportCard of document.querySelectorAll('.predefined-card[data-report]')) {
     const activate = async () => {
       const preferredUf = selectedUf();
@@ -2782,7 +2966,7 @@
       const managerDefinition = filterDefinitions.manager;
       const preferredManagers = linkedManagerValues.length ? linkedManagerValues : linkedManagerCode ? [linkedManagerCode] : [];
       if (preferredManagers.length && managerDefinition) preferred[managerDefinition.field] = preferredManagers;
-      if (reportId.startsWith('sinan-') && savedGlobalLocation?.useMunicipalManager && Boolean(savedGlobalMunicipality)) preferred.cnesManagementCode = ['MUNICIPAL'];
+      applyGlobalManagerPreference(preferred, params);
       await openReportSetup(preferred);
     };
     reportCard.addEventListener('click', activate);
