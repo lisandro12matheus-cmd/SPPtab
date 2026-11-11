@@ -24,7 +24,8 @@ TIMEOUT = 60
 MAX_MANIFEST_BYTES = 4 * 1024 * 1024
 MAX_MEMBER_BYTES = 64 * 1024 * 1024
 MAX_DIRECTORY_BYTES = 4 * 1024 * 1024
-FORMAT = 1
+FORMAT = 3
+SUPPORTED_FORMATS = {1, 2, 3}
 
 
 class PniSourceError(Exception):
@@ -107,7 +108,7 @@ def fetch_manifest(year: int) -> dict | None:
         manifest = json.loads(data.decode("utf-8"))
     except (UnicodeDecodeError, ValueError) as exc:
         raise PniSourceError("O manifesto dos dados do PNI está corrompido.") from exc
-    if not isinstance(manifest, dict) or manifest.get("formato") != FORMAT or not isinstance(manifest.get("meses"), dict):
+    if not isinstance(manifest, dict) or manifest.get("formato") not in SUPPORTED_FORMATS or not isinstance(manifest.get("meses"), dict):
         raise PniSourceError("O manifesto dos dados do PNI tem um formato que esta versão do TabulaSUS não reconhece. Atualize o programa.")
     return manifest
 
@@ -187,6 +188,6 @@ def fetch_municipality(year: int, month: int, uf: str, municipality: str) -> tup
         data = json.loads(members[f"{municipality}.json"].decode("utf-8")) if members.get(f"{municipality}.json") else None
     except (UnicodeDecodeError, ValueError) as exc:
         raise PniSourceError("O arquivo do município está em um formato inválido.") from exc
-    if data is not None and (data.get("formato") != FORMAT or data.get("municipio") != municipality):
+    if data is not None and (data.get("formato") not in SUPPORTED_FORMATS or data.get("municipio") != municipality):
         raise PniSourceError("O arquivo do município não corresponde ao pedido.")
     return data, dictionaries

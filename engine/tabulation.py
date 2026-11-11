@@ -633,7 +633,7 @@ def write_tabulation_job(job_id: str, state: dict[str,Any]):
 
 def start_tabulation(payload: dict[str,Any]):
     payload=json.loads(json.dumps(payload))
-    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante","pqavs-obitos-arboviroses","pqavs-contatos-hanseniase","pqavs-contatos-tuberculose","pqavs-sifilis-congenita","pqavs-violencia-raca-cor","chagas-aguda-cronica","sim-mortalidade-materna-fetal","pqavs-cobertura-vacinal"}:
+    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante","pqavs-obitos-arboviroses","pqavs-contatos-hanseniase","pqavs-contatos-tuberculose","pqavs-sifilis-congenita","pqavs-violencia-raca-cor","chagas-aguda-cronica","sim-mortalidade-materna-fetal","pqavs-cobertura-vacinal","pqavs-aplicacoes-estabelecimento"}:
         year=payload.get("year")
         month=payload.get("month")
         uf=str(payload.get("uf") or "").upper()
@@ -1998,35 +1998,41 @@ def _sinasc_matches_filters(birth,selected):
     categories=_sinasc_birth_categories(birth)
     return all(categories[key] in values for key,values in selected.items())
 
-def _sinasc_maternity_names(codes: list[str]):
+def _sinasc_maternity_names(codes: list[str], include_neighborhood: bool=False):
     valid=sorted({code for code in codes if re.fullmatch(r"\d{7}",code) and code!="0000000"})
-    if not valid: return {},0
+    if not valid: return ({},0,{}) if include_neighborhood else ({},0)
     target=cache_target("sinasc_maternity_names",{"version":1})
-    now=time.time(); names={}; missing=[]; failed=0
+    now=time.time(); names={}; neighborhoods={}; missing=[]; failed=0
     with interprocess_lock(target.with_suffix(".lock")):
         cached=cache_read(target)
         entries=cached.get("names",{}) if isinstance(cached,dict) and isinstance(cached.get("names"),dict) else {}
         for code in valid:
             entry=entries.get(code,{})
-            if now-float(entry.get("checkedAt",0))<(30*86400 if entry.get("name") else 86400): names[code]=entry.get("name") or ""
+            fresh=now-float(entry.get("checkedAt",0))<(30*86400 if entry.get("name") else 86400)
+            neighborhood_checked=bool(entry.get("neighborhoodChecked"))
+            if fresh and (not include_neighborhood or neighborhood_checked):
+                names[code]=entry.get("name") or ""
+                neighborhoods[code]=entry.get("neighborhood") or ""
             else: missing.append(code)
         def lookup(code):
             data,ok=_cnes_open_data_json(f"/cnes/estabelecimentos/{code}")
-            if not ok: return code,"",False
-            if not isinstance(data,dict): return code,"",True
+            if not ok: return code,"","",False
+            if not isinstance(data,dict): return code,"","",True
             returned=re.sub(r"\D","",str(data.get("codigo_cnes") or data.get("co_cnes") or "")).zfill(7)
-            if returned!=code: return code,"",True
+            if returned!=code: return code,"","",True
             name=_report_label(data.get("nome_fantasia") or data.get("nome_razao_social") or "")[:180]
-            return code,name,True
+            neighborhood=_report_label(data.get("bairro_estabelecimento") or "")[:120]
+            return code,name,neighborhood,True
         if missing:
             with ThreadPoolExecutor(max_workers=min(8,len(missing)),thread_name_prefix="sinasc-cnes") as executor:
                 for future in as_completed([executor.submit(lookup,code) for code in missing]):
-                    try: code,name,ok=future.result()
+                    try: code,name,neighborhood,ok=future.result()
                     except Exception: failed+=1; continue
                     if not ok: failed+=1; continue
-                    entries[code]={"name":name,"checkedAt":now}; names[code]=name
+                    entries[code]={"name":name,"neighborhood":neighborhood,"neighborhoodChecked":True,"checkedAt":now}
+                    names[code]=name; neighborhoods[code]=neighborhood
             cache_write(target,{"names":entries},max_bytes=2_000_000,keep=2)
-    return names,failed
+    return (names,failed,neighborhoods) if include_neighborhood else (names,failed)
 
 def predefined_sinasc_maternity(payload: dict[str,Any], progress=None):
     year=payload.get("year"); month=payload.get("month"); uf=str(payload.get("uf") or "").upper(); municipality=str(payload.get("municipalityCode") or "")
@@ -3679,6 +3685,7 @@ def _predefined_maternal_impl(payload: dict[str,Any], progress=None):
     return result
 
 PNI_REPORT_ID="pqavs-cobertura-vacinal"
+PNI_FACILITY_REPORT_ID="pqavs-aplicacoes-estabelecimento"
 PNI_FIRST_YEAR=2026
 PNI_COVERAGE_GOAL=95
 # PQA-VS 2025, indicador 4 (Portaria GM/MS nº 6.878/2025, Anexo II): última dose do esquema
@@ -3695,7 +3702,7 @@ PNI_AGE_GROUPS=(("under1","MENORES DE 1 ANO",{"0"}),("one","1 ANO",{"1"}),("twoT
 def _pni_manifest(year: int):
     """Manifesto do ano na release de dados; usa a última cópia salva se o GitHub falhar."""
     from pni_source import fetch_manifest, PniSourceError
-    target=cache_target("pni_manifest",{"version":1,"year":year})
+    target=cache_target("pni_manifest",{"version":2,"year":year})
     with interprocess_lock(target.with_suffix(".lock")):
         cached=cache_read(target)
         if isinstance(cached,dict) and isinstance(cached.get("manifest"),dict) and time.time()-float(cached.get("fetched_at",0))<6*3600:
@@ -3712,7 +3719,7 @@ def _pni_manifest(year: int):
 
 def _pni_month_data(year: int, month: int, uf: str, municipality: str, processed_at: str):
     from pni_source import fetch_municipality, PniSourceError
-    target=cache_target("pni_municipio",{"version":1,"year":year,"month":month,"municipality":municipality,"processed":processed_at})
+    target=cache_target("pni_municipio",{"version":2,"year":year,"month":month,"municipality":municipality,"processed":processed_at})
     with interprocess_lock(target.with_suffix(".lock")):
         cached=cache_read(target)
         if isinstance(cached,dict) and "data" in cached and isinstance(cached.get("dictionaries"),dict):
@@ -3773,25 +3780,156 @@ def _pni_detail(data, dictionaries, year: int, month: int):
     note="Cada linha é uma vacina e dose aplicada em moradores do município, no mês, por idade na data da vacinação. As vacinas que entram no indicador 4 aparecem primeiro; a idade só conta para o indicador até 1 ano."
     return {"rows":rows,"records":sum(row["total"] for row in rows),"columns":columns,"metrics":[],"detailNote":note,"emptyStateMessage":"Não há doses registradas para moradores deste município neste mês."}
 
-def _predefined_pni_impl(payload: dict[str,Any], progress=None):
+def _pni_facility_age_band(value: str) -> str:
+    value=str(value or "").strip().lower()
+    if value in {"", "ign", "99", "na", "não informado"}: return "Não informada"
+    if value=="80+": return "80 anos ou mais"
+    range_match=re.fullmatch(r"(\d{1,3})\s*[-–]\s*(\d{1,3})",value)
+    if range_match:
+        start,end=(int(range_match.group(1)),int(range_match.group(2)))
+        if (start,end)==(20,29): return "20 a 29 anos"
+        if (start,end)==(30,39): return "30 a 39 anos"
+        if (start,end)==(40,49): return "40 a 49 anos"
+        if (start,end)==(50,59): return "50 a 59 anos"
+        if (start,end)==(60,69): return "60 a 69 anos"
+        if (start,end)==(70,79): return "70 a 79 anos"
+        return f"{start} a {end} anos"
+    if not value.isdigit(): return "Não informada"
+    years=int(value)
+    if years<=4: return "0 a 4 anos"
+    if years<=9: return "5 a 9 anos"
+    if years<=14: return "10 a 14 anos"
+    if years<=19: return "15 a 19 anos"
+    if years>=80: return "80 anos ou mais"
+    decade=years//10*10
+    return f"{decade} a {decade+9} anos"
+
+
+def _pni_establishment_report(data, dictionaries, year: int, month: int, uf: str, municipality: str, municipality_name: str, stale: bool=False, published: bool=True, month_info: dict | None=None, progress=None):
+    """Doses registradas por unidade, preservando dimensões disponíveis no pacote PNI."""
+    try: data_format=int((data or {}).get("formato") or (month_info or {}).get("formato") or 1)
+    except (TypeError,ValueError): data_format=1
+    age_available=data_format>=2
+    sex_available=data_format>=3
+    race_available=data_format>=3
+    rows=[]
+    notes=[]
+    lookup_failures=0
+    if not published:
+        notes.append(f"Os totais de {PQAVS_MONTHS[month-1].lower()} de {year} ainda não estão disponíveis no conjunto do PNI.")
+    elif data:
+        vaccines=dictionaries.get("vacina") or {}
+        doses=dictionaries.get("dose") or {}
+        strategies=dictionaries.get("estrategia") or {}
+        indicator={(code,item["dose"]) for item in PNI_INDICATOR_VACCINES for code in item["codes"]}
+        for raw in data.get("producao") or []:
+            expected=9 if data_format>=3 else 7 if age_available else 6
+            if not isinstance(raw,list) or len(raw)<expected:
+                raise ValueError("Os totais do PNI por estabelecimento estão incompletos. Atualize os dados e tente novamente.")
+            if data_format>=3:
+                cnes,vaccine,dose,age,sex,race,strategy,residence,count=raw[:9]
+                age=str(age or "").strip()
+                sex=str(sex or "").strip().upper()
+                race=str(race or "").strip().zfill(2) if str(race or "").strip().isdigit() else ""
+                sex_label={"M":"Masculino","F":"Feminino"}.get(sex,"Ignorado / não informado")
+                race_label={"01":"Branca","02":"Preta","03":"Amarela","04":"Parda","05":"Indígena","99":"Ignorada"}.get(race,"Não informada")
+            elif age_available:
+                cnes,vaccine,dose,age,strategy,residence,count=raw[:7]
+                age=str(age or "").strip()
+                sex_label="Não discriminado neste pacote"
+                race_label="Não discriminada neste pacote"
+            else:
+                cnes,vaccine,dose,strategy,residence,count=raw[:6]
+                age=""
+                sex_label="Não discriminado neste pacote"
+                race_label="Não discriminada neste pacote"
+            age_group=_pni_facility_age_band(age) if age_available else "Todas as idades · não discriminadas"
+            cnes=re.sub(r"\D","",str(cnes or ""))
+            if cnes and len(cnes)<=7: cnes=cnes.zfill(7)
+            vaccine=str(vaccine or "")
+            dose=str(dose or "")
+            strategy=str(strategy or "")
+            try: residence=int(residence)
+            except (TypeError,ValueError): residence=-1
+            try: count=max(0,int(count or 0))
+            except (TypeError,ValueError): raise ValueError("Os totais do PNI têm uma quantidade de doses inválida.")
+            info=vaccines.get(vaccine) or {}
+            origin={1:"Residente no município",0:"Residente em outro município",-1:"Residência não identificada"}.get(residence,"Residência não identificada")
+            scheme_match=(vaccine,dose) in indicator
+            indicator_status=("Não" if not scheme_match else "Não validável · idade não informada" if not age_available or age in {"", "ign"} else "Sim" if age in PNI_INDICATOR_AGES else "Não")
+            rows.append({
+                "cnes":cnes,
+                "establishmentName":"Estabelecimento sem CNES informado" if not cnes else f"CNES {cnes}",
+                "facilityNeighborhood":"Não informado",
+                "vaccineName":str(info.get("nome") or info.get("sigla") or f"Vacina {vaccine}")[:180],
+                "vaccineCode":vaccine,
+                "doseName":str(doses.get(dose) or (f"Dose {dose}" if dose else "Dose não informada"))[:100],
+                "ageGroup":age_group,
+                "sex":sex_label,
+                "race":race_label,
+                "strategyName":str(strategies.get(strategy) or (f"Estratégia {strategy}" if strategy else "Não informada"))[:120],
+                "residenceOrigin":origin,
+                "indicator4":indicator_status,
+                "doses":count,
+            })
+        if progress: progress(84,"Identificando as unidades no CNES")
+        names,lookup_failures,neighborhoods=_sinasc_maternity_names([row["cnes"] for row in rows if row["cnes"]],include_neighborhood=True)
+        for row in rows:
+            if row["cnes"]:
+                row["establishmentName"]=names.get(row["cnes"]) or f"CNES {row['cnes']}"
+                row["facilityNeighborhood"]=neighborhoods.get(row["cnes"]) or "Não informado no CNES"
+        rows.sort(key=lambda row:(row["establishmentName"].casefold(),row["vaccineName"].casefold(),row["doseName"].casefold(),row["strategyName"].casefold(),row["residenceOrigin"]))
+    if published and not rows:
+        notes.insert(0,f"Não há aplicações compatíveis registradas em {PQAVS_MONTHS[month-1].lower()} de {year} no município selecionado.")
+    if published and age_available:
+        notes.append("A tabela reúne aplicações de todas as idades, agrupadas pela unidade aplicadora. A faixa etária agrupa a idade registrada em anos completos.")
+    elif published:
+        notes.append("Este pacote reúne aplicações de todas as idades, sem discriminar a idade por unidade.")
+    if published and sex_available:
+        notes.append("Sexo e raça/cor são dimensões agregadas do registro PNI. Os dados não identificam pessoas.")
+    elif published:
+        notes.append("Sexo e raça/cor ainda não são discriminados na versão do pacote disponível para esta competência.")
+    notes.append("Esta é uma tabela de produção, não de cobertura por unidade. A cobertura oficial usa o município de residência e nascidos vivos do SINASC; a base não fornece denominador equivalente por CNES.")
+    notes.append("O bairro exibido é o endereço cadastral da unidade no CNES; o arquivo do PNI não informa o bairro de residência do usuário. A residência distingue moradores do município, moradores de outros municípios e residência não identificada.")
+    if lookup_failures: notes.append("Alguns nomes não puderam ser confirmados no CNES nesta consulta; nesses casos, o código CNES permanece visível.")
+    if stale: notes.append("A release de dados não respondeu; foi usada a lista de competências já armazenada neste computador.")
+    if month_info:
+        processed=str(month_info.get("processado_em") or "")[:10]
+        if processed: notes.append(f"Totais mensais do PNI atualizados em {processed}.")
+    columns=[
+        {"id":"establishment","label":"ESTABELECIMENTO APLICADOR","kind":"primary","primaryField":"establishmentName","secondaryField":"cnes","secondaryPrefix":"CNES ","filterFields":["establishmentName","cnes"],"sortField":"establishmentName","type":"text","sticky":True},
+        {"id":"vaccine","label":"VACINA · DOSE","field":"vaccineName","type":"text"},
+        {"id":"doses","label":"DOSES APLICADAS","field":"doses","metricId":"doses","type":"number","decimals":0},
+    ]
+    empty_message=(f"Os totais de {PQAVS_MONTHS[month-1].lower()} de {year} ainda não estão disponíveis no conjunto do PNI." if not published else f"Não há aplicações compatíveis registradas em {PQAVS_MONTHS[month-1].lower()} de {year} no município selecionado.")
+    return {"ok":True,"report":PNI_FACILITY_REPORT_ID,"view":"summary","flatTable":True,"facilityAgeAvailable":age_available,"facilitySexAvailable":sex_available,"facilityRaceAvailable":race_available,"facilityFormat":data_format,"facilityDataPublished":published,"facilityCompatible":True,
+        "file":"PNI · CNES","year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name,"municipalityCode":municipality,
+        "filters":[],"rows":rows,"records":sum(row["doses"] for row in rows),"columns":columns,"metrics":[{"id":"doses","label":"Doses aplicadas","decimals":0}],
+        "notes":notes,"emptyStateMessage":empty_message,"cachedAt":time.time()}
+
+def _predefined_pni_impl(payload: dict[str,Any], progress=None, report_id: str=PNI_REPORT_ID):
     year=payload.get("year"); month=payload.get("month"); municipality=str(payload.get("municipalityCode") or "")
     uf=str(payload.get("uf") or "").upper()
     if not isinstance(year,int) or not PNI_FIRST_YEAR<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12:
         raise ValueError(f"Os totais do PNI estão disponíveis a partir de {PNI_FIRST_YEAR}.")
     if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]:
-        raise ValueError("Selecione um município de residência válido.")
+        raise ValueError("Selecione um município válido para o relatório.")
     view=str(payload.get("view") or "summary")
     if view not in {"summary","detail"}: raise ValueError("Visão inválida.")
     municipality_name=_report_label(payload.get("municipalityName") or "")[:100] or f"Município {municipality}"
     if progress: progress(5,"Consultando os totais do PNI publicados para o TabulaSUS")
     manifest,stale=_pni_manifest(year)
     month_info=(manifest.get("meses") or {}).get(str(month))
+    if isinstance(month_info,dict) and not month_info.get("formato"):
+        month_info={**month_info,"formato":manifest.get("formato")}
     notes=[]
     data=None; dictionaries={}
     if month_info:
         if progress: progress(30,f"Lendo as doses de {municipality_name} em {PQAVS_MONTHS[month-1].lower()} de {year}")
         data,dictionaries=_pni_month_data(year,month,uf,municipality,str(month_info.get("processado_em") or ""))
     published=bool(month_info)
+    if report_id==PNI_FACILITY_REPORT_ID:
+        return _pni_establishment_report(data,dictionaries,year,month,uf,municipality,municipality_name,stale,published,month_info,progress)
     counts={item["key"]:0 for item in PNI_INDICATOR_VACCINES}
     resident_total=0; outside_total=0
     for vaccine,dose,age,_sex,_condition,outside,count in (data or {}).get("cobertura") or []:
@@ -3895,7 +4033,7 @@ def _predefined_pqavs_impl(payload: dict[str,Any], progress=None):
     report_id=str(payload.get("predefinedReport") or "")
     if report_id==CHAGAS_REPORT_ID: return _predefined_chagas_impl(payload,progress)
     if report_id==MATERNAL_REPORT_ID: return _predefined_maternal_impl(payload,progress)
-    if report_id==PNI_REPORT_ID: return _predefined_pni_impl(payload,progress)
+    if report_id in {PNI_REPORT_ID,PNI_FACILITY_REPORT_ID}: return _predefined_pni_impl(payload,progress,report_id)
     spec=PQAVS_REPORTS.get(report_id)
     if spec is None: raise ValueError("Indicador PQA-VS não reconhecido.")
     year=payload.get("year"); month=payload.get("month"); municipality=str(payload.get("municipalityCode") or "")
@@ -6613,7 +6751,7 @@ def tabulate(payload, progress=None):
         return predefined_srag_weekly(payload,progress)
     if payload.get("predefinedReport")=="sisagua-residual-desinfetante":
         return predefined_sisagua_rad(payload,progress)
-    if payload.get("predefinedReport") in PQAVS_REPORTS or payload.get("predefinedReport") in {CHAGAS_REPORT_ID,MATERNAL_REPORT_ID,PNI_REPORT_ID}:
+    if payload.get("predefinedReport") in PQAVS_REPORTS or payload.get("predefinedReport") in {CHAGAS_REPORT_ID,MATERNAL_REPORT_ID,PNI_REPORT_ID,PNI_FACILITY_REPORT_ID}:
         return predefined_pqavs(payload,progress)
     if payload.get("predefinedReport")=="sim-mortalidade":
         return predefined_sim_mortality(payload,progress)

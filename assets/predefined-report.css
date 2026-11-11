@@ -414,3 +414,54 @@
 .report-table th.report-number-column,.report-table td.report-number-column{text-align:right!important}
 .report-table th.report-number-column .report-column-head{justify-content:flex-end}
 @media(max-width:760px){.report-result.is-sinasc-report .report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.report-result.is-sinasc-report .report-kpi:last-child{grid-column:auto}}
+.report-result.is-pni-facility-report .report-kpis{grid-template-columns:repeat(3,minmax(150px,230px));gap:8px;margin:0 0 11px}
+.report-result.is-pni-facility-report .report-kpi{padding:9px 12px;border-radius:8px}
+.report-result.is-pni-facility-report .report-kpi span{margin-bottom:3px;font-size:10px}
+.report-result.is-pni-facility-report .report-kpi strong{font-size:16px}
+.report-result.is-pni-facility-report .report-table-toolbar{margin:4px 0 10px}
+.report-result.is-pni-facility-report .report-table-toolbar-side{flex:1}
+.report-result.is-pni-facility-report .report-search{display:none}
+.report-result.is-pni-facility-report .report-table-wrap{display:none}
+.report-result.is-pni-facility-report .report-default-actions{display:flex}
+.report-result.is-pni-facility-report .report-table-pagination{display:flex;margin-top:8px}
+.pni-facility-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin:0 0 12px;align-items:start}
+.pni-facility-filter-grid[hidden],.pni-facility-matrix[hidden]{display:none}
+.pni-facility-filter{position:relative;min-width:0}
+.pni-facility-filter[open]{z-index:9}
+.pni-facility-filter summary{height:38px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 11px;border:1px solid #dce6ea;border-radius:7px;background:#fff;color:#344e59;cursor:pointer;list-style:none}
+.pni-facility-filter summary::-webkit-details-marker{display:none}
+.pni-facility-filter summary:after{content:'⌄';color:#6f8791;font-size:14px}
+.pni-facility-filter[open] summary{border-color:#92b9a1;border-radius:7px 7px 0 0}
+.pni-facility-filter-label{min-width:0;overflow:hidden;font-size:12px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.pni-facility-filter-count{flex:none;color:#71838b;font-size:11px;font-weight:500}
+.pni-facility-filter-popover{position:absolute;z-index:8;top:37px;left:0;right:0;max-height:330px;padding:9px;border:1px solid #dce6ea;border-top:0;border-radius:0 0 8px 8px;background:#fff;box-shadow:0 10px 24px rgba(28,52,64,.14)}
+.pni-facility-filter-search{width:100%;height:34px;padding:0 9px;border:1px solid #dce5e9;border-radius:6px;color:#2b4650;font:12px 'DM Sans',sans-serif}
+.pni-facility-filter-actions{display:flex;justify-content:space-between;gap:8px;padding:8px 1px 6px}
+.pni-facility-filter-actions button{padding:0;border:0;background:none;color:#2673bf;font:600 11px 'DM Sans',sans-serif;cursor:pointer}
+.pni-facility-filter-list{display:grid;gap:1px;max-height:210px;overflow:auto;overscroll-behavior:contain}
+.pni-facility-filter-option{display:flex;align-items:flex-start;gap:8px;padding:6px 5px;border-radius:5px;color:#405961;font-size:12px;line-height:1.4;cursor:pointer}
+.pni-facility-filter-option:hover{background:#f4f8f5}
+.pni-facility-filter-option input{margin:1px 0 0;accent-color:#319665;flex:none}
+.pni-facility-filter-empty{padding:8px 4px;color:#7a898e;font-size:11px}
+.pni-facility-matrix{border:1px solid #dce7e2;border-radius:8px;background:#fff;overflow:hidden}
+.pni-facility-matrix-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 12px;border-bottom:1px solid #e6eeea;background:#f8fbf9}
+.pni-facility-matrix-toolbar span{color:#64777c;font-size:11px}
+.pni-facility-matrix-toolbar button{padding:5px 8px;border:1px solid #d7e4dc;border-radius:5px;background:#fff;color:#32754f;font:600 10px 'DM Sans',sans-serif;cursor:pointer}
+.pni-facility-matrix-scroll{max-height:min(70vh,820px);overflow:auto;scrollbar-color:#c5d2cb #f6f9f7;scrollbar-width:thin}
+.pni-facility-matrix-table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0;background:#fff;font-variant-numeric:tabular-nums}
+.pni-facility-matrix-table th,.pni-facility-matrix-table td{min-width:112px;padding:10px 12px;border-right:1px solid rgba(73,115,89,.10);border-bottom:1px solid #e4ece7;text-align:right;white-space:nowrap}
+.pni-facility-matrix-table thead th{position:sticky;top:0;z-index:2;max-width:230px;background:#f0f5f2;color:#435c51;text-align:center;white-space:normal;font-size:11px;font-weight:700;line-height:1.4}
+.pni-facility-matrix-table th:first-child,.pni-facility-matrix-table td:first-child{position:sticky;left:0;z-index:1;width:285px;min-width:285px;max-width:340px;text-align:left}
+.pni-facility-matrix-table thead th:first-child{z-index:3;background:#edf3ef}
+.pni-facility-matrix-table tbody td{height:48px;color:#234334;font-size:12px}
+.pni-facility-matrix-table tbody tr:hover td:first-child{background:#f5faf6}
+.pni-facility-matrix-table tbody td:first-child{background:#fff}
+.pni-facility-matrix-table tfoot td{position:sticky;bottom:0;z-index:2;background:#edf4ef;color:#243f31;font-weight:700}
+.pni-facility-matrix-table tfoot td:first-child{z-index:3}
+.pni-facility-establishment{display:block;max-width:315px;overflow:hidden;color:#243d31;font-size:12px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}
+.pni-facility-establishment-meta{display:block;margin-top:4px;color:#72837a;font-size:11px;line-height:1.4;white-space:normal}
+.pni-facility-vaccine-code{display:block;margin-top:3px;color:#74867c;font-size:10px;font-weight:500}
+.pni-facility-dose-cell{font-weight:600}
+.pni-facility-matrix-empty{padding:28px 16px!important;color:#73827a!important;text-align:center!important;background:#fff!important}
+@media(max-width:760px){.report-result.is-pni-facility-report .report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.report-result.is-pni-facility-report .report-kpi:last-child{grid-column:auto}.pni-facility-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pni-facility-matrix-table th:first-child,.pni-facility-matrix-table td:first-child{width:230px;min-width:230px}.pni-facility-matrix-table th,.pni-facility-matrix-table td{min-width:100px;padding:9px 10px}}
+@media(max-width:440px){.report-result.is-pni-facility-report .report-kpis{grid-template-columns:1fr 1fr}.pni-facility-filter-grid{grid-template-columns:1fr 1fr;gap:6px}.pni-facility-filter summary{padding:0 8px}.pni-facility-matrix-table th:first-child,.pni-facility-matrix-table td:first-child{width:205px;min-width:205px}}

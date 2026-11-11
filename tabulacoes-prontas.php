@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>Tabulações prontas · TabulaSUS</title>
-      <link rel="stylesheet" href="assets/app.css?v=22"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=53"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
+      <link rel="stylesheet" href="assets/app.css?v=22"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=55"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
   <link rel="stylesheet" href="assets/rating.css?v=1"><script src="assets/sidebar.js?v=3" defer></script><script src="assets/rating.js?v=1" defer></script>
 </head>
 <body>
@@ -93,8 +93,12 @@
             <div class="predefined-card-footer"><span class="predefined-card-source">SISAGUA · IBGE</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
           <article class="predefined-card" data-category="vigilancia" data-report="pqavs-cobertura-vacinal" role="button" tabindex="0" aria-label="Abrir tabulação: cobertura das vacinas do indicador 4 do PQA-VS">
-            <div class="predefined-card-content"><div class="predefined-card-eyebrow">PQA-VS · Indicador 4</div><h3>Cobertura vacinal infantil</h3><p>Pentavalente, poliomielite, pneumocócica 10 e tríplice viral de moradores sobre os nascidos vivos. Meta: 95%.</p></div>
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">PQA-VS · Indicador 4</div><h3>Cobertura vacinal infantil</h3><p>Pentavalente, poliomielite, pneumocócica 10 e tríplice viral por residência. Meta: 95%.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">PNI · RNDS · SINASC</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
+          <article class="predefined-card" data-category="vigilancia" data-report="pqavs-aplicacoes-estabelecimento" role="button" tabindex="0" aria-label="Abrir relatório: aplicações de vacinas por estabelecimento">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Imunização · Produção</div><h3>Aplicações por estabelecimento</h3><p>Consulte as doses registradas por unidade vacinadora, vacina, dose, estratégia e origem dos usuários.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">PNI · RNDS · CNES</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
           <article class="predefined-card" data-category="vigilancia" data-report="pqavs-obitos-arboviroses" role="button" tabindex="0" aria-label="Abrir tabulação: óbitos suspeitos de dengue e chikungunya encerrados em até 60 dias">
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">PQA-VS · Indicador 8</div><h3>Óbitos por arboviroses encerrados</h3><p>Óbitos suspeitos de dengue e chikungunya encerrados em até 60 dias da notificação. Meta: 75%.</p></div>
@@ -160,7 +164,12 @@
             <div class="flow-insight-stat"><span id="flowOtherOriginLabel">Moradores de outros municípios</span><strong id="flowOtherOriginValue">—</strong><small id="flowOtherOriginCount">AIHs com residência identificada</small></div>
           </div>
           <div class="report-table-toolbar"><label class="report-search"><span class="sr-only">Buscar no resultado</span><span aria-hidden="true">⌕</span><input id="reportSearch" type="search" placeholder="Buscar estabelecimento ou procedimento"></label><div class="report-table-toolbar-side"><span class="report-table-hint" id="reportTableHint"></span><div class="report-default-actions" id="tableDefaultActions"><button type="button" id="saveTableDefault">Salvar filtros como padrão</button><button type="button" id="clearTableDefault" hidden>Remover padrão</button></div></div></div>
+          <div class="pni-facility-filter-grid" id="pniFacilityFilters" hidden></div>
           <div class="report-table-wrap"><table class="report-table"><thead><tr id="reportHeader"></tr></thead><tbody id="reportRows"></tbody><tfoot><tr id="reportTotals"></tr></tfoot></table></div>
+          <section class="pni-facility-matrix" id="pniFacilityMatrix" hidden aria-label="Doses aplicadas por estabelecimento e vacina">
+            <div class="pni-facility-matrix-toolbar"><span id="pniFacilityMatrixSummary"></span><button type="button" id="pniFacilityClearFilters">Limpar filtros</button></div>
+            <div class="pni-facility-matrix-scroll"><table class="pni-facility-matrix-table"><thead><tr id="pniFacilityMatrixHeader"></tr></thead><tbody id="pniFacilityMatrixRows"></tbody><tfoot><tr id="pniFacilityMatrixTotals"></tr></tfoot></table></div>
+          </section>
           <div class="report-table-pagination" id="reportTablePagination"><span id="reportPageInfo">Página 1 de 1</span><label>Linhas por página <select id="reportPageSize"><option value="50">50</option><option value="100" selected>100</option><option value="250">250</option></select></label><div><button type="button" id="reportPagePrevious" aria-label="Página anterior">←</button><button type="button" id="reportPageNext" aria-label="Próxima página">→</button></div></div>
           <div class="report-notes" id="reportNotes"></div>
         </section>
@@ -177,6 +186,6 @@
       <div class="setup-dialog-footer"><div class="setup-default-actions"><button type="button" id="saveSetupDefault">Salvar filtros adicionais como padrão</button><button type="button" id="clearSetupDefault" hidden>Remover padrão</button><span id="setupDefaultStatus" role="status"></span></div><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=86" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=89" defer></script>
 </body>
 </html>

@@ -41,7 +41,7 @@ import zipfile
 import zlib
 from pathlib import Path
 
-FORMATO = 1
+FORMATO = 3
 HOST = "s3.sa-east-1.amazonaws.com"
 BASE = f"https://{HOST}/ckan.saude.gov.br/PNI/csv/"
 MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
@@ -68,7 +68,7 @@ COLUNAS = [
 # Colunas de cada tabela de totais (a contagem de doses é sempre a última).
 TABELAS = {
     "cobertura": ["vacina", "dose", "idade", "sexo", "condicao_maternal", "aplicada_fora", "doses"],
-    "producao": ["cnes", "vacina", "dose", "estrategia", "residente", "doses"],
+    "producao": ["cnes", "vacina", "dose", "idade", "sexo", "raca_cor", "estrategia", "residente", "doses"],
     "qualidade": ["cnes", "sistema_origem", "origem_registro", "raca_informada", "atraso_dias", "doses"],
 }
 
@@ -287,7 +287,15 @@ class Totais:
             if conta_aplicacao:
                 if me not in nomes:
                     nomes[me] = r[nome_e]
-                k = (me, r[cnes_e], v, d, e, 1 if mesmo else 0)
+                idade = idades.get(r[idade_p], "ign")
+                residencia = 1 if mesmo else 0 if valido(mp) and mp[:2] in UF_IBGE else -1
+                sexo = r[sexo_p].strip().upper()
+                sexo = "M" if sexo in {"M", "1"} else "F" if sexo in {"F", "2"} else "I"
+                raca = r[raca_p].strip()
+                raca = raca.zfill(2) if raca.isdigit() else ""
+                if raca not in {"01", "02", "03", "04", "05", "99"}:
+                    raca = ""
+                k = (me, r[cnes_e], v, d, idade, sexo, raca, e, residencia)
                 prod[k] = prod_get(k, 0) + 1
                 raca = r[raca_p]
                 k = (me, r[cnes_e], s, o, 0 if raca in ("", "99") else 1, self.atraso(data_vacina, r[dent][:10]))

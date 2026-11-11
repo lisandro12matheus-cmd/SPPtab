@@ -59,6 +59,20 @@
   let columnFilterMenu = null;
   let tablePage = 1;
   let tablePageSize = 100;
+  let pniFacilityFilterSelections = new Map();
+  let pniFacilityFilterKey = '';
+  const pniFacilityFilterDefinitions = [
+    { id:'establishment', label:'Estabelecimento' },
+    { id:'ageGroup', label:'Faixa etária', available:() => activeResult?.facilityAgeAvailable !== false },
+    { id:'sex', label:'Sexo', available:() => activeResult?.facilitySexAvailable === true, unavailable:'Esta competência ainda não discrimina sexo.' },
+    { id:'race', label:'Raça/cor', available:() => activeResult?.facilityRaceAvailable === true, unavailable:'Esta competência ainda não discrimina raça/cor.' },
+    { id:'facilityNeighborhood', label:'Bairro da unidade' },
+    { id:'vaccine', label:'Vacina' },
+    { id:'doseName', label:'Dose' },
+    { id:'strategyName', label:'Estratégia' },
+    { id:'residenceOrigin', label:'Residência do usuário' },
+    { id:'indicator4', label:'Esquema do indicador 4' }
+  ];
 
   const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   const stateNames = { AC:'Acre', AL:'Alagoas', AP:'Amapá', AM:'Amazonas', BA:'Bahia', CE:'Ceará', DF:'Distrito Federal', ES:'Espírito Santo', GO:'Goiás', MA:'Maranhão', MT:'Mato Grosso', MS:'Mato Grosso do Sul', MG:'Minas Gerais', PA:'Pará', PB:'Paraíba', PR:'Paraná', PE:'Pernambuco', PI:'Piauí', RJ:'Rio de Janeiro', RN:'Rio Grande do Norte', RS:'Rio Grande do Sul', RO:'Rondônia', RR:'Roraima', SC:'Santa Catarina', SP:'São Paulo', SE:'Sergipe', TO:'Tocantins' };
@@ -471,6 +485,23 @@
     methodText:' cobertura = doses da última dose do esquema em crianças de até 1 ano ÷ nascidos vivos × 100, por residência. Cada vacina com 95% ou mais vale 25% no resultado do indicador.',
     summaryTitle:'Cobertura das vacinas do indicador 4 por mês', countMetric:'penta', countLabel:'DOSES · PENTA 3ª',
     monthlyDetail:true, backLabel:'← Meses', detailTitlePrefix:'Vacinas aplicadas em moradores', detailItemLabel:'doses', tableSearchDetail:'Buscar vacina ou dose'
+  };
+  reportConfigurations['pqavs-aplicacoes-estabelecimento'] = {
+    ...pqavsBase, id:'pqavs-aplicacoes-estabelecimento', systemCode:'PNI', kind:'PNI', firstYear:2026, competenceLabel:'MÊS DA APLICAÇÃO',
+    systemLabel:'PNI · RNDS · CNES', sourceLabel:'aplicações de vacinas registradas no PNI',
+    workspaceTitle:'Aplicações por estabelecimento · PNI', introLabel:'IMUNIZAÇÃO · PRODUÇÃO', introTitle:'Aplicações de vacinas por estabelecimento.',
+    introDescription:'Compare doses aplicadas por unidade e vacina, com filtros para faixa etária, sexo, raça/cor, bairro cadastral e residência.',
+    setupTitle:'Aplicações por estabelecimento', setupDescription:'Escolha a UF, o município de aplicação e as competências. A consulta mostra os registros agregados por CNES.',
+    emptyMessage:'Escolha o município da aplicação e ao menos uma competência para consultar os registros do PNI por unidade.',
+    municipalityLabel:'MUNICÍPIO DA APLICAÇÃO', locationHelp:'O município selecionado corresponde ao estabelecimento aplicador; a residência do usuário aparece como dimensão da tabela.',
+    monthLabel:'MÊS DA APLICAÇÃO', loaderDetail:'aplicações de vacinas agrupadas por estabelecimento e CNES',
+    missingMunicipalityMessage:'Selecione o município da aplicação.',
+    monthHelp:'A consulta respeita a competência de aplicação publicada pelo PNI. Competências recentes podem ainda receber atualizações.',
+    availabilityText:'Escolha as competências · doses agrupadas por CNES, vacina, dose, idade, estratégia e residência.',
+    filterNote:'A matriz mostra totais agregados por estabelecimento e vacina. O bairro é o endereço cadastral da unidade no CNES; a base não informa o bairro de residência do usuário.',
+    methodTitle:'Como interpretar esta tabela:',
+    methodText:' apresenta doses registradas por unidade aplicadora e vacina. A faixa etária e o sexo são dimensões do registro PNI quando disponíveis; o bairro corresponde ao endereço cadastral da unidade no CNES. A matriz não representa cobertura vacinal por estabelecimento.',
+    summaryTitle:'Aplicações por estabelecimento', tableSearchSummary:'Buscar unidade, CNES, vacina, dose ou estratégia', filters:{}
   };
   const params = new URLSearchParams(location.search);
   const linkedReportId = params.get('relatorio') === 'sia-pa-belem' ? 'sia-pa-producao' : params.get('relatorio');
@@ -1363,6 +1394,191 @@
     return columns.filter((column) => column.kind !== 'action').map((column) => columnDisplayValue(row, column)).join(' ').toLocaleLowerCase('pt-BR');
   }
 
+  function pniFacilityValue(row, field) {
+    if (field === 'establishment') return String(row.cnes || `nome:${row.establishmentName || ''}`);
+    if (field === 'vaccine') return String(row.vaccineCode || row.vaccineName || '');
+    return String(row[field] || (field === 'facilityNeighborhood' ? 'Não informado no CNES' : 'Não informado'));
+  }
+
+  function pniFacilityOptionLabel(row, field) {
+    if (field === 'establishment') return `${row.establishmentName || 'Estabelecimento sem nome'}${row.cnes ? ` · CNES ${row.cnes}` : ''}`;
+    if (field === 'vaccine') return `${row.vaccineCode ? `${row.vaccineCode} · ` : ''}${row.vaccineName || 'Vacina sem descrição'}`;
+    return String(row[field] || (field === 'facilityNeighborhood' ? 'Não informado no CNES' : 'Não informado'));
+  }
+
+  function pniFacilityOptions(field) {
+    const values = new Map();
+    for (const row of allRows) {
+      const value = pniFacilityValue(row, field);
+      if (!value || values.has(value)) continue;
+      values.set(value, pniFacilityOptionLabel(row, field));
+    }
+    const options = [...values].map(([value, label]) => ({ value, label }));
+    if (field === 'ageGroup') {
+      const order = ['0 a 4 anos','5 a 9 anos','10 a 14 anos','15 a 19 anos','20 a 29 anos','30 a 39 anos','40 a 49 anos','50 a 59 anos','60 a 69 anos','70 a 79 anos','80 anos ou mais','Não informada','Todas as idades · não discriminadas'];
+      options.sort((a, b) => (order.indexOf(a.label) < 0 ? 999 : order.indexOf(a.label)) - (order.indexOf(b.label) < 0 ? 999 : order.indexOf(b.label)) || a.label.localeCompare(b.label, 'pt-BR'));
+    } else options.sort((a, b) => a.label.localeCompare(b.label, 'pt-BR', { numeric:true, sensitivity:'base' }));
+    return options;
+  }
+
+  function pniFacilitySelected(field, value) {
+    const selected = pniFacilityFilterSelections.get(field);
+    return !selected || selected.has(value);
+  }
+
+  function pniFacilityUpdateFilterSummary(details, field, options, available) {
+    const count = details.querySelector('[data-pni-filter-count]');
+    const selected = pniFacilityFilterSelections.get(field);
+    if (!available) count.textContent = 'Indisponível';
+    else if (!selected || selected.size >= options.length) count.textContent = 'Todos';
+    else count.textContent = selected.size ? `${formatNumber(selected.size)} selecionado${selected.size === 1 ? '' : 's'}` : 'Nenhum';
+  }
+
+  function pniFacilityDrawOptions(details, definition) {
+    const field = definition.id;
+    const list = details.querySelector('[data-pni-filter-list]');
+    const search = details.querySelector('[data-pni-filter-search]');
+    const available = !definition.available || definition.available();
+    const options = pniFacilityOptions(field);
+    list.replaceChildren();
+    if (!available) {
+      list.append(buildCell('span', definition.unavailable || 'Esta informação não está disponível nesta competência.', 'pni-facility-filter-empty'));
+      pniFacilityUpdateFilterSummary(details, field, options, false);
+      return;
+    }
+    const query = String(search.value || '').trim().toLocaleLowerCase('pt-BR');
+    const matches = query ? options.filter((option) => option.label.toLocaleLowerCase('pt-BR').includes(query)) : options;
+    const shown = matches.slice(0, field === 'establishment' ? 100 : 140);
+    if (!shown.length) list.append(buildCell('span', 'Nenhuma opção encontrada.', 'pni-facility-filter-empty'));
+    for (const option of shown) {
+      const label = document.createElement('label'); label.className = 'pni-facility-filter-option';
+      const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = pniFacilitySelected(field, option.value);
+      checkbox.dataset.pniFilterOption = field; checkbox.value = option.value;
+      label.append(checkbox, buildCell('span', option.label)); list.append(label);
+    }
+    if (matches.length > shown.length) list.append(buildCell('span', `Mostrando ${formatNumber(shown.length)} de ${formatNumber(matches.length)} opções. Pesquise para localizar outra.`, 'pni-facility-filter-empty'));
+    pniFacilityUpdateFilterSummary(details, field, options, true);
+  }
+
+  function buildPniFacilityFilters() {
+    const root = $('pniFacilityFilters');
+    if (!root) return;
+    root.replaceChildren();
+    for (const definition of pniFacilityFilterDefinitions) {
+      const details = document.createElement('details'); details.className = 'pni-facility-filter'; details.dataset.pniFilter = definition.id;
+      const summary = document.createElement('summary');
+      summary.append(buildCell('span', definition.label, 'pni-facility-filter-label'));
+      summary.append(buildCell('span', '', 'pni-facility-filter-count')); summary.lastChild.dataset.pniFilterCount = 'true';
+      const panel = document.createElement('div'); panel.className = 'pni-facility-filter-popover';
+      const search = document.createElement('input'); search.type = 'search'; search.className = 'pni-facility-filter-search'; search.placeholder = 'Pesquisar opções'; search.setAttribute('aria-label', `Pesquisar ${definition.label.toLocaleLowerCase('pt-BR')}`); search.dataset.pniFilterSearch = definition.id;
+      const actions = document.createElement('div'); actions.className = 'pni-facility-filter-actions';
+      const selectAll = buildCell('button', 'Selecionar todos'); selectAll.type = 'button'; selectAll.dataset.pniFilterAction = 'all'; selectAll.dataset.pniFilterField = definition.id;
+      const clear = buildCell('button', 'Desmarcar todos'); clear.type = 'button'; clear.dataset.pniFilterAction = 'none'; clear.dataset.pniFilterField = definition.id;
+      actions.append(selectAll, clear);
+      const list = document.createElement('div'); list.className = 'pni-facility-filter-list'; list.dataset.pniFilterList = 'true';
+      panel.append(search, actions, list); details.append(summary, panel); root.append(details);
+      pniFacilityDrawOptions(details, definition);
+    }
+    root.hidden = false;
+    pniFacilityFilterKey = `${activeResult?.cachedAt || ''}:${activeResult?.facilityFormat || ''}:${allRows.length}`;
+  }
+
+  function pniFacilityFilteredRows() {
+    const query = $('reportSearch').value.trim().toLocaleLowerCase('pt-BR');
+    return allRows.filter((row) => {
+      if (query && !`${row.establishmentName || ''} ${row.cnes || ''}`.toLocaleLowerCase('pt-BR').includes(query)) return false;
+      for (const definition of pniFacilityFilterDefinitions) {
+        const selected = pniFacilityFilterSelections.get(definition.id);
+        if (selected && !selected.has(pniFacilityValue(row, definition.id))) return false;
+      }
+      return true;
+    });
+  }
+
+  function pniFacilityMatrixData(rows) {
+    const vaccines = new Map();
+    for (const row of rows) {
+      const key = pniFacilityValue(row, 'vaccine');
+      if (!vaccines.has(key)) vaccines.set(key, { key, code:String(row.vaccineCode || ''), name:String(row.vaccineName || 'Vacina sem descrição') });
+    }
+    const facilities = new Map();
+    for (const row of rows) {
+      const key = String(row.cnes || `nome:${row.establishmentName || ''}`);
+      let facility = facilities.get(key);
+      if (!facility) {
+        facility = { key, cnes:String(row.cnes || ''), name:String(row.establishmentName || 'Estabelecimento sem nome'), neighborhood:String(row.facilityNeighborhood || ''), total:0, dosesByVaccine:new Map() };
+        facilities.set(key, facility);
+      }
+      const vaccineKey = pniFacilityValue(row, 'vaccine');
+      const doses = Math.max(0, Number(row.doses) || 0);
+      facility.total += doses;
+      facility.dosesByVaccine.set(vaccineKey, (facility.dosesByVaccine.get(vaccineKey) || 0) + doses);
+      if (!facility.neighborhood && row.facilityNeighborhood) facility.neighborhood = row.facilityNeighborhood;
+    }
+    const sortedVaccines = [...vaccines.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { numeric:true, sensitivity:'base' }));
+    const sortedFacilities = [...facilities.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'pt-BR', { sensitivity:'base' }));
+    return { vaccines:sortedVaccines, facilities:sortedFacilities };
+  }
+
+  function pniFacilityHeatColor(ratio) {
+    const low = [238, 247, 240], high = [79, 187, 119];
+    const amount = Math.min(1, Math.max(0, Math.sqrt(ratio)));
+    return `rgb(${low.map((channel, index) => Math.round(channel + (high[index] - channel) * amount)).join(',')})`;
+  }
+
+  function renderPniFacilityMatrix(rows, preparedData = null) {
+    const data = preparedData || pniFacilityMatrixData(rows);
+    const header = $('pniFacilityMatrixHeader'); header.replaceChildren();
+    header.append(buildCell('th', 'ESTABELECIMENTO / CNES'));
+    for (const vaccine of data.vaccines) {
+      const th = document.createElement('th'); th.append(buildCell('span', vaccine.name));
+      if (vaccine.code) th.append(buildCell('small', vaccine.code, 'pni-facility-vaccine-code'));
+      header.append(th);
+    }
+    const pageCount = Math.max(1, Math.ceil(data.facilities.length / tablePageSize));
+    tablePage = Math.min(Math.max(1, tablePage), pageCount);
+    const pageFacilities = data.facilities.slice((tablePage - 1) * tablePageSize, tablePage * tablePageSize);
+    const maxima = new Map(data.vaccines.map((vaccine) => [vaccine.key, data.facilities.reduce((maximum, facility) => Math.max(maximum, facility.dosesByVaccine.get(vaccine.key) || 0), 0)]));
+    const body = $('pniFacilityMatrixRows'); body.replaceChildren();
+    for (const facility of pageFacilities) {
+      const tr = document.createElement('tr');
+      const unitCell = document.createElement('td');
+      unitCell.append(buildCell('span', facility.name, 'pni-facility-establishment'));
+      const meta = [facility.cnes ? `CNES ${facility.cnes}` : '', facility.neighborhood && facility.neighborhood !== 'Não informado no CNES' ? `Bairro · ${facility.neighborhood}` : ''].filter(Boolean).join(' · ');
+      if (meta) unitCell.append(buildCell('small', meta, 'pni-facility-establishment-meta'));
+      tr.append(unitCell);
+      for (const vaccine of data.vaccines) {
+        const amount = facility.dosesByVaccine.get(vaccine.key) || 0;
+        const td = buildCell('td', amount ? formatNumber(amount) : '—', 'pni-facility-dose-cell');
+        if (amount) {
+          const ratio = maxima.get(vaccine.key) ? amount / maxima.get(vaccine.key) : 0;
+          td.style.backgroundColor = pniFacilityHeatColor(ratio);
+          td.style.color = '#173d2a';
+        } else td.classList.add('pni-facility-zero');
+        td.title = `${facility.name} · ${vaccine.name}: ${formatNumber(amount)} dose(s)`;
+        tr.append(td);
+      }
+      body.append(tr);
+    }
+    if (!data.facilities.length) {
+      const tr = document.createElement('tr');
+      tr.append(buildCell('td', 'Nenhum estabelecimento corresponde aos filtros selecionados.', 'pni-facility-matrix-empty'));
+      const spacer = document.createElement('td'); spacer.colSpan = data.vaccines.length; tr.append(spacer); body.append(tr);
+    }
+    const foot = $('pniFacilityMatrixTotals'); foot.replaceChildren();
+    foot.append(buildCell('td', 'TOTAL DO RECORTE'));
+    for (const vaccine of data.vaccines) {
+      const total = data.facilities.reduce((sum, facility) => sum + (facility.dosesByVaccine.get(vaccine.key) || 0), 0);
+      foot.append(buildCell('td', total ? formatNumber(total) : '—'));
+    }
+    const totalDoses = rows.reduce((sum, row) => sum + (Number(row.doses) || 0), 0);
+    $('pniFacilityMatrixSummary').textContent = `${formatNumber(data.facilities.length)} unidade(s) · ${formatNumber(data.vaccines.length)} vacina(s) · ${formatNumber(totalDoses)} doses no recorte`;
+    $('reportCount').textContent = formatNumber(data.facilities.length);
+    $('reportTableHint').textContent = `${formatNumber(data.facilities.length)} unidades · ${formatNumber(data.vaccines.length)} vacinas · totais atualizados pelos filtros`;
+    renderTablePagination(data.facilities.length, pageCount);
+    return data;
+  }
+
   function rowsMatchingFilters(exceptColumn = '') {
     const query = $('reportSearch').value.trim().toLocaleLowerCase('pt-BR');
     const columns = tableColumns();
@@ -1393,6 +1609,7 @@
   }
 
   function visibleRows() {
+    if (activeReport.id === 'pqavs-aplicacoes-estabelecimento') return pniFacilityFilteredRows();
     let rows = rowsMatchingFilters();
     if (sortState) {
       const column = tableColumns().find((item) => item.id === sortState.columnId);
@@ -1411,7 +1628,20 @@
     const qtyIndex = metrics.findIndex((metric) => metric.id === activeReport.countMetric);
     const valueIndex = metrics.findIndex((metric) => metric.id === activeReport.valueMetric);
     let cards;
-    if (activeReport.id === 'sim-mortalidade-infantil') {
+    if (activeReport.id === 'pqavs-aplicacoes-estabelecimento') {
+      if (!activeResult.facilityDataPublished || activeResult.facilityCompatible === false) {
+        cards = [['UNIDADES COM REGISTRO', '—'], ['DOSES REGISTRADAS', '—'], ['DOSES DE ESQUEMAS DO INDICADOR 4', '—']];
+      } else {
+        const doses = rows.reduce((sum, row) => sum + (Number(row.doses) || 0), 0);
+        const indicatorDoses = rows.reduce((sum, row) => sum + (row.indicator4 === 'Sim' ? Number(row.doses) || 0 : 0), 0);
+        const units = new Set(rows.map((row) => String(row.cnes || `nome:${row.establishmentName || ''}`)).filter(Boolean)).size;
+        cards = [
+          ['UNIDADES COM APLICAÇÕES', formatNumber(units)],
+          ['DOSES APLICADAS', formatNumber(doses)],
+          ['ESQUEMA PQA-VS · ATÉ 1 ANO', activeResult.facilityAgeAvailable ? formatNumber(indicatorDoses) : '—']
+        ];
+      }
+    } else if (activeReport.id === 'sim-mortalidade-infantil') {
       const sum = (field) => rows.reduce((total, row) => total + (Number(row[field]) || 0), 0);
       const births = Number(activeResult.births) || 0;
       const completeYear = activeMonths.length === 12 && activeYear < new Date().getFullYear() && births > 0;
@@ -1613,6 +1843,9 @@
 
   function renderTable() {
     if (!activeResult) return;
+    const pniEstablishments = activeReport.id === 'pqavs-aplicacoes-estabelecimento';
+    const pniFilters = $('pniFacilityFilters');
+    const pniMatrix = $('pniFacilityMatrix');
     resultPanel.classList.toggle('is-flat-report', activeReport.tableMode === 'flat');
     resultPanel.classList.toggle('is-professional-report', activeReport.id === 'sih-sp-profissionais');
     resultPanel.classList.toggle('is-flow-report', activeReport.id === 'sih-rd-fluxo');
@@ -1625,27 +1858,50 @@
     resultPanel.classList.toggle('is-sinasc-report', activeReport.system === 'sinasc');
     resultPanel.classList.toggle('is-infant-report', activeReport.id === 'sim-mortalidade-infantil');
     resultPanel.classList.toggle('is-sinasc-detail', activeReport.system === 'sinasc' && activeView === 'detail');
+    resultPanel.classList.toggle('is-pni-facility-report', pniEstablishments);
     const rows = visibleRows();
-    if (activeReport.system === 'sinasc') {
+    if (pniEstablishments) {
+      const key = `${activeResult?.cachedAt || ''}:${activeResult?.facilityFormat || ''}:${allRows.length}`;
+      if (!pniFilters.children.length || pniFacilityFilterKey !== key) buildPniFacilityFilters();
+      pniFilters.hidden = false;
+      pniMatrix.hidden = false;
+      const methodNote = $('reportMethodNote');
+      const strong = document.createElement('strong'); strong.textContent = 'Como interpretar esta visão:';
+      const explanation = activeResult.facilityCompatible === false
+        ? ' as competências selecionadas usam formatos diferentes e não foram somadas. Selecione competências compatíveis para comparar as unidades.'
+        : ' cada célula mostra doses aplicadas na unidade e na vacina indicada. A faixa etária, o sexo e a raça/cor são filtros quando constam no pacote; o bairro é o cadastrado para a unidade no CNES.';
+      methodNote.replaceChildren(strong, document.createTextNode(explanation));
+    } else {
+      if (pniFilters) pniFilters.hidden = true;
+      if (pniMatrix) pniMatrix.hidden = true;
+      resultPanel.classList.remove('is-pni-facility-report');
+    }
+    if (!pniEstablishments && activeReport.id === 'pqavs-cobertura-vacinal') {
+      const methodNote = $('reportMethodNote');
+      const strong = document.createElement('strong'); strong.textContent = activeReport.methodTitle;
+      methodNote.replaceChildren(strong, document.createTextNode(activeReport.methodText));
+    } else if (activeReport.system === 'sinasc') {
       const methodNote = $('reportMethodNote');
       const strong = document.createElement('strong'); strong.textContent = 'Como interpretar este relatório:';
       methodNote.replaceChildren(strong, document.createTextNode(activeView === 'detail'
         ? ' cada linha mostra um nascido vivo do estabelecimento. O registro não identifica mãe ou bebê; campos ausentes aparecem como não informados.'
         : activeReport.methodText));
     }
-    const pageCount = Math.max(1, Math.ceil(rows.length / tablePageSize));
+    const pniData = pniEstablishments ? pniFacilityMatrixData(rows) : null;
+    const displayRowCount = pniEstablishments ? pniData.facilities.length : rows.length;
+    const pageCount = Math.max(1, Math.ceil(displayRowCount / tablePageSize));
     tablePage = Math.min(Math.max(1, tablePage), pageCount);
-    const pageRows = rows.slice((tablePage - 1) * tablePageSize, tablePage * tablePageSize);
+    const pageRows = pniEstablishments ? [] : rows.slice((tablePage - 1) * tablePageSize, tablePage * tablePageSize);
     const metrics = activeResult.metrics || [];
     const columns = tableColumns();
-    renderHeader(columns);
+    if (!pniEstablishments) renderHeader(columns);
     const body = $('reportRows'); body.replaceChildren();
-    for (const row of pageRows) {
+    if (!pniEstablishments) for (const row of pageRows) {
       const tr = document.createElement('tr');
       columns.forEach((column, index) => tr.append(renderTableCell(row, column, index === 0)));
       body.append(tr);
     }
-    if (!rows.length) {
+    if (!pniEstablishments && !rows.length) {
       const tr = document.createElement('tr');
       const emptyText = activeReport.remoteSource && activeResult.emptyStateMessage
         ? activeResult.emptyStateMessage
@@ -1658,8 +1914,8 @@
     const occupancyTotals = activeReport.tableMode === 'occupancy' ? occupancyTotalsFor(rows) : null;
     const foot = $('reportTotals'); foot.replaceChildren();
     const countLabel = rows.length < allRows.length ? `Total · ${formatNumber(rows.length)} itens visíveis` : 'Total';
-    foot.append(buildCell('td', countLabel, 'primary-cell'));
-    for (const column of columns.slice(1)) {
+    if (!pniEstablishments) foot.append(buildCell('td', countLabel, 'primary-cell'));
+    for (const column of (pniEstablishments ? [] : columns.slice(1))) {
       if (column.metricId) {
         const metricIndex = metrics.findIndex((metric) => metric.id === column.metricId);
         const value = metricIndex >= 0 ? formatScaled(totals[metricIndex], metrics[metricIndex].decimals) : '';
@@ -1672,10 +1928,12 @@
       } else foot.append(buildCell('td', '', column.kind === 'action' ? 'report-action-cell' : ''));
     }
 
-    $('reportCount').textContent = formatNumber(rows.length);
+    $('reportCount').textContent = formatNumber(displayRowCount);
     const itemLabel = activeReport.itemLabel ? (activeView === 'detail' ? activeReport.detailItemLabel || activeReport.itemLabel : activeReport.itemLabel) : activeReport.id === 'sim-mortalidade-infantil' ? 'registros de óbitos infantis' : activeReport.system === 'sinasc' ? (activeView === 'detail' ? 'nascidos vivos' : 'estabelecimentos e meses') : activeReport.id === 'sih-rd-fluxo' ? (activeView === 'detail' ? 'AIHs da rota' : 'rotas de origem e destino') : activeReport.system === 'srag' ? (activeView === 'full' ? 'combinações de semana e faixa etária' : activeView === 'detail' ? 'faixas etárias' : 'semanas epidemiológicas') : activeReport.system === 'sim' ? (activeView === 'full' ? 'combinações de semana e causa básica' : activeView === 'detail' ? 'categorias de causa básica' : 'semanas') : activeReport.system === 'sinan' ? (activeView === 'full' ? 'combinações de semana, unidade e residência' : activeView === 'detail' ? 'unidades e municípios de residência' : 'semanas epidemiológicas') : activeReport.tableMode === 'flat' ? 'lançamentos' : activeReport.tableMode === 'occupancy' ? (activeView === 'summary' ? 'estabelecimentos' : activeView === 'detail' ? 'AIHs' : 'serviços profissionais') : activeView === 'summary' ? 'estabelecimentos' : (activeReport.system === 'sih' ? 'combinações de procedimento' : 'procedimentos');
-    $('reportTableHint').textContent = `${formatNumber(rows.length)} de ${formatNumber(allRows.length)} ${itemLabel} · página ${formatNumber(tablePage)} de ${formatNumber(pageCount)} · filtre ou ordene pelos cabeçalhos`;
-    renderTablePagination(rows.length, pageCount);
+    $('reportTableHint').textContent = pniEstablishments
+      ? `${formatNumber(displayRowCount)} unidades · matriz por vacina · página ${formatNumber(tablePage)} de ${formatNumber(pageCount)}`
+      : `${formatNumber(rows.length)} de ${formatNumber(allRows.length)} ${itemLabel} · página ${formatNumber(tablePage)} de ${formatNumber(pageCount)} · filtre ou ordene pelos cabeçalhos`;
+    renderTablePagination(displayRowCount, pageCount);
     const locationParts = [activeResult.municipality || 'Todos os municípios', activeResult.state || stateNames[activeResult.uf] || activeResult.uf];
     const appliedFilters = Array.isArray(activeResult.filters) ? activeResult.filters : [
       ...(activeResult.managerCode ? [{ label:'Gestor da produção', value:activeResult.manager }] : []),
@@ -1687,7 +1945,13 @@
     $('reportSubtitle').textContent = `${formatCompetencies(activeMonths, activeYear)} · ${locationParts.join(' · ')} · ${fileSummary}`;
     $('reportTitle').textContent = activeView === 'full' ? activeReport.summaryTitle : activeReport.monthlyDetail ? (activeView === 'detail' ? `${activeReport.detailTitlePrefix} · ${activeResult.establishmentName || ''}` : activeReport.summaryTitle) : activeReport.system === 'sinasc' && activeView === 'detail' ? `Nascimentos · ${activeResult.establishmentName || `CNES ${activeCnes}`}` : activeReport.system === 'srag' ? (activeView === 'detail' ? `Faixas etárias · ${activeResult.establishmentName || 'semana epidemiológica'}` : activeReport.summaryTitle) : activeReport.system === 'sinan' ? (activeView === 'detail' ? `Unidades e residência · ${activeResult.establishmentName || 'semana epidemiológica'}` : activeReport.summaryTitle) : activeReport.system === 'sim' ? (activeView === 'detail' ? `Causas básicas · ${activeResult.establishmentName || 'CID-10'}` : activeReport.summaryTitle) : activeReport.id === 'sih-rd-fluxo' && activeView === 'detail' ? (activeResult.detailTitle || 'AIHs da rota') : activeReport.tableMode === 'flat' || activeView === 'summary' ? activeReport.summaryTitle : activeView === 'services' ? `Serviços profissionais · AIH ${activeAih}` : `${activeReport.detailTitlePrefix} · ${activeResult.establishmentName || `CNES ${activeCnes}`}`;
     $('reportSearch').placeholder = activeReport.id === 'sim-mortalidade-infantil' ? activeReport.tableSearchDetail : activeReport.system === 'sinasc' ? (activeView === 'detail' ? 'Buscar residência, parto ou outro dado' : 'Buscar estabelecimento ou CNES') : activeView === 'summary' ? activeReport.tableSearchSummary : activeView === 'full' && activeReport.system === 'sinan' ? 'Buscar semana, unidade, CNES ou residência' : activeView === 'full' && activeReport.system === 'sim' ? 'Buscar semana, causa básica ou capítulo CID-10' : activeView === 'full' && activeReport.system === 'srag' ? 'Buscar semana ou faixa etária' : activeView === 'services' ? 'Buscar profissional, procedimento ou CNS' : activeReport.tableSearchDetail;
+    if (pniEstablishments) {
+      $('reportTitle').textContent = activeReport.summaryTitle;
+      $('reportSubtitle').textContent = `${formatCompetencies(activeMonths, activeYear)} · Município de aplicação: ${activeResult.municipality || 'selecionado'} · Produção do PNI agrupada por CNES`;
+      $('reportSearch').placeholder = 'Buscar estabelecimento ou CNES';
+    }
     renderKpis(rows, totals, metrics);
+    if (pniEstablishments) renderPniFacilityMatrix(rows, pniData);
     const notes = $('reportNotes'); notes.replaceChildren();
     for (const note of activeResult.notes || []) {
       const line = document.createElement('p'); line.textContent = note; notes.append(line);
@@ -1778,6 +2042,8 @@
     sortState = null;
     tablePage = 1;
     tablePageSize = activeView === 'full' ? 250 : 100;
+    pniFacilityFilterSelections = new Map();
+    pniFacilityFilterKey = '';
   }
 
   function tableSettings() {
@@ -1793,13 +2059,27 @@
         ? { mode:'include', values:included }
         : { mode:'exclude', values:removed };
     }
-    return { search:$('reportSearch').value.trim().slice(0, 120), sort:sortState, columns:filters };
+    const settings = { search:$('reportSearch').value.trim().slice(0, 120), sort:sortState, columns:filters };
+    if (activeReport.id === 'pqavs-aplicacoes-estabelecimento') {
+      settings.pniFilters = Object.fromEntries([...pniFacilityFilterSelections].map(([field, values]) => [field, [...values].slice(0, 2000)]));
+    }
+    return settings;
   }
 
   function restoreTableDefaults() {
     const saved = reportDefaults.get(activeReport.id)?.table?.[tablePreferenceView()];
     if (!saved || typeof saved !== 'object') return;
     $('reportSearch').value = typeof saved.search === 'string' ? saved.search.slice(0, 120) : '';
+    if (activeReport.id === 'pqavs-aplicacoes-estabelecimento' && saved.pniFilters && typeof saved.pniFilters === 'object') {
+      for (const definition of pniFacilityFilterDefinitions) {
+        const values = saved.pniFilters[definition.id];
+        if (!Array.isArray(values)) continue;
+        const available = new Set(pniFacilityOptions(definition.id).map((option) => option.value));
+        const selected = new Set(values.filter((value) => typeof value === 'string' && available.has(value)));
+        if (values.length === 0) pniFacilityFilterSelections.set(definition.id, selected);
+        else if (selected.size > 0 && selected.size < available.size) pniFacilityFilterSelections.set(definition.id, selected);
+      }
+    }
     const columns = tableColumns();
     const sortable = columns.find((column) => column.id === saved.sort?.columnId && column.sortable);
     sortState = sortable && ['asc', 'desc'].includes(saved.sort.direction) ? { columnId:sortable.id, direction:saved.sort.direction } : null;
@@ -1968,6 +2248,7 @@
     const filters = selectedFilters();
     for (const key of ['group','subgroup','form','complexity','financing','modality','registration','cbo','cid','service_class','habilitation','sex']) next.searchParams.delete(`sg_${key}`);
     next.searchParams.set('relatorio', activeReport.id);
+    next.searchParams.delete('pnivista');
     next.searchParams.set('ano', String(activeYear));
     next.searchParams.delete('mes');
     for (const month of months) next.searchParams.append('mes', String(month));
@@ -2224,7 +2505,7 @@
       for (const message of monthlyResults.filter((result) => !(result.rows || []).length).map((result) => result.emptyStateMessage).filter(Boolean)) {
         if (!notes.includes(message)) notes.push(message);
       }
-    } else if (emptyMonths.length) notes.push(`Sem registros compatíveis nos meses: ${emptyMonths.join(', ')} de ${year}.`);
+    } else if (emptyMonths.length && activeReport.id !== 'pqavs-aplicacoes-estabelecimento') notes.push(`Sem registros compatíveis nos meses: ${emptyMonths.join(', ')} de ${year}.`);
     const combined = {
       ...first,
       year,
@@ -2233,11 +2514,33 @@
       rows,
       records:monthlyResults.reduce((total, result) => total + (Number(result.records) || 0), 0),
       files,
-      file:activeReport.remoteSource ? `${activeReport.systemCode} · CSV oficial` : files.length === 1 ? files[0] : `${files.length} arquivos DATASUS`,
+      file:activeReport.id === 'pqavs-aplicacoes-estabelecimento' ? 'PNI · totais agregados' : activeReport.remoteSource ? `${activeReport.systemCode} · CSV oficial` : files.length === 1 ? files[0] : `${files.length} arquivos DATASUS`,
       emptyStateMessage:monthlyResults.filter((result) => !(result.rows || []).length).map((result) => result.emptyStateMessage).filter(Boolean).join(' '),
       notes,
       kpis:combineMonthlyKpis(monthlyResults, rows, months, year)
     };
+    if (activeReport.id === 'pqavs-aplicacoes-estabelecimento') {
+      const publishedMonths = monthlyResults.filter((result) => result.facilityDataPublished);
+      const formats = new Set(publishedMonths.map((result) => Number(result.facilityFormat) || 1));
+      const incompatible = formats.size > 1;
+      combined.facilityCompatible = !incompatible;
+      combined.facilityFormat = formats.size === 1 ? [...formats][0] : null;
+      combined.facilityAgeAvailable = publishedMonths.length > 0 && publishedMonths.every((result) => result.facilityAgeAvailable);
+      combined.facilitySexAvailable = publishedMonths.length > 0 && publishedMonths.every((result) => result.facilitySexAvailable);
+      combined.facilityRaceAvailable = publishedMonths.length > 0 && publishedMonths.every((result) => result.facilityRaceAvailable);
+      combined.facilityDataPublished = publishedMonths.length > 0;
+      if (incompatible) {
+        combined.rows = [];
+        combined.records = 0;
+        combined.emptyStateMessage = 'As competências selecionadas usam versões diferentes do detalhamento por unidade. Selecione meses de mesma versão para comparar as unidades.';
+        combined.notes = [...new Set([...combined.notes, 'As competências publicadas usam formatos diferentes de detalhamento por estabelecimento. O relatório não soma recortes incompatíveis.'])];
+      } else if (!publishedMonths.length) {
+        combined.facilityAgeAvailable = false;
+        combined.facilitySexAvailable = false;
+        combined.facilityRaceAvailable = false;
+        combined.emptyStateMessage = 'Os totais das competências selecionadas ainda não estão disponíveis no conjunto do PNI.';
+      }
+    }
     if (monthlyResults.some((result) => result.totalAIHs != null)) combined.totalAIHs = monthlyResults.reduce((total, result) => total + (Number(result.totalAIHs) || 0), 0);
     if (activeReport.id === 'sim-mortalidade-infantil') combined.births = monthlyResults.reduce((total, result) => total + (Number(result.births) || 0), 0);
     return combined;
@@ -2245,7 +2548,8 @@
 
   async function tabulateReportMonth(view, cnes, aih, filters, year, month, monthIndex, monthCount) {
     if (activeReport.remoteSource) {
-      setLoader(true, `Lendo arquivo oficial do ${activeReport.systemCode} · ${monthIndex + 1} de ${monthCount}`, `${monthNames[month - 1]} de ${year} · ${activeReport.loaderDetail || (activeReport.id === 'sim-mortalidade-infantil' ? 'óbitos e nascidos vivos por residência' : activeReport.system === 'sim' ? `óbitos ocorridos em ${filters.municipalityName || 'município escolhido'}` : activeReport.system === 'sinasc' ? 'nascidos vivos por estabelecimento' : activeReport.system === 'srag' ? 'casos por município de residência' : `unidades notificadoras de ${filters.municipalityName || 'município escolhido'}`)}.`, null, true);
+      const pniLoaderDetail = activeReport.loaderDetail;
+      setLoader(true, `Lendo arquivo oficial do ${activeReport.systemCode} · ${monthIndex + 1} de ${monthCount}`, `${monthNames[month - 1]} de ${year} · ${pniLoaderDetail || (activeReport.id === 'sim-mortalidade-infantil' ? 'óbitos e nascidos vivos por residência' : activeReport.system === 'sim' ? `óbitos ocorridos em ${filters.municipalityName || 'município escolhido'}` : activeReport.system === 'sinasc' ? 'nascidos vivos por estabelecimento' : activeReport.system === 'srag' ? 'casos por município de residência' : `unidades notificadoras de ${filters.municipalityName || 'município escolhido'}`)}.`, null, true);
       let job = await api({ action:'tabulate_start', predefinedReport:activeReport.id, view, uf:filters.uf, year, month, municipalityCode:filters.municipalityCode, municipalityName:filters.municipalityName, ...(activeReport.system === 'pqavs' ? { reportFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])) } : {}), ...(activeReport.system === 'sinasc' ? { sinascFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { establishmentCode:cnes } : {}) } : {}), ...(activeReport.id === 'sim-mortalidade' ? { simFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])), ...(view === 'detail' ? { weekIndex:Number(cnes), causeCode:activeSimCauseCode } : {}) } : {}), ...(activeReport.id === 'sim-mortalidade-infantil' ? { simInfantFilters:Object.fromEntries(Object.entries(filterDefinitions).map(([type, definition]) => [type, filters[definition.field]])) } : {}), ...(activeReport.system === 'sinan' ? { cnesManagementCode:filters.cnesManagementCode, cnesNatureGroupCode:filters.cnesNatureGroupCode, ...(view === 'detail' ? { weekIndex:Number(cnes) } : {}) } : ['sim','srag'].includes(activeReport.system) && view === 'detail' ? { weekIndex:Number(cnes) } : {}) });
       if (job.done && job.result) return stampMonthlyResult(job.result, year, month);
       if (!job.job_id) throw new Error(`O TabulaSUS não retornou uma consulta válida ao ${activeReport.systemCode}.`);
@@ -2375,6 +2679,27 @@
   function exportCsv() {
     if (!activeResult) return;
     const rows = visibleRows();
+    if (activeReport.id === 'pqavs-aplicacoes-estabelecimento') {
+      const matrix = pniFacilityMatrixData(rows);
+      const csvRows = [[
+        'Estabelecimento', 'CNES', 'Bairro da unidade · CNES',
+        ...matrix.vaccines.map((vaccine) => `${vaccine.code ? `${vaccine.code} · ` : ''}${vaccine.name}`)
+      ]];
+      for (const facility of matrix.facilities) csvRows.push([
+        facility.name, facility.cnes, facility.neighborhood === 'Não informado no CNES' ? '' : facility.neighborhood,
+        ...matrix.vaccines.map((vaccine) => String(facility.dosesByVaccine.get(vaccine.key) || 0))
+      ]);
+      csvRows.push(['Total do recorte', '', '', ...matrix.vaccines.map((vaccine) => String(matrix.facilities.reduce((sum, facility) => sum + (facility.dosesByVaccine.get(vaccine.key) || 0), 0)))]);
+      const escape = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+      const csv = '\uFEFF' + csvRows.map((row) => row.map(escape).join(';')).join('\r\n');
+      const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const scope = [activeResult.uf, activeResult.municipalityCode || 'UF'].filter(Boolean).join('-');
+      link.href = url; link.download = `TabulaSUS-${activeResult.report || activeReport.id}-${scope}-${activeYear}-matriz.csv`;
+      document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+      return;
+    }
     const columns = tableColumns().filter((column) => column.kind !== 'action');
     const metrics = activeResult.metrics || [];
     const customTotals = activeReport.tableMode === 'occupancy' ? occupancyTotalsFor(rows) : null;
@@ -2552,6 +2877,48 @@
     renderAdditionalFilterRows(preferred);
   });
   $('reportSearch').addEventListener('input', () => { tablePage = 1; renderTable(); });
+  $('pniFacilityFilters')?.addEventListener('input', (event) => {
+    const search = event.target.closest('[data-pni-filter-search]');
+    if (!search) return;
+    const definition = pniFacilityFilterDefinitions.find((item) => item.id === search.dataset.pniFilterSearch);
+    const details = search.closest('[data-pni-filter]');
+    if (definition && details) pniFacilityDrawOptions(details, definition);
+  });
+  $('pniFacilityFilters')?.addEventListener('change', (event) => {
+    const checkbox = event.target.closest('[data-pni-filter-option]');
+    if (!checkbox) return;
+    const field = checkbox.dataset.pniFilterOption;
+    const options = pniFacilityOptions(field);
+    const selected = new Set(pniFacilityFilterSelections.get(field) || options.map((option) => option.value));
+    if (checkbox.checked) selected.add(checkbox.value); else selected.delete(checkbox.value);
+    if (selected.size >= options.length) pniFacilityFilterSelections.delete(field);
+    else pniFacilityFilterSelections.set(field, selected);
+    const definition = pniFacilityFilterDefinitions.find((item) => item.id === field);
+    if (definition) pniFacilityUpdateFilterSummary(checkbox.closest('[data-pni-filter]'), field, options, true);
+    tablePage = 1; renderTable();
+  });
+  $('pniFacilityFilters')?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-pni-filter-action]');
+    if (!button) return;
+    event.preventDefault();
+    const field = button.dataset.pniFilterField;
+    const definition = pniFacilityFilterDefinitions.find((item) => item.id === field);
+    const details = button.closest('[data-pni-filter]');
+    if (!definition || !details) return;
+    if (button.dataset.pniFilterAction === 'all') pniFacilityFilterSelections.delete(field);
+    else pniFacilityFilterSelections.set(field, new Set());
+    pniFacilityDrawOptions(details, definition);
+    tablePage = 1; renderTable();
+  });
+  $('pniFacilityClearFilters')?.addEventListener('click', () => {
+    pniFacilityFilterSelections.clear();
+    $('reportSearch').value = '';
+    for (const definition of pniFacilityFilterDefinitions) {
+      const details = $('pniFacilityFilters')?.querySelector(`[data-pni-filter="${definition.id}"]`);
+      if (details) pniFacilityDrawOptions(details, definition);
+    }
+    tablePage = 1; renderTable();
+  });
   $('reportPagePrevious')?.addEventListener('click', () => { tablePage = Math.max(1, tablePage - 1); renderTable(); });
   $('reportPageNext')?.addEventListener('click', () => { tablePage += 1; renderTable(); });
   $('reportPageSize')?.addEventListener('change', (event) => { tablePageSize = Math.max(1, Number(event.currentTarget.value) || 100); tablePage = 1; renderTable(); });

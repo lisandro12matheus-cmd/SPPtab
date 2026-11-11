@@ -66,7 +66,7 @@ try {
 if (in_array($action, $preferenceActions, true)) {
     $report = (string) ($payload['report'] ?? '');
     $isCustomTable = preg_match('/^custom-[a-f0-9]{32}$/D', $report) === 1;
-    if (!$isCustomTable && !in_array($report, ['sia-pa-producao', 'sih-rd-producao', 'sih-rd-rejeicoes', 'sih-rd-ocupacao', 'sih-sp-profissionais', 'sih-rd-fluxo', 'sinan-dengue', 'sinan-chikungunya', 'sinan-zika', 'sim-mortalidade', 'sim-mortalidade-infantil', 'srag-semanal', 'sinasc-maternidades', 'sisagua-residual-desinfetante', 'pqavs-obitos-arboviroses', 'pqavs-contatos-hanseniase', 'pqavs-contatos-tuberculose', 'pqavs-sifilis-congenita', 'pqavs-violencia-raca-cor', 'chagas-aguda-cronica', 'sim-mortalidade-materna-fetal', 'sia-apac-oncologia', 'sia-apac-dialise', 'sia-raas-caps', 'pqavs-cobertura-vacinal'], true)) {
+    if (!$isCustomTable && !in_array($report, ['sia-pa-producao', 'sih-rd-producao', 'sih-rd-rejeicoes', 'sih-rd-ocupacao', 'sih-sp-profissionais', 'sih-rd-fluxo', 'sinan-dengue', 'sinan-chikungunya', 'sinan-zika', 'sim-mortalidade', 'sim-mortalidade-infantil', 'srag-semanal', 'sinasc-maternidades', 'sisagua-residual-desinfetante', 'pqavs-obitos-arboviroses', 'pqavs-contatos-hanseniase', 'pqavs-contatos-tuberculose', 'pqavs-sifilis-congenita', 'pqavs-violencia-raca-cor', 'chagas-aguda-cronica', 'sim-mortalidade-materna-fetal', 'sia-apac-oncologia', 'sia-apac-dialise', 'sia-raas-caps', 'pqavs-cobertura-vacinal', 'pqavs-aplicacoes-estabelecimento'], true)) {
         respond(['ok' => false, 'error' => 'Relatório inválido.'], 400);
     }
     $scope = (string) ($payload['scope'] ?? '');
