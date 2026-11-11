@@ -1,0 +1,137 @@
+# Publica os totais do PNI por município para o relatório de vacinação do TabulaSUS.
+#
+# Toda segunda-feira, confere quais arquivos mensais de doses aplicadas o Ministério
+# da Saúde publicou ou alterou, lê cada um inteiro (sem gravar o CSV) e envia para a
+# release "pni-dados-AAAA" um ZIP por UF com um arquivo por município, mais o
+# manifesto do ano. A release é pré-lançamento: o atualizador do programa a ignora.
+name: PNI - dados para o TabulaSUS
+
+on:
+  schedule:
+    - cron: "0 9 * * 1" # segunda-feira, 6h de Brasília (o Ministério atualiza aos domingos)
+  workflow_dispatch:
+    inputs:
+      ano:
+        description: "Ano (vazio = ano atual)"
+        default: ""
+        required: false
+      meses:
+        description: "Meses, ex.: 1,2,3 (vazio = todos)"
+        default: ""
+        required: false
+      forcar:
+        description: "Reprocessar mesmo sem mudança na fonte"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pni-dados
+  cancel-in-progress: false
+
+jobs:
+  planejar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      ano: ${{ steps.ano.outputs.ano }}
+      meses: ${{ steps.plano.outputs.meses }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - id: ano
+        env:
+          PNI_ANO: ${{ inputs.ano }}
+        run: |
+          ano="${PNI_ANO:-$(date -u +%Y)}"
+          [[ "$ano" =~ ^20[2-9][0-9]$ ]] || { echo "Ano inválido: $ano"; exit 1; }
+          echo "ano=$ano" >> "$GITHUB_OUTPUT"
+      - name: Baixar o manifesto publicado
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANO: ${{ steps.ano.outputs.ano }}
+        run: gh release download "pni-dados-$ANO" -p "pni_${ANO}_manifest.json" -D anterior || echo "Sem manifesto publicado ainda."
+      - id: plano
+        env:
+          ANO: ${{ steps.ano.outputs.ano }}
+          PNI_MESES: ${{ inputs.meses }}
+          PNI_FORCAR: ${{ inputs.forcar }}
+        run: |
+          extra=()
+          [ "$PNI_FORCAR" = "true" ] && extra+=(--forcar)
+          python -I tools/pni/pni_release.py planejar --ano "$ANO" --meses "$PNI_MESES" \
+            --manifesto "anterior/pni_${ANO}_manifest.json" "${extra[@]}"
+
+  processar:
+    needs: planejar
+    if: needs.planejar.outputs.meses != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        mes: ${{ fromJSON(needs.planejar.outputs.meses) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Ler o CSV do mês e gerar os totais
+        env:
+          ANO: ${{ needs.planejar.outputs.ano }}
+          MES: ${{ matrix.mes }}
+        run: |
+          python -I tools/pni/pni_totais.py --ano "$ANO" --mes "$MES" --todos \
+            --saida saida --resumo "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pni-mes-${{ matrix.mes }}
+          path: saida/
+          retention-days: 3
+          if-no-files-found: error
+
+  publicar:
+    needs: [planejar, processar]
+    if: always() && needs.planejar.outputs.meses != '[]' && needs.planejar.result == 'success' && needs.processar.result != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pni-mes-*
+          path: novos
+          merge-multiple: true
+      - name: Publicar na release de dados
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANO: ${{ needs.planejar.outputs.ano }}
+        run: |
+          shopt -s nullglob
+          zips=(novos/pni_${ANO}_*.zip)
+          [ ${#zips[@]} -gt 0 ] || { echo "Nenhum mês foi processado com sucesso."; exit 1; }
+          tag="pni-dados-$ANO"
+          if ! gh release view "$tag" > /dev/null 2>&1; then
+            gh release create "$tag" --target "${GITHUB_SHA}" --prerelease --latest=false \
+              --title "Dados do PNI $ANO (totais por município)" \
+              --notes "Totais de doses aplicadas do PNI por município, gerados automaticamente a partir dos arquivos mensais do Ministério da Saúde. Usados pelo relatório de vacinação do TabulaSUS. Não é uma versão do programa."
+          fi
+          gh release download "$tag" -p "pni_${ANO}_manifest.json" -D anterior || true
+          python -I tools/pni/pni_release.py juntar --ano "$ANO" \
+            --anterior "anterior/pni_${ANO}_manifest.json" --novos novos --saida "pni_${ANO}_manifest.json"
+          # Os ZIPs vão antes; o manifesto por último, para nunca apontar para um mês ainda não enviado.
+          gh release upload "$tag" "${zips[@]}" --clobber
+          gh release upload "$tag" "pni_${ANO}_manifest.json" --clobber
+          {
+            echo "## Release $tag atualizada"
+            echo
+            echo "${#zips[@]} arquivos enviados."
+          } >> "$GITHUB_STEP_SUMMARY"

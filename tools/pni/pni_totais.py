@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Teste: lê em fluxo o CSV mensal de doses aplicadas do PNI e gera os totais de um município.
+"""Lê em fluxo o CSV mensal de doses aplicadas do PNI e gera totais por município.
 
 O arquivo oficial é um ZIP nacional de 1,4 a 4,3 GB com um CSV de 5 a 17 GB, com
-todos os municípios misturados. Por isso o arquivo inteiro sempre é lido, mas só
-as doses do município escolhido são somadas: as de quem mora nele (cobertura) e
-as aplicadas nos estabelecimentos dele (produção e qualidade). O script não grava
-o ZIP nem o CSV; grava só os totais (um SQLite compactado) e um manifesto.
+todos os municípios misturados. Por isso o arquivo inteiro sempre é lido. O script
+não grava o ZIP nem o CSV: baixa, descompacta, lê e soma ao mesmo tempo.
 
-Uso:
-  python -I tools/pni/pni_totais.py --ano 2026 --mes jan --municipio 1501402 --saida saida-pni
-  python -I tools/pni/pni_totais.py --ano 2026 --mes jan --municipio 150140 --limite-mb 50 --saida saida-pni
+Dois modos:
 
---municipio aceita o código IBGE com 6 ou 7 dígitos (o PNI usa 6).
+  Teste, um município (gera um SQLite para conferir):
+    python -I tools/pni/pni_totais.py --ano 2026 --mes jan --municipio 1501402 --saida saida-pni
+
+  Produção, todos os municípios (gera um ZIP por UF com um JSON por município,
+  que o TabulaSUS lê por faixa de bytes, sem baixar a UF inteira):
+    python -I tools/pni/pni_totais.py --ano 2026 --mes jan --todos --saida saida-pni
+
+Cada dose entra na cobertura do município onde a pessoa mora e na produção e
+qualidade do município do estabelecimento que aplicou.
 
 --limite-mb lê só o começo do arquivo compactado (teste rápido; o resultado fica
 marcado como parcial e a conferência de CRC não é feita).
@@ -33,9 +37,11 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 import zlib
 from pathlib import Path
 
+FORMATO = 1
 HOST = "s3.sa-east-1.amazonaws.com"
 BASE = f"https://{HOST}/ckan.saude.gov.br/PNI/csv/"
 MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
@@ -47,18 +53,24 @@ UF_IBGE = {
 }
 CHUNK = 1 << 20
 TIMEOUT = 120
-USER_AGENT = "TabulaSUS-PNI-teste/0.1"
+USER_AGENT = "TabulaSUS-PNI/1.0"
 
 COLUNAS = [
-    "sg_uf_paciente", "co_municipio_paciente", "no_municipio_paciente", "nu_idade_paciente",
+    "co_municipio_paciente", "no_municipio_paciente", "nu_idade_paciente",
     "tp_sexo_paciente", "co_raca_cor_paciente", "co_condicao_maternal",
-    "sg_uf_estabelecimento", "co_municipio_estabelecimento", "no_municipio_estabelecimento",
-    "co_cnes_estabelecimento",
+    "co_municipio_estabelecimento", "no_municipio_estabelecimento", "co_cnes_estabelecimento",
     "co_vacina", "sg_imunobiologico", "ds_nome", "co_dose_vacina", "ds_tipo_dose",
     "co_estrategia_vacinacao", "no_estrategia", "co_origem_registro", "ds_origem_registro",
     "co_sistema_origem", "ds_sistema_origem",
     "dt_vacina", "dt_entrada_rnds", "dt_deletado_rnds", "co_troca_documento",
 ]
+
+# Colunas de cada tabela de totais (a contagem de doses é sempre a última).
+TABELAS = {
+    "cobertura": ["vacina", "dose", "idade", "sexo", "condicao_maternal", "aplicada_fora", "doses"],
+    "producao": ["cnes", "vacina", "dose", "estrategia", "residente", "doses"],
+    "qualidade": ["cnes", "sistema_origem", "origem_registro", "raca_informada", "atraso_dias", "doses"],
+}
 
 
 class ErroFonte(Exception):
@@ -91,6 +103,10 @@ def faixa_atraso(dias: int) -> str:
     return "61+"
 
 
+def url_do_mes(ano: int, mes: int) -> str:
+    return f"{BASE}vacinacao_{MESES[mes - 1]}_{ano}_csv.zip"
+
+
 def abrir(url: str, metodo: str = "GET"):
     pedido = urllib.request.Request(url, method=metodo, headers={"User-Agent": USER_AGENT})
     resposta = urllib.request.urlopen(pedido, timeout=TIMEOUT)
@@ -99,6 +115,24 @@ def abrir(url: str, metodo: str = "GET"):
         resposta.close()
         raise ErroFonte(f"redirecionamento inesperado para {final.scheme}://{final.hostname}")
     return resposta
+
+
+def consultar_fonte(ano: int, mes: int) -> dict | None:
+    """Cabeçalhos do arquivo do mês; None quando o Ministério ainda não publicou."""
+    url = url_do_mes(ano, mes)
+    try:
+        cabeca = abrir(url, "HEAD")
+    except urllib.error.HTTPError as erro:
+        if erro.code in (403, 404):
+            return None
+        raise
+    with cabeca:
+        return {
+            "ano": ano, "mes": mes, "url": url,
+            "etag": cabeca.headers.get("ETag", "").strip('"'),
+            "last_modified": cabeca.headers.get("Last-Modified", ""),
+            "content_length": int(cabeca.headers.get("Content-Length") or 0) or None,
+        }
 
 
 def ler_exato(resposta, n: int) -> bytes:
@@ -141,10 +175,12 @@ def ler_cabecalho_zip(resposta) -> dict:
 
 
 class Totais:
-    def __init__(self, mes: int, municipio: str):
+    """Soma as doses por município. municipio=None soma todos os municípios."""
+
+    def __init__(self, mes: int, municipio: str | None):
         self.mes = mes
         self.municipio = municipio
-        self.nome_municipio = ""
+        self.nomes: dict[str, str] = {}
         self.cobertura: dict[tuple, int] = {}
         self.producao: dict[tuple, int] = {}
         self.qualidade: dict[tuple, int] = {}
@@ -156,8 +192,8 @@ class Totais:
         self._idade = {str(i): faixa_idade(str(i)) for i in range(0, 131)}
         self._atraso: dict[tuple[str, str], str] = {}
         self.contagem = {
-            "linhas": 0, "malformadas": 0, "do_municipio": 0, "deletadas": 0,
-            "residentes": 0, "aplicadas_no_municipio": 0,
+            "linhas": 0, "malformadas": 0, "consideradas": 0, "deletadas": 0,
+            "residentes": 0, "aplicadas": 0, "sem_municipio_residencia": 0,
             "com_troca_documento": 0, "fora_do_mes": 0,
         }
         self.idx: dict[str, int] = {}
@@ -185,11 +221,9 @@ class Totais:
 
     def somar(self, linhas: list[str]) -> None:
         x = self.idx
-        uf_p, mun_p, idade_p, sexo_p = x["sg_uf_paciente"], x["co_municipio_paciente"], x["nu_idade_paciente"], x["tp_sexo_paciente"]
-        nome_p, nome_e = x["no_municipio_paciente"], x["no_municipio_estabelecimento"]
+        mun_p, nome_p, idade_p, sexo_p = x["co_municipio_paciente"], x["no_municipio_paciente"], x["nu_idade_paciente"], x["tp_sexo_paciente"]
         raca_p, cond_p = x["co_raca_cor_paciente"], x["co_condicao_maternal"]
-        uf_e, mun_e, cnes_e = x["sg_uf_estabelecimento"], x["co_municipio_estabelecimento"], x["co_cnes_estabelecimento"]
-        municipio = self.municipio
+        mun_e, nome_e, cnes_e = x["co_municipio_estabelecimento"], x["no_municipio_estabelecimento"], x["co_cnes_estabelecimento"]
         vac, sig, nome = x["co_vacina"], x["sg_imunobiologico"], x["ds_nome"]
         dose, dose_ds = x["co_dose_vacina"], x["ds_tipo_dose"]
         estr, estr_ds = x["co_estrategia_vacinacao"], x["no_estrategia"]
@@ -197,24 +231,32 @@ class Totais:
         sist, sist_ds = x["co_sistema_origem"], x["ds_sistema_origem"]
         dvac, dent, ddel, troca = x["dt_vacina"], x["dt_entrada_rnds"], x["dt_deletado_rnds"], x["co_troca_documento"]
         ncols = self.ncols
+        alvo = self.municipio
         prefixo_mes = f"-{self.mes:02d}-"
         cob, prod, qual = self.cobertura, self.producao, self.qualidade
         cob_get, prod_get, qual_get = cob.get, prod.get, qual.get
         idades = self._idade
+        nomes = self.nomes
         c = self.contagem
+        valido = re.compile(r"\d{6}").fullmatch
 
         for r in csv.reader(linhas, delimiter=";"):
             c["linhas"] += 1
             if len(r) != ncols:
                 c["malformadas"] += 1
                 continue
-            residente = r[mun_p] == municipio
-            aplicada_aqui = r[mun_e] == municipio
-            if not (residente or aplicada_aqui):
-                continue
-            c["do_municipio"] += 1
-            if not self.nome_municipio:
-                self.nome_municipio = r[nome_p] if residente else r[nome_e]
+            mp, me = r[mun_p], r[mun_e]
+            if alvo is None:
+                conta_residencia = bool(valido(mp)) and mp[:2] in UF_IBGE
+                conta_aplicacao = bool(valido(me)) and me[:2] in UF_IBGE
+                if not conta_residencia:
+                    c["sem_municipio_residencia"] += 1
+            else:
+                conta_residencia = mp == alvo
+                conta_aplicacao = me == alvo
+                if not (conta_residencia or conta_aplicacao):
+                    continue
+            c["consideradas"] += 1
             if r[ddel]:
                 c["deletadas"] += 1
                 continue
@@ -234,21 +276,41 @@ class Totais:
                 self.dic_origem[o] = r[orig_ds]
             if s not in self.dic_sistema:
                 self.dic_sistema[s] = r[sist_ds]
+            mesmo = mp == me
 
-            if residente:
-                # Cobertura: por residência; guarda onde foi aplicada para ver vacinação fora do município.
-                k = (r[uf_p], r[mun_p], r[mun_e], v, d, idades.get(r[idade_p], "ign"), r[sexo_p], r[cond_p])
+            if conta_residencia:
+                if mp not in nomes:
+                    nomes[mp] = r[nome_p]
+                k = (mp, v, d, idades.get(r[idade_p], "ign"), r[sexo_p], r[cond_p], 0 if mesmo else 1)
                 cob[k] = cob_get(k, 0) + 1
                 c["residentes"] += 1
-            if aplicada_aqui:
-                # Produção e qualidade: pelo estabelecimento que aplicou.
-                k = (r[uf_e], r[mun_e], r[cnes_e], r[mun_p], v, d, e)
+            if conta_aplicacao:
+                if me not in nomes:
+                    nomes[me] = r[nome_e]
+                k = (me, r[cnes_e], v, d, e, 1 if mesmo else 0)
                 prod[k] = prod_get(k, 0) + 1
                 raca = r[raca_p]
-                k = (r[uf_e], r[mun_e], r[cnes_e], s, o,
-                     0 if raca in ("", "99") else 1, self.atraso(data_vacina, r[dent][:10]))
+                k = (me, r[cnes_e], s, o, 0 if raca in ("", "99") else 1, self.atraso(data_vacina, r[dent][:10]))
                 qual[k] = qual_get(k, 0) + 1
-                c["aplicadas_no_municipio"] += 1
+                c["aplicadas"] += 1
+
+    def dicionarios(self) -> dict:
+        return {
+            "vacina": {k: {"sigla": s, "nome": n} for k, (s, n) in sorted(self.dic_vacina.items())},
+            "dose": dict(sorted(self.dic_dose.items())),
+            "estrategia": dict(sorted(self.dic_estrategia.items())),
+            "origem_registro": dict(sorted(self.dic_origem.items())),
+            "sistema_origem": dict(sorted(self.dic_sistema.items())),
+        }
+
+    def por_municipio(self) -> dict[str, dict[str, list]]:
+        """{municipio: {tabela: [linhas]}} sem o código do município nas linhas."""
+        saida: dict[str, dict[str, list]] = {}
+        for tabela, dados in (("cobertura", self.cobertura), ("producao", self.producao), ("qualidade", self.qualidade)):
+            for chave, doses in dados.items():
+                destino = saida.setdefault(chave[0], {"cobertura": [], "producao": [], "qualidade": []})
+                destino[tabela].append([*chave[1:], doses])
+        return saida
 
 
 def processar(url: str, totais: Totais, limite_bytes: int) -> dict:
@@ -301,9 +363,9 @@ def processar(url: str, totais: Totais, limite_bytes: int) -> dict:
             agora = time.perf_counter()
             if agora - ultimo_aviso >= 30:
                 ultimo_aviso = agora
-                mb = lido / 1e6
-                print(f"  {mb:,.0f} MB lidos, {totais.contagem['linhas']:,} linhas, "
-                      f"{mb / (agora - inicio):,.1f} MB/s", flush=True)
+                mb_lidos = lido / 1e6
+                print(f"  {mb_lidos:,.0f} MB lidos, {totais.contagem['linhas']:,} linhas, "
+                      f"{mb_lidos / (agora - inicio):,.1f} MB/s, memória {memoria_pico_mb() or '?'} MB", flush=True)
         if not parcial:
             consumir(z.flush(), final=True)
             if resto:
@@ -326,57 +388,68 @@ def processar(url: str, totais: Totais, limite_bytes: int) -> dict:
     }
 
 
-def gravar(totais: Totais, fonte: dict, pasta: Path) -> dict:
-    caminho = pasta / f"pni_{fonte['ano']}_{fonte['mes']:02d}_{totais.municipio}.sqlite"
+def sha256_arquivo(caminho: Path) -> str:
+    h = hashlib.sha256()
+    with caminho.open("rb") as arquivo:
+        for bloco in iter(lambda: arquivo.read(CHUNK), b""):
+            h.update(bloco)
+    return h.hexdigest()
+
+
+def gravar_sqlite(municipio: str, linhas: dict[str, list], totais: Totais, fonte: dict, pasta: Path) -> dict:
+    """Modo teste: um SQLite compactado de um município, para abrir e conferir."""
+    caminho = pasta / f"pni_{fonte['ano']}_{fonte['mes']:02d}_{municipio}.sqlite"
     caminho.unlink(missing_ok=True)
     db = sqlite3.connect(caminho)
     try:
-        db.executescript("""
-            PRAGMA journal_mode = OFF;
-            CREATE TABLE fonte (chave TEXT PRIMARY KEY, valor TEXT);
-            CREATE TABLE cobertura (mes INTEGER, uf TEXT, municipio TEXT, municipio_aplicacao TEXT,
-                vacina TEXT, dose TEXT, idade TEXT, sexo TEXT, condicao_maternal TEXT, doses INTEGER);
-            CREATE TABLE producao (mes INTEGER, uf TEXT, municipio TEXT, cnes TEXT, municipio_residencia TEXT,
-                vacina TEXT, dose TEXT, estrategia TEXT, doses INTEGER);
-            CREATE TABLE qualidade (mes INTEGER, uf TEXT, municipio TEXT, cnes TEXT, sistema_origem TEXT,
-                origem_registro TEXT, raca_informada INTEGER, atraso_dias TEXT, doses INTEGER);
-            CREATE TABLE dic_vacina (codigo TEXT PRIMARY KEY, sigla TEXT, nome TEXT);
-            CREATE TABLE dic_dose (codigo TEXT PRIMARY KEY, descricao TEXT);
-            CREATE TABLE dic_estrategia (codigo TEXT PRIMARY KEY, descricao TEXT);
-            CREATE TABLE dic_origem_registro (codigo TEXT PRIMARY KEY, descricao TEXT);
-            CREATE TABLE dic_sistema_origem (codigo TEXT PRIMARY KEY, descricao TEXT);
-        """)
-        m = totais.mes
-        cob = [(m, *k, n) for k, n in totais.cobertura.items()]
-        prod = [(m, *k, n) for k, n in totais.producao.items()]
-        qual = [(m, *k, n) for k, n in totais.qualidade.items()]
-        db.executemany("INSERT INTO cobertura VALUES (?,?,?,?,?,?,?,?,?,?)", cob)
-        db.executemany("INSERT INTO producao VALUES (?,?,?,?,?,?,?,?,?)", prod)
-        db.executemany("INSERT INTO qualidade VALUES (?,?,?,?,?,?,?,?,?)", qual)
+        db.execute("PRAGMA journal_mode = OFF")
+        db.execute("CREATE TABLE fonte (chave TEXT PRIMARY KEY, valor TEXT)")
+        for tabela, colunas in TABELAS.items():
+            definicao = ", ".join(f"{c} {'INTEGER' if c in ('doses', 'aplicada_fora', 'residente', 'raca_informada') else 'TEXT'}" for c in colunas)
+            db.execute(f"CREATE TABLE {tabela} ({definicao})")
+            db.executemany(f"INSERT INTO {tabela} VALUES ({','.join('?' * len(colunas))})", linhas.get(tabela, []))
+        db.execute("CREATE TABLE dic_vacina (codigo TEXT PRIMARY KEY, sigla TEXT, nome TEXT)")
         db.executemany("INSERT INTO dic_vacina VALUES (?,?,?)", [(k, *v) for k, v in totais.dic_vacina.items()])
-        db.executemany("INSERT INTO dic_dose VALUES (?,?)", list(totais.dic_dose.items()))
-        db.executemany("INSERT INTO dic_estrategia VALUES (?,?)", list(totais.dic_estrategia.items()))
-        db.executemany("INSERT INTO dic_origem_registro VALUES (?,?)", list(totais.dic_origem.items()))
-        db.executemany("INSERT INTO dic_sistema_origem VALUES (?,?)", list(totais.dic_sistema.items()))
+        for nome, dados in (("dose", totais.dic_dose), ("estrategia", totais.dic_estrategia),
+                            ("origem_registro", totais.dic_origem), ("sistema_origem", totais.dic_sistema)):
+            db.execute(f"CREATE TABLE dic_{nome} (codigo TEXT PRIMARY KEY, descricao TEXT)")
+            db.executemany(f"INSERT INTO dic_{nome} VALUES (?,?)", list(dados.items()))
         db.executemany("INSERT INTO fonte VALUES (?,?)", [(k, str(v)) for k, v in fonte.items()])
         db.commit()
     finally:
         db.close()
-
     compactado = caminho.with_suffix(".sqlite.gz")
     with caminho.open("rb") as origem, gzip.open(compactado, "wb", compresslevel=9) as destino:
         shutil.copyfileobj(origem, destino, CHUNK)
     tamanho = caminho.stat().st_size
     caminho.unlink()
-    return {
-        "arquivo": compactado.name,
-        "linhas_cobertura": len(cob),
-        "linhas_producao": len(prod),
-        "linhas_qualidade": len(qual),
-        "sqlite_bytes": tamanho,
-        "gz_bytes": compactado.stat().st_size,
-        "sha256": hashlib.sha256(compactado.read_bytes()).hexdigest(),
-    }
+    return {"arquivo": compactado.name, "bytes": compactado.stat().st_size, "sqlite_bytes": tamanho,
+            "sha256": sha256_arquivo(compactado), **{f"linhas_{t}": len(linhas.get(t, [])) for t in TABELAS}}
+
+
+def gravar_zips_uf(totais: Totais, fonte: dict, pasta: Path) -> dict[str, dict]:
+    """Modo produção: um ZIP por UF, com um JSON por município e um _dicionarios.json."""
+    grupos: dict[str, dict[str, dict[str, list]]] = {}
+    for municipio, linhas in totais.por_municipio().items():
+        grupos.setdefault(UF_IBGE[municipio[:2]], {})[municipio] = linhas
+    dicionarios = json.dumps({"formato": FORMATO, **totais.dicionarios()}, ensure_ascii=False, separators=(",", ":"))
+    resultado = {}
+    for uf in sorted(set(UF_IBGE.values())):
+        municipios = grupos.get(uf, {})
+        caminho = pasta / f"pni_{fonte['ano']}_{fonte['mes']:02d}_{uf}.zip"
+        caminho.unlink(missing_ok=True)
+        with zipfile.ZipFile(caminho, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as pacote:
+            pacote.writestr("_dicionarios.json", dicionarios)
+            for municipio in sorted(municipios):
+                conteudo = {
+                    "formato": FORMATO, "ano": fonte["ano"], "mes": fonte["mes"],
+                    "municipio": municipio, "uf": uf, "nome": totais.nomes.get(municipio, ""),
+                    "colunas": TABELAS, **municipios[municipio],
+                }
+                pacote.writestr(f"{municipio}.json", json.dumps(conteudo, ensure_ascii=False, separators=(",", ":")))
+        resultado[uf] = {"arquivo": caminho.name, "bytes": caminho.stat().st_size,
+                         "sha256": sha256_arquivo(caminho), "municipios": len(municipios)}
+    return resultado
 
 
 def memoria_pico_mb() -> float | None:
@@ -421,10 +494,11 @@ def mb(n: int | None) -> str:
 
 def resumo_markdown(manifesto: dict) -> str:
     f, z, c = manifesto["fonte"], manifesto["leitura"], manifesto["contagem"]
-    u, mun = manifesto["arquivo"], manifesto["municipio"]
     velocidade = z["bytes_compactados_lidos"] / 1e6 / z["segundos"] if z["segundos"] else 0
+    alvo = manifesto.get("municipio")
+    titulo = f"{alvo['nome'] or 'município'} ({alvo['codigo']}/{alvo['uf']})" if alvo else "todos os municípios"
     linhas = [
-        f"## PNI {f['ano']}/{f['mes']:02d}: {mun['nome'] or 'município'} ({mun['codigo']}/{mun['uf']})",
+        f"## PNI {f['ano']}/{f['mes']:02d}: {titulo}",
         "",
         "| Item | Valor |",
         "|---|---|",
@@ -438,26 +512,35 @@ def resumo_markdown(manifesto: dict) -> str:
         f"| Tempo de gravação | {manifesto['segundos_gravacao']:,.0f} s |",
         f"| Memória (pico) | {manifesto['memoria_pico_mb'] or '—'} MB |",
         f"| Linhas lidas (Brasil) / malformadas | {c['linhas']:,} / {c['malformadas']:,} |",
-        f"| Linhas do município / deletadas | {c['do_municipio']:,} / {c['deletadas']:,} |",
-        f"| Doses de residentes (cobertura) | {c['residentes']:,} |",
-        f"| Doses aplicadas no município (produção) | {c['aplicadas_no_municipio']:,} |",
+        f"| Linhas consideradas / deletadas | {c['consideradas']:,} / {c['deletadas']:,} |",
+        f"| Doses por residência (cobertura) | {c['residentes']:,} |",
+        f"| Doses por local de aplicação (produção) | {c['aplicadas']:,} |",
+        f"| Sem município de residência válido | {c['sem_municipio_residencia']:,} |",
         f"| Com troca de documento | {c['com_troca_documento']:,} |",
         f"| Data da vacina fora do mês | {c['fora_do_mes']:,} |",
-        f"| Combinações | cobertura {u['linhas_cobertura']:,}, produção {u['linhas_producao']:,}, "
-        f"qualidade {u['linhas_qualidade']:,} |",
-        f"| Arquivo gerado | `{u['arquivo']}`: {mb(u['sqlite_bytes'])} SQLite, **{mb(u['gz_bytes'])}** compactado |",
-        "",
     ]
-    if not c["do_municipio"]:
-        linhas += ["**Nenhuma dose encontrada para este código de município.**", ""]
-    return "\n".join(linhas)
+    arquivos = manifesto["arquivos"]
+    if alvo:
+        a = next(iter(arquivos.values()))
+        linhas.append(f"| Arquivo gerado | `{a['arquivo']}`: **{mb(a['bytes'])}** compactado |")
+        if not c["consideradas"]:
+            linhas += ["", "**Nenhuma dose encontrada para este código de município.**"]
+    else:
+        linhas += ["", "| UF | Municípios | ZIP |", "|---|---:|---:|"]
+        for uf, a in arquivos.items():
+            linhas.append(f"| {uf} | {a['municipios']:,} | {mb(a['bytes'])} |")
+        linhas.append(f"| **Total** | {sum(a['municipios'] for a in arquivos.values()):,} | "
+                      f"**{mb(sum(a['bytes'] for a in arquivos.values()))}** |")
+    return "\n".join(linhas + [""])
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--ano", required=True)
     p.add_argument("--mes", required=True, choices=MESES)
-    p.add_argument("--municipio", required=True, help="código IBGE do município (6 ou 7 dígitos)")
+    alvo = p.add_mutually_exclusive_group(required=True)
+    alvo.add_argument("--municipio", help="código IBGE do município (6 ou 7 dígitos): modo teste")
+    alvo.add_argument("--todos", action="store_true", help="todos os municípios: modo produção")
     p.add_argument("--limite-mb", type=int, default=0, help="lê só os primeiros N MB compactados (0 = tudo)")
     p.add_argument("--saida", required=True)
     p.add_argument("--resumo", default="", help="arquivo onde acrescentar o resumo em Markdown")
@@ -465,59 +548,59 @@ def main() -> int:
 
     if not re.fullmatch(r"20[2-9]\d", a.ano):
         p.error("ano inválido")
-    codigo = a.municipio.strip()
-    if not re.fullmatch(r"\d{6,7}", codigo) or codigo[:2] not in UF_IBGE:
-        p.error("código de município inválido: use o código IBGE com 6 ou 7 dígitos")
-    municipio, uf = codigo[:6], UF_IBGE[codigo[:2]]
+    municipio = uf = None
+    if a.municipio is not None:
+        codigo = a.municipio.strip()
+        if not re.fullmatch(r"\d{6,7}", codigo) or codigo[:2] not in UF_IBGE:
+            p.error("código de município inválido: use o código IBGE com 6 ou 7 dígitos")
+        municipio, uf = codigo[:6], UF_IBGE[codigo[:2]]
     if a.limite_mb < 0:
         p.error("limite inválido")
 
     ano, mes = int(a.ano), MESES.index(a.mes) + 1
-    url = f"{BASE}vacinacao_{a.mes}_{ano}_csv.zip"
     pasta = Path(a.saida)
     pasta.mkdir(parents=True, exist_ok=True)
 
-    print(f"Consultando {url}", flush=True)
-    try:
-        cabeca = abrir(url, "HEAD")
-    except urllib.error.HTTPError as erro:
-        print(f"Arquivo indisponível na fonte (HTTP {erro.code}).", file=sys.stderr)
+    print(f"Consultando {url_do_mes(ano, mes)}", flush=True)
+    fonte = consultar_fonte(ano, mes)
+    if fonte is None:
+        print("Arquivo ainda não publicado pelo Ministério da Saúde.", file=sys.stderr)
         return 2
-    with cabeca:
-        fonte = {
-            "ano": ano, "mes": mes, "url": url,
-            "etag": cabeca.headers.get("ETag", "").strip('"'),
-            "last_modified": cabeca.headers.get("Last-Modified", ""),
-            "content_length": int(cabeca.headers.get("Content-Length") or 0) or None,
-        }
     print(f"  {mb(fonte['content_length'])}, publicado em {fonte['last_modified']}", flush=True)
+    print(f"  somando {'o município ' + municipio + ' (' + uf + ')' if municipio else 'todos os municípios'}; "
+          "o arquivo nacional é lido inteiro", flush=True)
 
-    print(f"  somando só o município {municipio} ({uf}); o arquivo nacional é lido inteiro", flush=True)
     totais = Totais(mes, municipio)
     try:
-        leitura = processar(url, totais, a.limite_mb * 1024 * 1024)
+        leitura = processar(fonte["url"], totais, a.limite_mb * 1024 * 1024)
     except (ErroFonte, OSError, zlib.error) as erro:
         print(f"Falha ao ler a fonte: {erro}", file=sys.stderr)
         return 1
     print(f"Leitura concluída em {leitura['segundos']} s: {totais.contagem['linhas']:,} linhas", flush=True)
 
     inicio = time.perf_counter()
-    dados_municipio = {"codigo": municipio, "uf": uf, "nome": totais.nome_municipio}
-    fonte_gravada = {**fonte, "municipio": municipio, "uf": uf, "nome_municipio": totais.nome_municipio,
-                     "parcial": leitura["parcial"], "conferencia": leitura["conferencia"],
-                     "processado_em": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")}
-    arquivo = gravar(totais, fonte_gravada, pasta)
+    processado_em = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    if municipio:
+        linhas = totais.por_municipio().get(municipio, {})
+        fonte_gravada = {**fonte, "municipio": municipio, "uf": uf, "nome_municipio": totais.nomes.get(municipio, ""),
+                         "parcial": leitura["parcial"], "conferencia": leitura["conferencia"], "processado_em": processado_em}
+        arquivos = {municipio: gravar_sqlite(municipio, linhas, totais, fonte_gravada, pasta)}
+    else:
+        arquivos = gravar_zips_uf(totais, fonte, pasta)
 
     manifesto = {
+        "formato": FORMATO,
         "fonte": fonte,
-        "municipio": dados_municipio,
+        "processado_em": processado_em,
         "leitura": leitura,
         "contagem": totais.contagem,
         "segundos_gravacao": round(time.perf_counter() - inicio, 1),
         "memoria_pico_mb": memoria_pico_mb(),
-        "arquivo": arquivo,
+        "arquivos": arquivos,
     }
-    (pasta / "manifest.json").write_text(json.dumps(manifesto, ensure_ascii=False, indent=2), encoding="utf-8")
+    if municipio:
+        manifesto["municipio"] = {"codigo": municipio, "uf": uf, "nome": totais.nomes.get(municipio, "")}
+    (pasta / f"manifest_{ano}_{mes:02d}.json").write_text(json.dumps(manifesto, ensure_ascii=False, indent=2), encoding="utf-8")
     texto = resumo_markdown(manifesto)
     print(texto)
     if a.resumo:
