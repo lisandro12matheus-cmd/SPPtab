@@ -223,7 +223,7 @@ function tabwin2_validate_api_payload(array $payload): void
         http_response_code(400);
         throw new RuntimeException('O caminho do arquivo é inválido.');
     }
-    if (in_array($action, ['convert_status', 'tabulate_status'], true) && (!isset($payload['job_id']) || !is_string($payload['job_id']) || !preg_match('/\A[a-f0-9]{32}\z/', $payload['job_id']))) {
+    if (in_array($action, ['convert_status', 'tabulate_status', 'download_status'], true) && (!isset($payload['job_id']) || !is_string($payload['job_id']) || !preg_match('/\A[a-f0-9]{32}\z/', $payload['job_id']))) {
         http_response_code(400);
         throw new RuntimeException('Identificador de processamento inválido.');
     }
@@ -236,7 +236,7 @@ function tabwin2_validate_api_payload(array $payload): void
         http_response_code(400);
         throw new RuntimeException('Dê um nome com até 80 caracteres para a combinação.');
     }
-    if ($action === 'download') {
+    if (in_array($action, ['download', 'download_start'], true)) {
         $names = $payload['names'] ?? null;
         if (!is_array($names) || count($names) < 1 || count($names) > 100) {
             http_response_code(400);

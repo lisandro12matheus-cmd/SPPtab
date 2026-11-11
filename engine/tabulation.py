@@ -479,6 +479,23 @@ def source_use_locks(relative_paths, blocking=True):
 def job_worker_alive(state: dict[str,Any], statefile: Path) -> bool:
     pid=state.get("worker_pid")
     if isinstance(pid,int) and pid>0:
+        if os.name=='nt':
+            # os.kill(pid, 0) terminates a process on Windows; query its state instead.
+            import ctypes
+            from ctypes import wintypes
+            kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+            kernel.OpenProcess.argtypes=[wintypes.DWORD,wintypes.BOOL,wintypes.DWORD]
+            kernel.OpenProcess.restype=wintypes.HANDLE
+            kernel.GetExitCodeProcess.argtypes=[wintypes.HANDLE,ctypes.POINTER(wintypes.DWORD)]
+            kernel.GetExitCodeProcess.restype=wintypes.BOOL
+            kernel.CloseHandle.argtypes=[wintypes.HANDLE]
+            handle=kernel.OpenProcess(0x1000,False,pid)
+            if not handle: return ctypes.get_last_error()==5
+            try:
+                code=wintypes.DWORD()
+                return bool(kernel.GetExitCodeProcess(handle,ctypes.byref(code))) and code.value==259
+            finally:
+                kernel.CloseHandle(handle)
         try:
             os.kill(pid,0)
             return True
@@ -631,6 +648,21 @@ def write_tabulation_job(job_id: str, state: dict[str,Any]):
     with JOB_WRITE_LOCK:
         atomic_job_write(target,state)
 
+def start_report_download(payload: dict[str,Any]):
+    from datasus import VALID_UFS
+    system=payload.get('system')
+    year=payload.get('year'); month=payload.get('month')
+    uf=str(payload.get('uf') or '').upper()
+    names=payload.get('names')
+    if system not in {'sia','sih'} or type(year) is not int or not 2008<=year<=date.today().year or type(month) is not int or not 1<=month<=12 or uf not in VALID_UFS:
+        raise ValueError('Base, local ou competência inválida para download.')
+    if not isinstance(names,list) or len(names)!=1 or not isinstance(names[0],str) or not re.fullmatch(r'[A-Za-z0-9]{2,8}[A-Za-z]{2}\d{4}[A-Za-z]?\.dbc',names[0],re.I):
+        raise ValueError('Selecione um arquivo DBC por transferência.')
+    request={'action':'report_download_worker','system':system,'year':year,'month':month,'uf':uf,'names':[names[0].upper()]}
+    key=hashlib.sha256(json.dumps(request,sort_keys=True).encode()).hexdigest()
+    with interprocess_lock(UPLOADS/'.jobs'/'file-locks'/f'download-start-{key}.lock'):
+        return _start_tabulation_locked(request,[])
+
 def start_tabulation(payload: dict[str,Any]):
     payload=json.loads(json.dumps(payload))
     if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante","pqavs-obitos-arboviroses","pqavs-contatos-hanseniase","pqavs-contatos-tuberculose","pqavs-sifilis-congenita","pqavs-violencia-raca-cor","chagas-aguda-cronica","sim-mortalidade-materna-fetal","pqavs-cobertura-vacinal","pqavs-aplicacoes-estabelecimento","cnes-salas-imunizacao"}:
@@ -739,7 +771,12 @@ def _run_tabulation_worker_locked(job_id: str):
         def progress(pct,stage):
             state.update(status="running",progress=pct,stage=stage)
             write_tabulation_job(job_id,state)
-        result=tabulate(payload,progress)
+        if payload.get('action')=='report_download_worker':
+            from datasus import download_selected
+            progress(1,'Baixando '+payload['names'][0])
+            result={'ok':True,**download_selected(payload['system'],payload['year'],payload['month'],payload['names'],uf=payload['uf'])}
+        else:
+            result=tabulate(payload,progress)
         result_path=path.with_suffix(".result.json")
         temporary=result_path.with_suffix(".json.part")
         try:
@@ -7373,6 +7410,8 @@ def tabulate(payload, progress=None):
 
 def tabwin_handle(payload):
     action=payload.get("action")
+    if action=="download_start": return start_report_download(payload)
+    if action=="download_status": return tabulation_status(payload.get("job_id",""))
     if action=="catalog": return catalog()
     if action=="delete_file": return delete_library_file(payload)
     if action=="schema": return schema(payload.get("path",""))

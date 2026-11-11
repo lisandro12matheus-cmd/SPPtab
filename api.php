@@ -48,7 +48,7 @@ register_shutdown_function(static function (): void {
 });
 
 $action = $payload['action'] ?? '';
-$tabulationActions = ['catalog', 'delete_file', 'schema', 'preset_list', 'preset_save', 'preset_get', 'preset_delete', 'column_values', 'category_values', 'predefined_filter_options', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status'];
+$tabulationActions = ['catalog', 'delete_file', 'schema', 'preset_list', 'preset_save', 'preset_get', 'preset_delete', 'column_values', 'category_values', 'predefined_filter_options', 'tabulate', 'tabulate_start', 'tabulate_status', 'convert_start', 'convert_status', 'download_start', 'download_status'];
 $dataActions = ['competencies', 'files', 'download', 'municipalities', 'municipalities_all'];
 $preferenceActions = ['report_defaults_get', 'report_defaults_save', 'report_defaults_delete'];
 $sigtapActions = ['sigtap_catalog', 'sigtap_zip_prepare', 'sigtap_search', 'sigtap_column_values', 'sigtap_options', 'sigtap_detail', 'sigtap_aggregates', 'sigtap_compare'];

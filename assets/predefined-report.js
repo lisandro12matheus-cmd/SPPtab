@@ -631,7 +631,7 @@
   }
   function allowedMonths(months, year = Number(yearSelect.value), uf = selectedUf()) {
     const valid = [...new Set(months.map(Number).filter((month) => month >= 1 && month <= 12))];
-    if (activeReport.remoteSource) return valid;
+    if (activeReport.remoteSource || ['sia', 'sih'].includes(activeReport.system)) return valid;
     if (valid.length < 2) return valid;
     const downloaded = new Set(localMonths(year, uf));
     return valid.every((month) => downloaded.has(month)) ? valid : [valid[valid.length - 1]];
@@ -656,7 +656,8 @@
     else if (selected.length === 1) monthPickerTriggerText.textContent = `${monthNames[selected[0] - 1]} de ${yearSelect.value || ''}`.trim();
     else monthPickerTriggerText.textContent = `${selected.length} competências selecionadas`;
 
-    monthPickerCount.textContent = selected.length > 1 ? `${selected.length} competências da biblioteca` : selected.length ? (downloaded.has(selected[0]) ? '1 competência na biblioteca' : '1 competência · busca ao abrir') : 'Nenhuma competência selecionada';
+    const localCount = selected.filter((month) => downloaded.has(month)).length;
+    monthPickerCount.textContent = selected.length ? `${selected.length} selecionada(s) · ${localCount} na biblioteca` : 'Nenhuma competência selecionada';
     monthPickerOptions.replaceChildren();
     for (const option of options) {
       const month = Number(option.value);
@@ -727,11 +728,11 @@
     const monthLabel = $('reportMonthLabel');
     if (monthLabel) {
       const qualifier = document.createElement('small');
-      qualifier.textContent = activeReport.remoteSource ? 'múltiplos meses' : 'uma por vez; várias se já baixadas';
+      qualifier.textContent = 'selecione um ou mais meses';
       monthLabel.replaceChildren(document.createTextNode(`${activeReport.monthLabel || (activeReport.system === 'sim' ? 'MÊS DO ÓBITO' : activeReport.system === 'sinasc' ? 'MÊS DO NASCIMENTO' : activeReport.remoteSource ? 'INÍCIO DOS SINTOMAS' : 'COMPETÊNCIA')} `), qualifier);
     }
     const monthHelp = document.querySelector('.setup-competency-help');
-    if (monthHelp) monthHelp.textContent = activeReport.monthHelp || (activeReport.system === 'sim' ? 'O mês usa a data do óbito; dados recentes podem ser preliminares.' : activeReport.system === 'sinasc' ? 'O mês usa a data do nascimento. O ano recente pode estar em prévia ou ainda não ter todos os meses.' : activeReport.remoteSource ? 'O mês usa a data de início dos sintomas; o período atual pode ter dados parciais.' : 'Vários meses só com bases já baixadas. Uma competência pode ser buscada no DATASUS ao abrir.');
+    if (monthHelp) monthHelp.textContent = activeReport.monthHelp || (activeReport.system === 'sim' ? 'O mês usa a data do óbito; dados recentes podem ser preliminares.' : activeReport.system === 'sinasc' ? 'O mês usa a data do nascimento. O ano recente pode estar em prévia ou ainda não ter todos os meses.' : activeReport.remoteSource ? 'O mês usa a data de início dos sintomas; o período atual pode ter dados parciais.' : 'As bases ausentes serão baixadas e processadas uma por vez.');
     const locationHelp = document.querySelector('.setup-primary-grid')?.closest('.setup-section')?.querySelector('.setup-section-heading span');
     if (locationHelp) locationHelp.textContent = activeReport.locationHelp || (activeReport.system === 'sinan' ? 'O recorte considera as unidades notificadoras cadastradas no município escolhido.' : activeReport.system === 'sim' ? 'O recorte considera os óbitos ocorridos no município escolhido.' : activeReport.system === 'sinasc' ? 'Escolha o município onde ocorreram os nascimentos.' : activeReport.system === 'srag' ? 'Escolha o município onde os casos residem.' : 'A UF define qual arquivo estadual será consultado.');
     $('predefinedIntroLabel').textContent = activeReport.introLabel;
@@ -944,24 +945,56 @@
     setPageView('catalog', updateUrl);
   }
 
-  async function api(payload) {
+  async function api(payload, timeoutMs = 0) {
+    const controller = new AbortController();
+    const timer = timeoutMs ? setTimeout(() => controller.abort(), timeoutMs) : null;
     let response;
+    let body;
     try {
       response = await fetch('api.php', {
         method: 'POST',
         credentials: 'same-origin',
+        signal: controller.signal,
         headers: { 'Content-Type': 'application/json', 'X-SPPtab-CSRF': csrf },
         body: JSON.stringify(payload)
       });
+      body = await response.text();
     } catch (_) {
       throw new Error('Não foi possível falar com o TabulaSUS local. Confira se o aplicativo continua aberto.');
+    } finally {
+      if (timer) clearTimeout(timer);
     }
-    const body = await response.text();
     let data;
     try { data = JSON.parse(body); }
     catch (_) { throw new Error(body.trim() || 'O serviço local respondeu sem dados. Atualize a página e tente novamente.'); }
     if (!response.ok || !data?.ok) throw new Error(data?.error || 'Não foi possível concluir a solicitação.');
     return data;
+  }
+
+  // Retry only status reads: a temporary disconnection must not restart a worker.
+  async function reportJobStatus(action, jobId) {
+    for (let attempt = 0; ; attempt += 1) {
+      try { return await api({ action, job_id:jobId }, 30000); }
+      catch (error) {
+        if (attempt >= 4) throw error;
+        await new Promise((resolve) => setTimeout(resolve, Math.min(5000, 1000 * (attempt + 1))));
+      }
+    }
+  }
+
+  async function downloadReportFile(payload) {
+    let job = await api({ ...payload, action:'download_start' });
+    if (!job.job_id) throw new Error('Não foi possível iniciar a transferência em segundo plano.');
+    const jobId = job.job_id;
+    while (true) {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      job = await reportJobStatus('download_status', jobId);
+      if (job.status === 'error') throw new Error(job.message || 'A transferência falhou. Tente novamente para retomar a consulta.');
+      if (job.status === 'done') {
+        if (!job.result?.ok) throw new Error('O arquivo baixado não foi confirmado.');
+        return job.result;
+      }
+    }
   }
 
   function setAvailability(text, tone = '') {
@@ -1051,14 +1084,14 @@
   function updateDownloadHeading() {
     if (downloadQueue.hidden) return;
     const tasks = [...downloadTasks.values()];
-    const finished = tasks.filter(({ row }) => ['ready', 'unavailable', 'error'].includes(row.dataset.status)).length;
+    const finished = tasks.filter(({ row }) => ['ready', 'reused', 'unavailable', 'error'].includes(row.dataset.status)).length;
     downloadHeading.textContent = `Arquivos conferidos: ${finished} de ${tasks.length} · transferência individual`;
   }
 
   function updateDownloadTask(year, month, kind, status, fileName = '') {
     const task = downloadTasks.get(downloadTaskKey(year, month, kind));
     if (!task) return;
-    const labels = { pending:'Aguardando', checking:'Localizando', downloading:'Baixando', ready:fileName ? 'Baixado' : 'Na base', unavailable:'Não publicado', error:'Falha' };
+    const labels = { reused:'Resultado reaproveitado', pending:'Aguardando', checking:'Localizando', downloading:'Baixando', ready:fileName ? 'Baixado' : 'Na base', unavailable:'Não publicado', error:'Falha' };
     task.row.dataset.status = status;
     task.state.textContent = labels[status] || status;
     if (fileName) task.name.title = fileName;
@@ -1165,7 +1198,7 @@
       const selected = (Array.isArray(preferred) ? preferred : [preferred]).map(Number).filter((month) => merged.includes(month));
       setMonthOptions(merged, selected);
       const localCount = new Set(cachedMonths).size;
-      setAvailability(`${merged.length} competência(s) de ${uf} encontrada(s) · ${localCount} na biblioteca local. Vários meses apenas com arquivos locais.`, 'good');
+      setAvailability(`${merged.length} competência(s) de ${uf} encontrada(s) · ${localCount} na biblioteca local. Os arquivos ausentes serão baixados um por vez.`, 'good');
     } catch (error) {
       if (requestId !== competencyRequest) return;
       if (hasLocal) setAvailability(`${cachedMonths.length} competência(s) de ${uf} na biblioteca local · DATASUS indisponível no momento.`, '');
@@ -2371,7 +2404,7 @@
     return item;
   }
 
-  async function findOrDownloadReportFiles(year, month, uf, view = 'summary', localOnly = false) {
+  async function findOrDownloadReportFiles(year, month, uf, view = 'summary') {
     const { requiredKinds, optionalKinds, kinds } = reportKindsForView(view);
     const filesByKind = {};
     for (const kind of kinds) {
@@ -2382,12 +2415,6 @@
       } else updateDownloadTask(year, month, kind, 'checking');
     }
     if (kinds.every((kind) => filesByKind[kind])) return filesByKind;
-    if (localOnly) {
-      if (!requiredKinds.every((kind) => filesByKind[kind])) throw new Error(`Para consultar várias competências, baixe antes os arquivos de ${monthNames[month - 1]} de ${year} na biblioteca.`);
-      for (const kind of optionalKinds) if (!filesByKind[kind]) updateDownloadTask(year, month, kind, 'unavailable');
-      return filesByKind;
-    }
-
     setLoader(true, 'Consultando os arquivos oficiais', `${stateNames[uf]} · ${monthNames[month - 1]} de ${year} · localizando ${kinds.map((kind) => `${activeReport.systemCode}/${kind}`).join(' e ')} no DATASUS.`, null, true);
     let listing;
     try {
@@ -2430,7 +2457,7 @@
       updateDownloadTask(year, month, kind, 'downloading', file.name);
       setLoader(true, taskIndex ? `Baixando arquivo ${taskIndex} de ${downloadTasks.size}` : 'Baixando arquivo DATASUS', `${file.name} · ${monthNames[month - 1]} de ${year}. Aguarde a conclusão antes do próximo arquivo.`, null, true);
       try {
-        const downloaded = await api({ action:'download', system:activeReport.system, year:Number(year), month:Number(month), uf, names:[file.name] });
+        const downloaded = await downloadReportFile({ system:activeReport.system, year:Number(year), month:Number(month), uf, names:[file.name] });
         const saved = (downloaded.files || []).find((item) => item.name?.toUpperCase() === file.name.toUpperCase());
         if (!saved?.path) throw new Error(`O DATASUS não confirmou a gravação do arquivo ${file.name}.`);
         const item = { ...file, ...saved, system:activeReport.systemCode, kind, uf, year:Number(year), month:Number(month), path:saved.path };
@@ -2458,7 +2485,7 @@
     while (true) {
       setLoader(true, conversion.stage || 'Preparando a base para leitura', conversion.message || `${file.name} · leitura em andamento.`, conversion.progress ?? 1);
       await new Promise((resolve) => setTimeout(resolve, 900));
-      conversion = await api({ action: 'convert_status', job_id: conversionJobId });
+      conversion = await reportJobStatus('convert_status', conversionJobId);
       if (conversion.status === 'error') throw new Error(conversion.message || 'Não foi possível preparar o arquivo.');
       if (conversion.status === 'done') {
         if (!conversion.dbf_path) throw new Error('A preparação terminou sem localizar a base pronta.');
@@ -2642,7 +2669,7 @@
       while (true) {
         setLoader(true, job.stage || 'Consultando os dados públicos', `${monthNames[month - 1]} de ${year} · ${job.message || job.stage || `Processando o arquivo anual do ${activeReport.systemCode}.`}`, null, true);
         await new Promise((resolve) => setTimeout(resolve, 850));
-        job = await api({ action:'tabulate_status', job_id:jobId });
+        job = await reportJobStatus('tabulate_status', jobId);
         if (job.status === 'error') throw new Error(job.message || `Não foi possível consultar ${monthNames[month - 1]} de ${year} no SINAN.`);
         if (job.status === 'done') {
           if (!job.result?.ok) throw new Error(job.result?.error || `A consulta de ${monthNames[month - 1]} de ${year} não foi concluída.`);
@@ -2650,7 +2677,7 @@
         }
       }
     }
-    const filesByKind = await findOrDownloadReportFiles(year, month, filters.uf, view, monthCount > 1);
+    const filesByKind = await findOrDownloadReportFiles(year, month, filters.uf, view);
     const dbfPaths = {};
     const { kinds } = reportKindsForView(view);
     for (const kind of kinds) {
@@ -2685,7 +2712,7 @@
       const localProgress = Math.max(0, Math.min(100, Number(job.progress) || 1));
       setLoader(true, job.stage || `Montando competência ${monthIndex + 1} de ${monthCount}`, `${monthNames[month - 1]} de ${year} · ${job.message || `Aplicando os filtros selecionados · ${stateNames[filters.uf]}.`}`, Math.min(99, (monthIndex + localProgress / 100) / monthCount * 100));
       await new Promise((resolve) => setTimeout(resolve, 850));
-      job = await api({ action:'tabulate_status', job_id:tabulationJobId });
+      job = await reportJobStatus('tabulate_status', tabulationJobId);
       if (job.status === 'error') throw new Error(job.message || `Não foi possível tabular ${monthNames[month - 1]} de ${year}.`);
       if (job.status === 'done') {
         if (!job.result?.ok) throw new Error(job.result?.error || `O resultado de ${monthNames[month - 1]} de ${year} não foi concluído.`);
@@ -2694,7 +2721,10 @@
     }
   }
 
+  const monthlyReportCache = new Map();
+  let reportRunning = false;
   async function runReport(view = 'summary', cnes = '', updateUrl = true, aih = '', monthList = null, route = null) {
+    if (reportRunning) return;
     const year = Number(yearSelect.value) || activeYear;
     let requestedMonths = [...new Set((monthList == null ? (view === 'services' ? [activeMonth] : (reportMonths.length ? reportMonths : selectedMonths())) : monthList).map(Number).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b);
     if (!year || !requestedMonths.length) return;
@@ -2735,14 +2765,28 @@
       updateOpenButton(); return;
     }
 
+    reportRunning = true;
+    $('editReportCriteria').disabled = true;
+    $('backToCatalog').disabled = true;
     if (activeReport.remoteSource) {
       downloadQueue.hidden = true;
       downloadTasks.clear();
     } else beginDownloadQueue(year, requestedMonths, view);
+    const monthlyResults = [];
+    let accumulatedRows = 0;
     try {
-      const monthlyResults = [];
       for (const [index, month] of requestedMonths.entries()) {
-        monthlyResults.push(await tabulateReportMonth(view, cnes, aih, filters, year, month, index, requestedMonths.length));
+        const key = resultKey(view, cnes, aih, [month]);
+        const cachedMonth = monthlyReportCache.get(key);
+        if (cachedMonth && !activeReport.remoteSource) {
+          for (const kind of reportKindsForView(view).kinds) updateDownloadTask(year, month, kind, 'reused');
+        }
+        const monthResult = cachedMonth || await tabulateReportMonth(view, cnes, aih, filters, year, month, index, requestedMonths.length);
+        monthlyReportCache.set(key, monthResult);
+        while (monthlyReportCache.size > 12) monthlyReportCache.delete(monthlyReportCache.keys().next().value);
+        accumulatedRows += monthResult.rows?.length || 0;
+        if (accumulatedRows > 200000) throw new Error('O recorte ultrapassa 200 mil linhas. Selecione menos meses ou aplique mais filtros para abrir a tabela com segurança.');
+        monthlyResults.push(monthResult);
       }
       activeResult = combineMonthlyResults(monthlyResults, requestedMonths, year);
       rememberResult(view, cnes, activeResult, aih, requestedMonths);
@@ -2752,8 +2796,12 @@
       renderTable();
       setAvailability(activeReport.remoteSource ? `${formatCompetencies(requestedMonths, year)} · consulta concluída com dados públicos do ${activeReport.systemCode}.` : `${formatCompetencies(requestedMonths, year)} · resultado pronto neste computador.`, 'good');
     } catch (error) {
-      showReportFailure(error);
+      const completed = monthlyResults.length;
+      showReportFailure(new Error(`${error.message} ${completed} de ${requestedMonths.length} competências concluídas. Ao tentar novamente, os meses concluídos serão reaproveitados.`));
     } finally {
+      reportRunning = false;
+      $('editReportCriteria').disabled = false;
+      $('backToCatalog').disabled = false;
       for (const select of setupSelects) select.disabled = false;
       monthSelect.disabled = ![...monthSelect.options].some((option) => Number(option.value) >= 1 && Number(option.value) <= 12);
       updateMonthPicker();
@@ -3036,6 +3084,7 @@
     const current = selectedMonths().filter((item) => item !== month);
     setSelectedMonths(event.target.checked ? [...current, month] : current);
   });
+  $('selectAllReportMonths').addEventListener('click', () => setSelectedMonths([...monthSelect.options].map((option) => Number(option.value))));
   $('clearReportMonths').addEventListener('click', () => setSelectedMonths([]));
   monthPickerMenu.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
