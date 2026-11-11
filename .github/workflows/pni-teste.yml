@@ -1,0 +1,68 @@
+# Teste: lê um mês do CSV de doses aplicadas do PNI (Ministério da Saúde) e gera
+# os totais do município escolhido. O arquivo nacional é lido inteiro, porque os
+# municípios vêm misturados, mas só as doses desse município são somadas.
+# Só roda quando disparado à mão na aba Actions. Não publica release: o resultado
+# fica como artefato da execução por 7 dias.
+name: PNI - teste de totais
+
+on:
+  workflow_dispatch:
+    inputs:
+      ano:
+        description: "Ano do arquivo"
+        default: "2026"
+        required: true
+      mes:
+        description: "Mês do arquivo"
+        type: choice
+        default: jan
+        options: [jan, fev, mar, abr, mai, jun, jul, ago, set, out, nov, dez]
+      municipio:
+        description: "Código IBGE do município, 6 ou 7 dígitos (ex.: 1501402 = Belém)"
+        required: true
+      limite_mb:
+        description: "Ler só os primeiros N MB compactados (0 = arquivo inteiro)"
+        default: "0"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pni-teste-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  totais:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Preparar o Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Ler o CSV em fluxo e gerar os totais
+        env:
+          PNI_ANO: ${{ inputs.ano }}
+          PNI_MES: ${{ inputs.mes }}
+          PNI_MUNICIPIO: ${{ inputs.municipio }}
+          PNI_LIMITE_MB: ${{ inputs.limite_mb }}
+        run: |
+          df -h . | tail -1
+          python -I tools/pni/pni_totais.py \
+            --ano "$PNI_ANO" --mes "$PNI_MES" --municipio "$PNI_MUNICIPIO" \
+            --limite-mb "$PNI_LIMITE_MB" \
+            --saida saida-pni --resumo "$GITHUB_STEP_SUMMARY"
+          ls -la saida-pni
+
+      - name: Guardar o resultado
+        uses: actions/upload-artifact@v4
+        with:
+          name: pni-totais-${{ inputs.ano }}-${{ inputs.mes }}-${{ inputs.municipio }}
+          path: saida-pni/
+          retention-days: 7
+          if-no-files-found: error
