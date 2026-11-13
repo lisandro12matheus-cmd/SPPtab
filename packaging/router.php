@@ -20,8 +20,19 @@ if ($path === '/__tabwin2_health') {
     return true;
 }
 
-if ($path === '/' || preg_match('~^/(?:index|api|bases|tabular|minhas-tabulacoes|tabulacoes-prontas|sigtap|sigtap-zip|resultado|download|analise-sia-pa|analises|analise-sih|analysis-package)\.php$~i', $path)) {
+if ($path === '/' || preg_match('~^/(?:index|api|bases|tabular|minhas-tabulacoes|tabulacoes-prontas|sigtap|sigtap-zip|resultado|download|analise-sia-pa|analises|analise-sih|analysis-package|cnes-hospitais-pequeno-porte)\.php$~i', $path)) {
     return false;
+}
+
+if (preg_match('~^/relatorios/(?:hospitais-pequeno-porte-sem-fins-lucrativos-2026-09\.csv|LEIA-ME-hospitais-pequeno-porte-2026-09\.md)$~i', $path)) {
+    $appRoot = dirname(__DIR__);
+    $reportRoot = realpath($appRoot . DIRECTORY_SEPARATOR . 'relatorios');
+    $report = realpath($appRoot . str_replace('/', DIRECTORY_SEPARATOR, $path));
+    if ($reportRoot !== false && $report !== false
+        && str_starts_with($report, $reportRoot . DIRECTORY_SEPARATOR)
+        && is_file($report)) {
+        return false;
+    }
 }
 
 if (preg_match('~^/assets/(?!.*(?:^|/)\.\.?/)[A-Za-z0-9._/-]+\.(?:css|js|svg|png|jpe?g|webp|ico|woff2?)$~i', $path)) {
