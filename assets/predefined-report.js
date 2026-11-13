@@ -913,13 +913,20 @@
   async function prepareReportControls(preferred = {}) {
     setAvailability('Preparando as opções desta tabulação…', 'loading');
     if (!reportControlsReady && !activeReport.remoteSource) {
-      try {
-        const catalog = await api({ action: 'catalog' });
-        addLocalFiles(catalog.files);
-      } catch (_) {
-        // Remote lookup can still work if the local catalog is not available yet.
-      }
       reportControlsReady = true;
+      const reportId = activeReport.id;
+      // Scanning the whole local DBC library can take a while. It is useful for
+      // showing cached months, but must not hold the filter dialog or the
+      // DATASUS lookup open.
+      api({ action:'catalog' }, 18000).then((catalog) => {
+        addLocalFiles(catalog.files);
+        if (activeReport.id !== reportId) return;
+        const local = localMonths(Number(yearSelect.value), selectedUf());
+        if (!local.length) return;
+        const visible = [...monthSelect.options].map((option) => Number(option.value)).filter((month) => month >= 1 && month <= 12);
+        setMonthOptions([...new Set([...visible, ...local])], selectedMonths().length ? selectedMonths() : linkedMonths);
+        setAvailability(`${local.length} competência(s) local(is) encontrada(s).`, 'good');
+      }).catch(() => {});
     }
     await Promise.all([
       refreshCompetencies(Number(yearSelect.value), selectedMonths().length ? selectedMonths() : linkedMonths, selectedUf()),
@@ -945,7 +952,7 @@
     setPageView('catalog', updateUrl);
   }
 
-  async function api(payload, timeoutMs = 0) {
+  async function api(payload, timeoutMs = 30000) {
     const controller = new AbortController();
     const timer = timeoutMs ? setTimeout(() => controller.abort(), timeoutMs) : null;
     let response;
@@ -959,7 +966,8 @@
         body: JSON.stringify(payload)
       });
       body = await response.text();
-    } catch (_) {
+    } catch (error) {
+      if (error?.name === 'AbortError') throw new Error('A consulta demorou mais que o esperado. Você pode tentar novamente.');
       throw new Error('Não foi possível falar com o TabulaSUS local. Confira se o aplicativo continua aberto.');
     } finally {
       if (timer) clearTimeout(timer);
@@ -997,7 +1005,7 @@
     }
   }
 
-  function setAvailability(text, tone = '') {
+  function setAvailability(text, tone = '', retry = null) {
     availability.replaceChildren();
     availability.className = `report-availability${tone ? ` is-${tone}` : ''}`;
     if (tone === 'loading') {
@@ -1008,7 +1016,19 @@
       const label = document.createElement('span');
       label.textContent = text;
       availability.append(mark, label);
-    } else availability.textContent = text;
+    } else {
+      const label = document.createElement('span');
+      label.textContent = text;
+      availability.append(label);
+      if (typeof retry === 'function') {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'report-availability-retry';
+        button.textContent = 'Tentar novamente';
+        button.addEventListener('click', retry);
+        availability.append(button);
+      }
+    }
   }
 
   function showNotice(text, tone = 'info') {
@@ -1154,7 +1174,7 @@
       openButton.disabled = true;
       setAvailability('Consultando as competências publicadas no CNES.', 'loading');
       try {
-        const response = await api({ action:'predefined_filter_options', report:activeReport.id, uf, year:Number(year) });
+        const response = await api({ action:'predefined_filter_options', report:activeReport.id, uf, year:Number(year) }, 25000);
         if (requestId !== competencyRequest) return;
         const available = Array.isArray(response.months) ? response.months.map(Number).filter((month) => month >= 1 && month <= 12) : [];
         setMonthOptions(available, preferred);
@@ -1162,7 +1182,7 @@
       } catch (error) {
         if (requestId !== competencyRequest) return;
         setMonthOptions([], []);
-        setAvailability(error.message || 'Não foi possível consultar as competências do CNES.', 'error');
+        setAvailability(error.message || 'Não foi possível consultar as competências do CNES.', 'error', () => refreshCompetencies(Number(yearSelect.value), selectedMonths(), selectedUf()));
       }
       return;
     }
@@ -1188,7 +1208,7 @@
     }
 
     try {
-      const response = await api({ action: 'competencies', system: activeReport.system, year: Number(year), uf });
+      const response = await api({ action: 'competencies', system: activeReport.system, year: Number(year), uf }, 25000);
       if (requestId !== competencyRequest) return;
       const requiredKinds = activeReport.requiredKinds || [activeReport.kind];
       const availableFiles = (response.files || []).filter((file) => String(file.uf || '').toUpperCase() === uf);
@@ -1201,10 +1221,15 @@
       setAvailability(`${merged.length} competência(s) de ${uf} encontrada(s) · ${localCount} na biblioteca local. Os arquivos ausentes serão baixados um por vez.`, 'good');
     } catch (error) {
       if (requestId !== competencyRequest) return;
-      if (hasLocal) setAvailability(`${cachedMonths.length} competência(s) de ${uf} na biblioteca local · DATASUS indisponível no momento.`, '');
+      const latestLocalMonths = localMonths(year, uf);
+      if (latestLocalMonths.length) {
+        const visible = [...monthSelect.options].map((option) => Number(option.value)).filter((month) => month >= 1 && month <= 12);
+        setMonthOptions([...new Set([...visible, ...latestLocalMonths])], selectedMonths().length ? selectedMonths() : preferred);
+        setAvailability(`${latestLocalMonths.length} competência(s) de ${uf} na biblioteca local · DATASUS indisponível no momento.`, '');
+      }
       else {
         setMonthOptions([], 0);
-        setAvailability(error.message, 'error');
+        setAvailability(error.message || 'Não foi possível consultar as competências.', 'error', () => prepareReportControls(selectedFilters()));
       }
     }
   }
@@ -1328,7 +1353,7 @@
     for (const type of Object.keys(filterDefinitions)) filterCategories[type] = [];
     refreshAddFilterOptions();
     municipalitySelect.disabled = Boolean(activeReport.fixedMunicipalityCode);
-    const municipalityTask = api({ action: 'municipalities', uf }).then((data) => {
+    const municipalityTask = api({ action: 'municipalities', uf }, 18000).then((data) => {
       if (requestId !== filterRequest) return;
       let options = (data.municipalities || []).map((item) => ({ value: String(item.code || ''), label: String(item.name || '') })).filter((item) => /^\d{6}$/.test(item.value) && item.value.startsWith(stateCodes[uf]) && item.label);
       if (activeReport.fixedMunicipalityCode) options=options.filter((item) => item.value === activeReport.fixedMunicipalityCode);
@@ -1344,13 +1369,13 @@
         municipalitySelect.value = activeReport.fixedMunicipalityCode;
       }
       municipalitySelect.title = activeReport.remoteSource ? 'A lista de municípios não foi carregada. Confira a conexão e reabra o recorte.' : 'A lista de municípios não foi carregada. O relatório continua disponível para toda a UF.';
-      if (activeReport.remoteSource && !activeReport.fixedMunicipalityCode) setAvailability('Não foi possível carregar a lista de municípios. Confira a conexão e tente novamente.', 'error');
+      if (activeReport.remoteSource && !activeReport.fixedMunicipalityCode) setAvailability('Não foi possível carregar a lista de municípios. Confira a conexão e tente novamente.', 'error', () => prepareReportControls(selectedFilters()));
     });
     if (activeReport.system === 'sinasc' || activeReport.system === 'sim' || activeReport.staticFilterOptions) {
       for (const [type, definition] of Object.entries(filterDefinitions)) if (definition.options) filterCategories[type] = definition.options.map(([value,label]) => ({ value,label }));
     }
     const simMunicipalityTask = ['sim-mortalidade','sim-mortalidade-infantil'].includes(activeReport.id) || activeReport.allMunicipalityFilters
-      ? api({ action:'municipalities_all' }).then((data) => {
+      ? api({ action:'municipalities_all' }, 18000).then((data) => {
           if (requestId !== filterRequest) return;
           const municipalities = (data.municipalities || []).map((item) => ({ value:String(item.code || ''), label:`${String(item.name || '')} · ${String(item.code || '')}` })).filter((item) => /^\d{6}$/.test(item.value) && item.label.trim());
           if (activeReport.allMunicipalityFilters) for (const type of activeReport.allMunicipalityFilters) filterCategories[type] = municipalities;
@@ -1363,7 +1388,7 @@
           for (const type of ['residenceMunicipality','naturalityMunicipality','occurrenceMunicipality',...(activeReport.allMunicipalityFilters || [])]) if (filterDefinitions[type]) filterCategories[type] = [];
         })
       : Promise.resolve();
-    const categoryTask = (activeReport.remoteSource && activeReport.system !== 'sinan' && activeReport.id !== 'sim-mortalidade-infantil' && !['sinasc-maternidades','pqavs-aplicacoes-estabelecimento'].includes(activeReport.id)) || !Object.values(filterDefinitions).some((definition) => definition.responseKey) ? Promise.resolve() : api({ action: 'predefined_filter_options', report:activeReport.id, uf }).then((data) => {
+    const categoryTask = (activeReport.remoteSource && activeReport.system !== 'sinan' && activeReport.id !== 'sim-mortalidade-infantil' && !['sinasc-maternidades','pqavs-aplicacoes-estabelecimento'].includes(activeReport.id)) || !Object.values(filterDefinitions).some((definition) => definition.responseKey) ? Promise.resolve() : api({ action: 'predefined_filter_options', report:activeReport.id, uf }, 18000).then((data) => {
       if (requestId !== filterRequest) return;
       for (const [type, definition] of Object.entries(filterDefinitions)) if (definition.responseKey) filterCategories[type] = data[definition.responseKey] || [];
     }).catch(() => {
@@ -2892,7 +2917,7 @@
   }
 
   const catalogSearch = $('catalogSearch');
-  const catalogCards = [...document.querySelectorAll('.predefined-card[data-report]')];
+  const catalogCards = [...document.querySelectorAll('.predefined-card[data-report], .predefined-card[data-catalog-link]')];
   const catalogCategoryFilter = $('catalogCategoryFilter');
   const catalogIndicatorFilter = $('catalogIndicatorFilter');
   const catalogSort = $('catalogSort');
@@ -3006,8 +3031,22 @@
     const activate = async () => {
       const preferredUf = selectedUf();
       const reportId = reportCard.dataset.report;
-      if (!activateReport(reportId)) return;
-      await loadReportDefaults(reportId);
+      const activation = activateReport(reportId);
+      if (!activation) return;
+      document.dispatchEvent(new Event('tabulasus:panel-open'));
+      if (!setupDialog.open) setupDialog.showModal();
+      $('setupDefaultStatus').textContent = 'Preparando filtros do relatório…';
+      $('saveSetupDefault').disabled = true;
+      try {
+        await activation;
+        if (activeReport.id !== reportId) return;
+        await loadReportDefaults(reportId);
+      } catch (error) {
+        $('setupDefaultStatus').textContent = 'Não foi possível carregar os filtros agora. Tente novamente.';
+        $('saveSetupDefault').disabled = false;
+        setAvailability(error.message || 'Não foi possível preparar os filtros do relatório.', 'error');
+        return;
+      }
       if (activeReport.id !== reportId) return;
       const preferred = applySetupPreference(preferredUf);
       if (linkedMunicipality && linkedMunicipality.startsWith(stateCodes[selectedUf()])) preferred.municipalityCode = linkedMunicipality;
@@ -3227,7 +3266,9 @@
 
   async function init() {
     activateReport(activeReport.id);
-    if (linkedReport || linkedYear || linkedCnes) await loadReportDefaults(activeReport.id);
+    if (linkedReport || linkedYear || linkedCnes) {
+      await loadReportDefaults(activeReport.id);
+    }
     const hasExplicitScope = params.has('uf') || params.has('municipio') || params.has('gestor') || Boolean(linkedMunicipality || linkedManagerCode) || Object.values(filterDefinitions).some((definition) => params.has(definition.queryKey));
     const initialPreferred = linkedReport && !linkedYear && !linkedMonths.length && !hasExplicitScope ? applySetupPreference(linkedUf) : linkedFilters;
     if (hasExplicitScope || linkedYear || linkedMonths.length || !linkedReport) setUfOptions(linkedUf);

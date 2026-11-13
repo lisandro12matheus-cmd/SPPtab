@@ -73,6 +73,7 @@ Write-Host 'Preparando o app e os arquivos de definição necessários…'
 Get-ChildItem -LiteralPath $AppRoot -File -Filter '*.php' | Copy-Item -Destination $AppFiles
 Copy-Item -LiteralPath (Join-Path $AppRoot 'assets') -Destination $AppFiles -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $AppRoot 'engine') -Destination $AppFiles -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $AppRoot 'relatorios') -Destination $AppFiles -Recurse -Force
 New-Item -ItemType Directory -Path (Join-Path $AppFiles 'packaging') -Force | Out-Null
 Copy-Item -LiteralPath $RouterSource -Destination (Join-Path $AppFiles 'packaging\router.php') -Force
 
@@ -177,6 +178,8 @@ finally {
     $archive.Dispose()
 }
 $requiredEntries = @('SPPtab.exe', 'VERSION.txt', 'runtime/php/php.exe', 'runtime/php/php.ini', 'runtime/python/python.exe', 'app/api.php', 'app/security.php', 'app/engine/storage_lock.py', 'app/engine/sigtap.py', 'app/engine/data/cid10-three.json', 'app/bases.php', 'app/tabular.php', 'app/pacotes.php', 'app/minhas-tabulacoes.php', 'app/tabulacoes-prontas.php', 'app/sigtap.php', 'app/sigtap-zip.php', 'app/assets/app.css', 'app/assets/app.js', 'app/assets/launch.css', 'app/assets/location-entry.css', 'app/assets/sidebar.js', 'app/assets/tabulasus-logo.png', 'app/assets/presets.css', 'app/assets/saved-tabulations.js', 'app/assets/tabulations-nav.js', 'app/assets/predefined-report.css', 'app/assets/predefined-report.js', 'app/assets/sigtap.css', 'app/assets/sigtap.js', 'app/assets/sigtap-filter-widget.css', 'app/assets/sigtap-filter-widget.js', 'app/assets/compact-headings.css', 'app/packaging/router.php')
+$reportRequiredEntries = @('app/cnes-hospitais-pequeno-porte.php', 'app/assets/cnes-hpp.css', 'app/assets/cnes-hpp.js', 'app/relatorios/hospitais-pequeno-porte-sem-fins-lucrativos-2026-09.csv', 'app/relatorios/LEIA-ME-hospitais-pequeno-porte-2026-09.md')
+$requiredEntries += $reportRequiredEntries
 $archiveCheck = [IO.Compression.ZipFile]::OpenRead($PayloadZip)
 try {
     $actualEntries = @($archiveCheck.Entries | ForEach-Object { $_.FullName })
@@ -204,6 +207,10 @@ finally {
 $portableCheck = [IO.Compression.ZipFile]::OpenRead($PortableOutput)
 try {
     $portableEntries = @($portableCheck.Entries | ForEach-Object { $_.FullName })
+    foreach ($entry in $reportRequiredEntries) {
+        $portableEntry = 'SPPtab/' + $entry
+        if ($portableEntries -notcontains $portableEntry) { throw "A pasta portátil não contém o componente obrigatório: $portableEntry" }
+    }
     foreach ($entry in @('SPPtab/SPPtab.exe', 'SPPtab/VERSION.txt', 'SPPtab/runtime/php/php.exe', 'SPPtab/runtime/python/python.exe', 'SPPtab/app/index.php', 'SPPtab/app/security.php', 'SPPtab/app/engine/storage_lock.py', 'SPPtab/app/engine/sigtap.py', 'SPPtab/app/engine/data/cid10-three.json', 'SPPtab/app/bases.php', 'SPPtab/app/tabular.php', 'SPPtab/app/pacotes.php', 'SPPtab/app/minhas-tabulacoes.php', 'SPPtab/app/tabulacoes-prontas.php', 'SPPtab/app/sigtap.php', 'SPPtab/app/sigtap-zip.php', 'SPPtab/app/assets/app.css', 'SPPtab/app/assets/app.js', 'SPPtab/app/assets/launch.css', 'SPPtab/app/assets/location-entry.css', 'SPPtab/app/assets/sidebar.js', 'SPPtab/app/assets/tabulasus-logo.png', 'SPPtab/app/assets/presets.css', 'SPPtab/app/assets/saved-tabulations.js', 'SPPtab/app/assets/tabulations-nav.js', 'SPPtab/app/assets/predefined-report.css', 'SPPtab/app/assets/predefined-report.js', 'SPPtab/app/assets/sigtap.css', 'SPPtab/app/assets/sigtap.js', 'SPPtab/app/assets/sigtap-filter-widget.css', 'SPPtab/app/assets/sigtap-filter-widget.js', 'SPPtab/app/assets/compact-headings.css', 'SPPtab/LEIA-ME.txt')) {
         if ($portableEntries -notcontains $entry) { throw "A pasta portátil não contém o componente obrigatório: $entry" }
     }

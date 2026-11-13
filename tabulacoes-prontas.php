@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>Tabulações prontas · TabulaSUS</title>
-      <link rel="stylesheet" href="assets/app.css?v=22"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=57"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
+      <link rel="stylesheet" href="assets/app.css?v=22"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=59"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
   <link rel="stylesheet" href="assets/rating.css?v=1"><script src="assets/sidebar.js?v=3" defer></script><script src="assets/rating.js?v=1" defer></script>
 </head>
 <body>
@@ -73,6 +73,10 @@
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Capacidade hospitalar</div><h3>Ocupação de leitos</h3><p>Relacione leitos, diárias e AIHs por hospital, com acesso às internações.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SIH/SUS · CNES</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
+          <a class="predefined-card" data-category="hospitalar" data-catalog-link href="cnes-hospitais-pequeno-porte.php" aria-label="Abrir levantamento nacional de hospitais sem fins lucrativos com 5 a 30 leitos">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Estrutura hospitalar · Brasil</div><h3>Hospitais de pequeno porte sem fins lucrativos</h3><p>Levantamento nacional por competência: hospitais com 5 a 30 leitos cadastrados no CNES.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">CNES · arquivos mensais ST</span><span class="predefined-card-open">Abrir relatório <span aria-hidden="true">↗</span></span></div>
+          </a>
           <article class="predefined-card" data-category="hospitalar" data-report="sih-rd-fluxo" role="button" tabindex="0" aria-label="Abrir tabulação: Fluxo de internações por origem e destino">
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Fluxo assistencial</div><h3>Origem e destino das internações</h3><p>Veja de onde vêm os pacientes e em quais hospitais as AIHs são registradas.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SIH/SUS</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
@@ -199,6 +203,6 @@
       <div class="setup-dialog-footer"><div class="setup-default-actions"><button type="button" id="saveSetupDefault">Salvar filtros adicionais como padrão</button><button type="button" id="clearSetupDefault" hidden>Remover padrão</button><span id="setupDefaultStatus" role="status"></span></div><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=93" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=97" defer></script>
 </body>
 </html>

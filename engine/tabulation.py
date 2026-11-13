@@ -665,6 +665,13 @@ def start_report_download(payload: dict[str,Any]):
 
 def start_tabulation(payload: dict[str,Any]):
     payload=json.loads(json.dumps(payload))
+    if payload.get("predefinedReport")==CNES_SMALL_PHILANTHROPIC_HOSPITALS_REPORT_ID:
+        year=payload.get("year"); month=payload.get("month")
+        if not isinstance(year,int) or not 2005<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12:
+            raise ValueError("Selecione uma competência válida do CNES, a partir de 2005.")
+        if month not in _cnes_st_national_competencies(year):
+            raise ValueError(f"A competência {month:02d}/{year} ainda não está publicada para todas as unidades da Federação no CNES.")
+        return _start_tabulation_locked(payload,[])
     if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante","pqavs-obitos-arboviroses","pqavs-contatos-hanseniase","pqavs-contatos-tuberculose","pqavs-sifilis-congenita","pqavs-violencia-raca-cor","chagas-aguda-cronica","sim-mortalidade-materna-fetal","pqavs-cobertura-vacinal","pqavs-aplicacoes-estabelecimento","cnes-salas-imunizacao"}:
         year=payload.get("year")
         month=payload.get("month")
@@ -1304,7 +1311,39 @@ def _report_expand_filter_values(raw_values, spec: dict[str,Any], mapping: dict[
     return sorted(selected)
 
 CNES_VACCINE_ROOMS_REPORT_ID="cnes-salas-imunizacao"
+CNES_SMALL_PHILANTHROPIC_HOSPITALS_REPORT_ID="cnes-hospitais-pequeno-porte-filantropicos"
 CNES_ST_DIRECTORY="/dissemin/publicos/CNES/200508_/Dados/ST"
+
+def _cnes_st_national_competencies(year: int) -> list[int]:
+    """List CNES ST months published for every Brazilian state and the Federal District."""
+    if type(year) is not int or not 2005<=year<=date.today().year:
+        raise ValueError("Selecione um ano válido para consultar a estrutura do CNES.")
+    target=cache_target("cnes-st-national-months",{"version":1,"year":year})
+    cached=cache_read(target)
+    if isinstance(cached,dict) and isinstance(cached.get("months"),list) and time.time()-float(cached.get("fetched_at",0))<6*3600:
+        return sorted({int(month) for month in cached["months"] if str(month).isdigit() and 1<=int(month)<=12})
+    ftp=FTP("ftp.datasus.gov.br",timeout=30)
+    try:
+        ftp.login(); ftp.set_pasv(True)
+        listing=ftp.nlst(CNES_ST_DIRECTORY)
+        expression=re.compile(r"(?:^|/)ST([A-Z]{2})"+re.escape(f"{year%100:02d}")+r"(\d{2})\.dbc$",re.I)
+        states=set(PREDEFINED_UF_CODES)
+        found={state:set() for state in states}
+        for item in listing:
+            match=expression.search(str(item).replace("\\","/"))
+            if not match: continue
+            state=match.group(1).upper(); month=int(match.group(2))
+            if state in found and 1<=month<=12: found[state].add(month)
+        months=sorted(set.intersection(*(found[state] for state in states))) if states else []
+        cache_write(target,{"fetched_at":time.time(),"months":months},max_bytes=20_000,keep=30)
+        return months
+    except Exception as exc:
+        if isinstance(cached,dict) and isinstance(cached.get("months"),list):
+            return sorted({int(month) for month in cached["months"] if str(month).isdigit() and 1<=int(month)<=12})
+        raise ValueError(f"Não foi possível consultar as competências nacionais do CNES no DATASUS: {exc}") from exc
+    finally:
+        try: ftp.close()
+        except OSError: pass
 
 def _cnes_st_competencies(uf: str, year: int) -> list[int]:
     """List monthly CNES establishment files actually published on the official FTP."""
@@ -1348,6 +1387,11 @@ def _report_label(value: Any) -> str:
 
 def predefined_filter_options(payload: dict[str,Any]):
     """Return optional filters backed by official categories in the SIA definition."""
+    if payload.get("report")==CNES_SMALL_PHILANTHROPIC_HOSPITALS_REPORT_ID:
+        year=payload.get("year")
+        if not isinstance(year,int) or not 2005<=year<=date.today().year:
+            raise ValueError("Selecione um ano entre 2005 e o ano atual.")
+        return {"ok":True,"report":CNES_SMALL_PHILANTHROPIC_HOSPITALS_REPORT_ID,"year":year,"months":_cnes_st_national_competencies(year)}
     if payload.get("report") in {"sia-apac-oncologia","sia-apac-dialise","sia-raas-caps"}:
         uf=str(payload.get("uf") or "").strip().upper()
         if uf not in PREDEFINED_UF_CODES:
@@ -3881,12 +3925,12 @@ def _predefined_maternal_impl(payload: dict[str,Any], progress=None):
         result.update({"view":"detail","establishmentCode":str(month),"establishmentName":f"{month:02d}/{year}"})
     return result
 
-def _cnes_st_download(uf: str, year: int, month: int, progress=None) -> Path | None:
+def _cnes_st_download(uf: str, year: int, month: int, progress=None, skip_competency_check: bool=False) -> Path | None:
     """Download one validated CNES ST DBC from the public DATASUS FTP."""
     uf=str(uf or "").strip().upper()
     if uf not in PREDEFINED_UF_CODES or not isinstance(year,int) or not 2005<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12:
         raise ValueError("A competência informada para o CNES é inválida.")
-    if month not in _cnes_st_competencies(uf,year): return None
+    if not skip_competency_check and month not in _cnes_st_competencies(uf,year): return None
     folder=UPLOADS/".cache"/"cnes-st-files"
     folder.mkdir(parents=True,exist_ok=True)
     name=f"ST{uf}{year%100:02d}{month:02d}.dbc"
@@ -3931,7 +3975,7 @@ def _cnes_st_download(uf: str, year: int, month: int, progress=None) -> Path | N
             try: ftp.close()
             except OSError: pass
 
-def _cnes_st_dbf(dbc: Path, progress=None) -> Path:
+def _cnes_st_dbf(dbc: Path, progress=None, required_fields: set[str] | None=None) -> Path:
     dbf=dbc.with_suffix(".dbf")
     fields,records=dbc_header(dbc)
     expected=32+32*len(fields)+1+records*(1+sum(item["length"] for item in fields))+1
@@ -3942,11 +3986,127 @@ def _cnes_st_dbf(dbc: Path, progress=None) -> Path:
     if count!=records or dbf.stat().st_size<32+records*record_len:
         dbf.unlink(missing_ok=True)
         raise ValueError("A leitura do arquivo mensal do CNES ficou incompleta.")
-    required={"CNES","CODUFMUN","TPGESTAO","VINC_SUS","QTINST26","COMPETEN"}
+    required=required_fields or {"CNES","CODUFMUN","TPGESTAO","VINC_SUS","QTINST26","COMPETEN"}
     missing=required-set(fieldinfo)
     if missing:
-        raise ValueError("O leiaute desta competência CNES não contém os campos necessários: "+", ".join(sorted(missing)))
+        raise ValueError("O leiaute do arquivo mensal do CNES não contém os campos necessários: "+", ".join(sorted(missing)))
     return dbf
+
+def _cnes_small_philanthropic_hospitals_report(payload: dict[str,Any], progress=None):
+    year=payload.get("year"); month=payload.get("month")
+    if not isinstance(year,int) or not 2005<=year<=date.today().year or not isinstance(month,int) or not 1<=month<=12:
+        raise ValueError("Selecione uma competência válida do CNES, a partir de 2005.")
+    available=_cnes_st_national_competencies(year)
+    if month not in available:
+        raise ValueError(f"A competência {month:02d}/{year} ainda não está publicada para todas as unidades da Federação no CNES.")
+    states=sorted(PREDEFINED_UF_CODES)
+    if progress: progress(5,"Localizando os 27 arquivos estaduais do CNES")
+    downloads={}
+    failures=[]
+    with ThreadPoolExecutor(max_workers=5,thread_name_prefix="cnes-st-national") as executor:
+        futures={executor.submit(_cnes_st_download,uf,year,month,None,True):uf for uf in states}
+        completed=0
+        for future in as_completed(futures):
+            uf=futures[future]; completed+=1
+            try:
+                path=future.result()
+                if path is None: failures.append(uf)
+                else: downloads[uf]=path
+            except Exception as exc:
+                failures.append(uf)
+                if progress: progress(min(30,8+int(22*completed/max(1,len(states)))),f"Baixando arquivos CNES · {completed} de {len(states)} UFs")
+            if progress and (completed%2==0 or completed==len(states)):
+                progress(min(32,7+int(25*completed/max(1,len(states)))),f"Conferindo arquivos CNES · {completed} de {len(states)} UFs")
+    if failures:
+        raise RuntimeError("Não foi possível obter os arquivos CNES de todas as UFs ("+", ".join(sorted(failures))+"), então o levantamento nacional ficou incompleto. Tente novamente quando o DATASUS estiver disponível.")
+
+    required={"CNES","CODUFMUN","TP_UNID","NAT_JUR","QTLEITP1","QTLEITP2","QTLEITP3","COMPETEN"}
+    found={}; scanned=0
+    def bed_count(value):
+        try: return max(0,int(float(str(value or "0").replace(",","."))))
+        except (TypeError,ValueError,OverflowError): return 0
+    for index,uf in enumerate(states,1):
+        dbf=_cnes_st_dbf(downloads[uf],progress=None,required_fields=required)
+        fields=["CNES","CODUFMUN","TP_UNID","NAT_JUR","QTLEITP1","QTLEITP2","QTLEITP3","COMPETEN"]
+        for raw_code,raw_municipality,raw_type,raw_nature,raw_surgical,raw_clinical,raw_complementary,raw_competence in iter_dbf_fields(dbf,fields):
+            scanned+=1
+            unit_type=re.sub(r"\D","",str(raw_type or "")).zfill(2)
+            if unit_type not in {"05","07"}: continue
+            nature=re.sub(r"\D","",str(raw_nature or ""))
+            if len(nature)!=4 or not nature.startswith("3"): continue
+            surgical=bed_count(raw_surgical); clinical=bed_count(raw_clinical); complementary=bed_count(raw_complementary)
+            total=surgical+clinical+complementary
+            if not 5<=total<=30: continue
+            code=re.sub(r"\D","",str(raw_code or ""))
+            municipality=re.sub(r"\D","",str(raw_municipality or ""))
+            if len(code)>7 or not code or len(municipality)!=6: continue
+            code=code.zfill(7)
+            if str(raw_competence or "").strip() and str(raw_competence).strip()!=f"{year:04d}{month:02d}": continue
+            found.setdefault(code,{"cnes":code,"municipalityCode":municipality,"uf":uf,"unitTypeCode":unit_type,"legalNatureCode":nature,
+                "bedsSurgical":surgical,"bedsClinical":clinical,"bedsComplementary":complementary,"bedsTotal":total})
+        if progress: progress(min(76,33+int(43*index/max(1,len(states)))),f"Lendo a estrutura hospitalar · {index} de {len(states)} UFs · {scanned:,} registros".replace(",","."))
+
+    rows=list(found.values())
+    if progress: progress(78,f"Completando nomes de {len(rows):,} hospitais pelo cadastro público do CNES".replace(",","."))
+    names,lookup_failures=_sinasc_maternity_names([row["cnes"] for row in rows])
+    try: municipalities=_sinan_ibge_municipalities()
+    except Exception: municipalities={}
+    legal_nature_names={
+        "3069":"Fundação Privada",
+        "3077":"Serviço Social Autônomo",
+        "3131":"Entidade Sindical",
+        "3301":"Organização Social (OS)",
+        "3999":"Associação Privada",
+    }
+    legal_nature_ascii_labels={"3069":"Fundacao Privada","3077":"Servico Social Autonomo","3131":"Entidade Sindical","3301":"Organizacao Social (OS)","3999":"Associacao Privada"}
+    for cnv_path in (UPLOADS/"DEFINICOES"/"SIH"/"referencias"/"CNV"/"natjur.cnv",UPLOADS/"DEFINICOES"/"SIA"/"referencias"/"CNV"/"natjur.cnv"):
+        try: cnv_lines=cnv_path.read_text(encoding="cp1252",errors="replace").splitlines()
+        except OSError: continue
+        for line in cnv_lines:
+            match=re.match(r"^\s*\d+\s+\d+\s+\d{3}-\d\s+(.+?)\s+(\d{4})\s*$",line)
+            if match and match.group(2).startswith("3"):
+                label=match.group(1).strip()
+                if label.startswith("- "): label=label[2:].strip()
+                code=match.group(2)
+                if label and label.casefold()!=legal_nature_ascii_labels.get(code,"").casefold(): legal_nature_names[code]=label
+        if cnv_lines: break
+    for row in rows:
+        row["establishmentName"]=_report_label(names.get(row["cnes"]) or f"CNES {row['cnes']}")[:180]
+        row["municipalityName"]=_report_label(municipalities.get(row["municipalityCode"]) or f"Município {row['municipalityCode']}")[:100]
+        row["stateName"]=PREDEFINED_UF_NAMES.get(row["uf"],row["uf"])
+        row["unitTypeName"]={"05":"Hospital geral","07":"Hospital especializado"}[row["unitTypeCode"]]
+        row["legalNatureGroupName"]="Entidade sem fins lucrativos"
+        row["legalNatureName"]=legal_nature_names.get(row["legalNatureCode"],f"Natureza jurídica {row['legalNatureCode']}")
+        row["bedBandCode"]="5-9" if row["bedsTotal"]<=9 else "10-19" if row["bedsTotal"]<=19 else "20-30"
+        row["bedBandName"]={"5-9":"5 a 9 leitos","10-19":"10 a 19 leitos","20-30":"20 a 30 leitos"}[row["bedBandCode"]]
+        row["competence"]=f"{month:02d}/{year}"
+    rows.sort(key=lambda row:(row["stateName"].casefold(),row["municipalityName"].casefold(),row["establishmentName"].casefold(),row["cnes"]))
+    states_found=len({row["uf"] for row in rows})
+    total_beds=sum(row["bedsTotal"] for row in rows)
+    notes=[
+        f"Fonte: arquivos mensais estaduais ST do CNES/DATASUS, competência {month:02d}/{year}; os 27 arquivos foram verificados antes do cálculo.",
+        "Hospitais considerados: tipos CNES 05 (hospital geral) e 07 (hospital especializado). Leitos = soma de QTLEITP1 (cirúrgicos), QTLEITP2 (clínicos) e QTLEITP3 (complementares), leitos existentes cadastrados na competência, sem restringir ao SUS.",
+        "O recorte de natureza jurídica usa os códigos do grupo 3 do CNES (entidades sem fins lucrativos) como aproximação operacional de filantrópico. O cadastro mensal não oferece, nesse arquivo, um indicador independente de certificação filantrópica; a lista não confirma CEBAS ou outro certificado.",
+        f"Os nomes são consultados no cadastro público atual do CNES e podem diferir do nome registrado em {month:02d}/{year}. CNES e município permanecem como identificadores para conferência.",
+    ]
+    if lookup_failures: notes.append(f"O serviço de nomes do CNES não respondeu para {lookup_failures} estabelecimento(s); nesses casos o código CNES aparece como identificação.")
+    columns=[
+        {"id":"establishment","label":"ESTABELECIMENTO","kind":"primary","primaryField":"establishmentName","secondaryField":"cnes","secondaryPrefix":"CNES ","filterFields":["establishmentName","cnes"],"sortField":"establishmentName","type":"text","sticky":True},
+        {"id":"municipality","label":"MUNICÍPIO","field":"municipalityName","filterFields":["municipalityName","municipalityCode"],"type":"text"},
+        {"id":"state","label":"UF · ESTADO","field":"stateName","secondaryField":"uf","filterFields":["stateName","uf"],"type":"text"},
+        {"id":"unitType","label":"TIPO DE HOSPITAL","field":"unitTypeName","type":"text"},
+        {"id":"legalNature","label":"NATUREZA JURÍDICA","field":"legalNatureName","secondaryField":"legalNatureCode","type":"text"},
+        {"id":"bedBand","label":"FAIXA DE LEITOS","field":"bedBandName","type":"text"},
+        {"id":"bedsSurgical","label":"LEITOS CIRÚRGICOS","field":"bedsSurgical","type":"number","decimals":0},
+        {"id":"bedsClinical","label":"LEITOS CLÍNICOS","field":"bedsClinical","type":"number","decimals":0},
+        {"id":"bedsComplementary","label":"LEITOS COMPLEMENTARES","field":"bedsComplementary","type":"number","decimals":0},
+        {"id":"bedsTotal","label":"TOTAL DE LEITOS","field":"bedsTotal","type":"number","decimals":0,"totalField":"bedsTotal"},
+    ]
+    if progress: progress(98,"Concluindo o levantamento nacional")
+    return {"ok":True,"report":CNES_SMALL_PHILANTHROPIC_HOSPITALS_REPORT_ID,"view":"summary","flatTable":True,"file":"CNES · ST · Brasil","year":year,"month":month,"uf":"BR","state":"Brasil","municipality":"Brasil","rows":rows,"records":len(rows),"columns":columns,
+        "metrics":[{"id":"bedsTotal","label":"Leitos existentes","decimals":0}],
+        "kpis":[{"label":"HOSPITAIS NO RECORTE","value":{"value":len(rows)}},{"label":"UFS COM REGISTROS","value":{"value":states_found}},{"label":"LEITOS EXISTENTES","value":{"value":total_beds}},{"label":"MÉDIA DE LEITOS","value":{"value":round(total_beds/len(rows),1) if rows else 0,"decimals":1}}],
+        "notes":notes,"emptyStateMessage":"Nenhum hospital atende aos critérios desta competência.","cachedAt":time.time()}
 
 def _cnes_vaccine_room_report(payload: dict[str,Any], progress=None):
     year=payload.get("year"); month=payload.get("month")
@@ -7168,6 +7328,8 @@ def _predefined_sih_occupancy_services(payload: dict[str,Any], uf: str, progress
     return result
 
 def tabulate(payload, progress=None):
+    if payload.get("predefinedReport")==CNES_SMALL_PHILANTHROPIC_HOSPITALS_REPORT_ID:
+        return _cnes_small_philanthropic_hospitals_report(payload,progress)
     if payload.get("predefinedReport")=="sinasc-maternidades":
         return predefined_sinasc_maternity_detail(payload,progress) if payload.get("view")=="detail" else predefined_sinasc_maternity(payload,progress)
     if payload.get("predefinedReport")=="srag-semanal":

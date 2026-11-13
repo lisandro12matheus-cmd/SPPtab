@@ -52,6 +52,8 @@
 .report-availability{grid-column:1/-1;min-height:17px;padding:0 0 2px;color:#7b898e;font-size:10px;align-self:center}
 .report-availability.is-error{color:#a14848}
 .report-availability.is-good{color:#328368}
+.report-availability-retry{margin-left:9px;padding:3px 8px;border:1px solid #e7c8c8;border-radius:5px;background:#fff;color:#914242;font:600 10px 'DM Sans',sans-serif;cursor:pointer}
+.report-availability-retry:hover{background:#fff7f7;border-color:#d7a8a8}
 .report-availability.is-loading{display:flex;align-items:center;gap:3px}
 .report-availability-mark{width:18px;height:18px;transform:scale(.68);transform-origin:left center;margin-right:-7px}
 .report-availability-mark i{animation:report-tile 1.15s ease-in-out infinite}

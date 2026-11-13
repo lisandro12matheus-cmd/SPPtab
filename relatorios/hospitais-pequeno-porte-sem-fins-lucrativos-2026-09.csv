@@ -1,0 +1,534 @@
+﻿CNES;Estabelecimento;Município;Código IBGE do município;UF;Estado;Tipo de hospital;Grupo da natureza jurídica;Natureza jurídica específica;Código da natureza jurídica;Faixa de leitos;Código da faixa de leitos;Leitos cirúrgicos;Leitos clínicos;Leitos complementares;Total de leitos;Competência
+6303153;HOSPITAL NOSSA SENHORA DA GUIA;Maceió;270430;AL;Alagoas;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;12;0;10;22;09/2026
+7013434;HOSPITAL BATISTA DO AMAZONAS;Santo Antônio do Içá;130370;AM;Amazonas;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;28;0;28;09/2026
+2799731;HOSPITAL ANGELO MARTINS;Coração de Maria;290890;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;23;5;0;28;09/2026
+4105168;HOSPITAL EVANICE ROCHA;Cruz das Almas;290980;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;23;0;0;23;09/2026
+2413450;HOSPITAL SOMAI;Iguaí;291350;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;10;0;20;09/2026
+2819139;FUNDACAO HOSPITALAR DE IPIAU;Ipiaú;291390;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;16;13;0;29;09/2026
+4296834;HOSPITAL SAO LUCAS;Itabuna;291480;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;27;0;27;09/2026
+0989061;MATERNIDADE OTACIANA PINTO;Itabuna;291480;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;20;0;0;20;09/2026
+2414465;HOSPITAL REGIONAL SAO SEBASTIAO;Itambé;291580;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;20;0;30;09/2026
+2445204;FUNDACAO HOSPITAL E MATERNIDADE DE ITORORO;Itororó;291710;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;13;15;0;28;09/2026
+2469774;CASA DE SAUDE E MATERNIDADE MARIA JOSE DE SOUZA SANTOS;Jaguaquara;291760;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;22;2;29;09/2026
+6774938;HOSPITAL VALE DO CURACA;Jaguarari;291770;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;19;0;24;09/2026
+9162585;HOSPITAL SAO LUCAS;Juazeiro;291840;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;9;4;10;23;09/2026
+6579744;INSTITUTO DR ROBERTO;Juazeiro;291840;BA;Bahia;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;20;1;0;21;09/2026
+2506122;REDE DE SAUDE PAINEIRAS;Mucuri;292200;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;5;6;0;11;09/2026
+2301601;HOSPITAL GONCALVES MARTINS;Nazaré;292250;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;16;0;26;09/2026
+2526492;HOSPITAL EDMIR SOUZA COSTA;Nova Canaã;292270;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;2;16;5;23;09/2026
+2653494;MATERNIDADE MARIA LUIZA DIAS LAUDANO;Pojuca;292520;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;20;4;2;26;09/2026
+2304325;HOSPITAL O BOM SAMARITANO;Riachão do Jacuípe;292630;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;7;10;1;18;09/2026
+2601567;HOSPITAL REGIONAL JOAO CAMPOS;Riachão do Jacuípe;292630;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;24;2;0;26;09/2026
+2509830;HOSPITAL DO SIND DOS TRAB RURAIS DE RIO DO PIRES;Rio do Pires;292690;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Entidade Sindical;3131;20 a 30 leitos;20-30;0;20;1;21;09/2026
+4287835;INSTITUTO DE GESTAO E HUMANIZAO IGH;Salvador;292740;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;5;5;0;10;09/2026
+2497751;SARAH SALVADOR;Salvador;292740;BA;Bahia;Hospital especializado;Entidade sem fins lucrativos;Serviço Social Autônomo;3077;20 a 30 leitos;20-30;19;7;0;26;09/2026
+2603292;HOSPITAL MATERNIDADE DE SANTO AMARO;Santo Amaro;292860;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;18;0;4;22;09/2026
+2514451;HOSPITAL NOSSA SENHORA DA VITORIA;Santo Amaro;292860;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;17;6;1;24;09/2026
+2644711;HOSPITAL SANTANA;Serrinha;293050;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;13;13;0;26;09/2026
+2801779;HOSPITAL ADEMARIO VILAS BOAS;São Miguel das Matas;292940;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;8;10;0;18;09/2026
+2526093;HOSPITAL PADRE ALFREDO HAASLER;Várzea Nova;293315;BA;Bahia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;8;0;8;09/2026
+2373009;HOSPITAL E MATERNIDADE SANTA LUISA DE MARILLAC;Aracati;230110;CE;Ceará;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;12;8;8;28;09/2026
+2333813;SOCIEDADE HOSPITALAR PE DIONISIO;Aratuba;230140;CE;Ceará;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;5;0;5;09/2026
+2373475;HOSPITAL DE BARREIRA;Barreira;230195;CE;Ceará;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;12;0;12;09/2026
+2611635;INCRI;Brejo Santo;230250;CE;Ceará;Hospital especializado;Entidade sem fins lucrativos;Fundação Privada;3069;5 a 9 leitos;5-9;0;4;4;8;09/2026
+6759122;INSTITUTO CLAREAR;Fortaleza;230440;CE;Ceará;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;5;0;0;5;09/2026
+2480565;INSTITUTO DE CEGOS DO CEARA;Fortaleza;230440;CE;Ceará;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;8;0;0;8;09/2026
+5746051;HOSPITAL SAN MARINO;Juazeiro do Norte;230730;CE;Ceará;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;23;2;0;25;09/2026
+2554518;HOSPITAL SAO VICENTE FERRER;Lavras da Mangabeira;230750;CE;Ceará;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;20;2;29;09/2026
+2562391;SANTA CASA DE PARACURU;Paracuru;231020;CE;Ceará;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;11;12;1;24;09/2026
+2664666;HOSP MATERN PAULO SARASATE;Redenção;231160;CE;Ceará;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;16;0;26;09/2026
+4576497;HOSPITAL SAO VICENTE DE PAULO APIACA;Apiacá;320050;ES;Espírito Santo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;16;11;27;09/2026
+2448424;HOSPITAL DA AAGH;Colatina;320150;ES;Espírito Santo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;13;9;6;28;09/2026
+2483998;HOSPITAL MATERNIDADE NOSSA SENHORA DE APARECIDA;Montanha;320350;ES;Espírito Santo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;18;0;22;09/2026
+2547090;SANTA CASA DE MISERICORDIA JESUS MARIA JOSE;Muniz Freire;320370;ES;Espírito Santo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;2;17;1;20;09/2026
+2678233;HOSPITAL MENINO JESUS;Pedro Canário;320405;ES;Espírito Santo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;6;10;0;16;09/2026
+2599899;HOSPITAL EVANGELICO DE SANTA LEOPOLDINA HESL;Santa Leopoldina;320450;ES;Espírito Santo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;17;8;0;25;09/2026
+2484072;HOSPITAL MATERNIDADE SAO MATEUS;São Mateus;320490;ES;Espírito Santo;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;4;10;22;09/2026
+2547201;HOSPITAL PADRE OLIVIO;Vargem Alta;320503;ES;Espírito Santo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;27;0;27;09/2026
+0011843;SANTA CASA DE MISERICORDIA DE VITORIA UNIDADE PRO MATRE;Vitória;320530;ES;Espírito Santo;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;1;1;20;22;09/2026
+2441675;MATERNIDADE DR ADALBERTO PEREIRA DA SILVA ANAPOLIS;Anápolis;520110;GO;Goiás;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;10;0;0;10;09/2026
+2507358;SANTA CASA DE MISERICORDIA DE BURITI ALEGRE;Buriti Alegre;520390;GO;Goiás;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;15;2;22;09/2026
+2519429;HOSPITAL SANTA MONICA;Caldas Novas;520450;GO;Goiás;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;3;6;0;9;09/2026
+2441799;HOSPITAL DE GOIANDIRA;Goiandira;520850;GO;Goiás;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;20;1;25;09/2026
+2507129;HOSPITAL E MATERNIDADE JARAGUA;Jaraguá;521180;GO;Goiás;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;23;1;29;09/2026
+2442205;HOSPITAL SAO VICENTE DE PAULO PIRACANJUBA;Piracanjuba;521710;GO;Goiás;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;9;12;0;21;09/2026
+2340720;CEMAB CENTRO MEDICO AUGUSTA BASTOS;Rio Verde;521880;GO;Goiás;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;26;2;2;30;09/2026
+2535939;HOSPITAL SAO COTTOLENGO;Trindade;522140;GO;Goiás;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;9;2;7;18;09/2026
+4624238;HOSPITAL DO CANCER ANTONIO DINO PINHEIRO;Pinheiro;210860;MA;Maranhão;Hospital especializado;Entidade sem fins lucrativos;Fundação Privada;3069;5 a 9 leitos;5-9;0;6;0;6;09/2026
+2307006;SARAH SAO LUIS;São Luís;211130;MA;Maranhão;Hospital especializado;Entidade sem fins lucrativos;Serviço Social Autônomo;3077;20 a 30 leitos;20-30;20;10;0;30;09/2026
+2398443;HOSPITAL DONA NILZA DE OLIVEIRA PIPINO;Cláudia;510305;MT;Mato Grosso;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;0;15;0;15;09/2026
+2394723;HOSPITAL DE JAURU;Jauru;510500;MT;Mato Grosso;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;9;18;1;28;09/2026
+0405159;HOSPITAL DA VISAO DE SINOP;Sinop;510790;MT;Mato Grosso;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;6;0;0;6;09/2026
+4804120;INSTITUTO DOIS PINHEIROS;Sinop;510790;MT;Mato Grosso;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;20;7;3;30;09/2026
+2620111;ABRAMASTACIO;Anastácio;500070;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;6;9;0;15;09/2026
+2376652;HOSPITAL SAGRADO CORACAO DE JESUS;Anaurilândia;500080;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;3;4;0;7;09/2026
+2376598;A B A;Angélica;500085;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;2;18;0;20;09/2026
+5851351;HOSPITAL CASSEMS DE AQUIDAUANA;Aquidauana;500110;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;3;9;0;12;09/2026
+2371782;SANTA CASA DE BATAGUASSU;Bataguassu;500190;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;11;14;0;25;09/2026
+2376458;HOSPITAL SAO VICENTE DE PAULA;Bela Vista;500210;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;13;1;20;09/2026
+2376474;HOSPITAL JOAO BIGATON;Bonito;500220;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;21;0;27;09/2026
+2371065;HOSPITAL JULIO MAIA;Brasilândia;500230;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;7;0;11;09/2026
+2376091;HOSPITAL SAO MATEUS;Caarapó;500240;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;3;15;0;18;09/2026
+2536587;SOCIEDADE DE PROT MAT INFANCIA DE CAMAPUA;Camapuã;500260;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;2;10;1;13;09/2026
+2599996;HOSPITAL BENEFICENTE RITA ANTONIA MACIEL GODOY;Caracol;500280;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;1;6;1;8;09/2026
+2375680;SANTA CASA DE CASSILANDIA;Cassilândia;500290;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;13;0;21;09/2026
+7303068;HOSPITAL CASSEMS UNIDADE DE COXIM;Coxim;500330;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;14;0;22;09/2026
+2371332;MISSAO CAIUA;Dourados;500370;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;14;0;14;09/2026
+2591340;HOSPITAL E MATERNIDADE NOSSA SENHORA DA GLORIA;Glória de Dourados;500400;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;8;0;12;09/2026
+3249336;HOSPITAL EDELMIRA NUNES DE OLIVEIRA;Guia Lopes da Laguna;500410;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;6;9;0;15;09/2026
+2374226;HOSPITAL SAO JUDAS TADEU;Iguatemi;500430;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;18;0;26;09/2026
+2536838;HOSPITAL SAO FRANCISCO DE ITAQUIRAI;Itaquiraí;500460;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;11;1;16;09/2026
+2558289;HOSPITAL MARECHAL RONDON;Jardim;500500;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;21;0;26;09/2026
+2558408;HOSPITAL SANTA CATARINA;Jateí;500510;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;5;0;5;09/2026
+2536862;HOSPITAL BENEFICENTE DR BEZERRA DE MENEZES;Mundo Novo;500568;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;26;0;30;09/2026
+6611044;HOSPITAL CASSEMS UNIDADE NAVIRAI;Naviraí;500570;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;7;0;7;09/2026
+5022118;HOSPITAL CASSEMS;Nova Andradina;500620;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;11;11;1;23;09/2026
+3250415;HOSPITAL E MATERNIDADE NOVO HORIZONTE;Novo Horizonte do Sul;500625;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;3;6;0;9;09/2026
+6428037;HOSPITAL CASSEMS UNIDADE DE PARANAIBA;Paranaíba;500630;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;12;8;0;20;09/2026
+2710455;HOSPITAL E MAT IDIMAQUE PAES FERREIRA;Rio Negro;500730;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;2;7;1;10;09/2026
+2361027;HOSPITAL RACHID SALDANHA DERZI;Sonora;500793;MS;Mato Grosso do Sul;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;4;8;0;12;09/2026
+2172852;SANTA CASA MISERICORDIA DE ALTEROSA;Alterosa;310200;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;16;0;21;09/2026
+2202638;HOSPITAL NOSSA SENHORA DA CONCEICAO;Alto Rio Doce;310210;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;14;2;16;09/2026
+2100371;HOSPITAL NOSSA SENHORA DE LOURDES DE ALVINOPOLIS;Alvinópolis;310230;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;14;16;0;30;09/2026
+2796767;SANTA CASA DE MISERICORDIA DE ANDRELANDIA;Andrelândia;310280;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;5;7;0;12;09/2026
+2168421;SANTA CASA DE MISERICORDIA DE AREADO;Areado;310430;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;6;6;1;13;09/2026
+3649156;HOSPITAL DONA PAULINA DAMEN KOCKX;Bandeira do Sul;310530;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;9;0;9;09/2026
+2760886;HOSPITAL SAO JOSE DE BICAS;Bicas;310690;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;2;27;0;29;09/2026
+2179628;SANTA CASA DE BOM SUCESSO;Bom Sucesso;310800;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;11;19;0;30;09/2026
+2796368;HOSPITAL SAO JOSE;Botelhos;310840;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;10;5;1;16;09/2026
+2127946;HOSPITAL SAO CAETANO BRASOPOLIS;Brazópolis;310890;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;24;0;24;09/2026
+2128020;HOSPITAL E MAT SENHOR BOM JESUS BUENO BRANDAO;Bueno Brandão;310910;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;18;0;22;09/2026
+2761262;HOSPITAL DR OTAVIO GONCALVES;Cachoeira de Pajeú;310270;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;27;0;27;09/2026
+2127091;HOSPITAL DR PACIFICO MASCARENHAS;Caetanópolis;310990;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;24;1;25;09/2026
+2127733;SANTA CASA DE MISERICORDIA DE CALDAS;Caldas;311030;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;12;18;0;30;09/2026
+2127725;IRMANDADE DA SANTA CASA DE MISERICORDIA DE CAMANDUCAIA;Camanducaia;311050;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;7;12;0;19;09/2026
+2794136;HOSPITAL GERAL DE CAMBUQUIRA;Cambuquira;311070;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;16;2;25;09/2026
+2775921;SANTA CASA DA CAMPANHA;Campanha;311090;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;3;12;0;15;09/2026
+2121409;HOSPITAL SAO VICENTE DE PAULO;Campina Verde;311110;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;17;0;27;09/2026
+2098156;SANTA CASA DE CAMPOS ALTOS;Campos Altos;311150;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;19;1;28;09/2026
+2796384;HOSPITAL SAO VICENTE DE PAULA;Campos Gerais;311160;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;11;13;0;24;09/2026
+2142295;HOSPITAL CARLOS CHAGAS;Candeias;311200;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;0;18;0;18;09/2026
+2121514;HOSPITAL SEBASTIAO PAES DE ALMEIDA;Canápolis;311180;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;5;13;0;18;09/2026
+7201109;FAEPU UNIDADE CAPINOPOLIS;Capinópolis;311260;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;20 a 30 leitos;20-30;8;17;0;25;09/2026
+2146398;SANTA CASA DE CARIDADE DE CAPITOLIO;Capitólio;311280;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;6;10;0;16;09/2026
+2135116;HOSPITAL SAO VICENTE DE PAULO CARBONITA;Carbonita;311350;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;13;0;13;09/2026
+2127768;HOSPITAL E MATERNIDADE DE CAREACU;Careaçu;311360;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;3;12;0;15;09/2026
+2761017;HOSPITAL NOSSA SENHORA DO CARMO;Carmo da Cachoeira;311390;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;17;0;22;09/2026
+2142937;HOSPITAL OLINTO FERREIRA DINIZ CARMO DA MATA;Carmo da Mata;311400;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;21;0;26;09/2026
+2761149;HOSPITAL DE CARMO DE MINAS;Carmo de Minas;311410;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;15;0;15;09/2026
+2118246;STA CASA MIS CARMO DO PARANAIBA DR ADILON CARDOSO TEIXEIRA;Carmo do Paranaíba;311430;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;18;0;28;09/2026
+2796376;HOSPITAL SAO VICENTE DE PAULO;Carmo do Rio Claro;311440;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;15;0;21;09/2026
+2143127;SANTA CASA MISERICORDIA NOSSA SENHORA CARMO DE C MINAS;Carmópolis de Minas;311450;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;22;0;28;09/2026
+2760673;HOSPITAL SAO VICENTE DE PAULO;Carrancas;311460;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;3;12;0;15;09/2026
+2764830;HOSPITAL CASA DE CARIDADE SAO VICENTE DE PAULA;Caxambu;311550;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;9;18;2;29;09/2026
+2136104;HOSPITAL SAO CAETANO;Cipotânea;311630;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;12;0;12;09/2026
+2136945;HOSPITAL QUELUZ;Conselheiro Lafaiete;311830;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;12;7;1;20;09/2026
+2761165;HOSPITAL DE CRISTINA;Cristina;312050;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;21;0;21;09/2026
+2144514;HOSPITAL SAO SEBASTIAO DIONISIO;Dionísio;312180;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;9;0;9;09/2026
+2761238;HOSPITAL DIVINENSE SERVICE;Divino;312200;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;24;0;29;09/2026
+2144654;HOSPITAL NOSSA SENHORA DAS GRACAS DOM JOAQUIM;Dom Joaquim;312260;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;14;1;15;09/2026
+2161729;HOSPITAL JORGE CAETANO DE MATTOS;Ervália;312400;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;24;0;24;09/2026
+2127997;SANTA CASA E MAT N S DE FATIMA ESTIVA;Estiva;312450;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;2;17;0;19;09/2026
+2163071;HOSPITAL SAO JOSE;Eugenópolis;312490;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;19;0;19;09/2026
+2144522;HOSPITAL SAO JUDAS TADEU;Ferros;312590;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;19;0;19;09/2026
+2202883;HOSPITAL E MATERNIDADE DR AURELIANO BRANDAO;Gouveia;312760;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;14;0;24;09/2026
+2146479;SANTA CASA DE MISERICORDIA DE GUAPE;Guapé;312810;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;18;0;22;09/2026
+2796430;SANTA CASA DE CARIDADE DE GUARANESIA;Guaranésia;312830;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;23;0;30;09/2026
+2136139;HOSPITAL MONUMENTO AS MAES;Ibertioga;312940;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;18;1;19;09/2026
+2181029;SANTA CASA DE IBIA;Ibiá;312950;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;5;13;0;18;09/2026
+2761173;HOSPITAL DE ILICINEA;Ilicínea;313050;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;19;0;29;09/2026
+2102579;HOSPITAL SAO LUCAS DE ITABIRINHA;Itabirinha;313180;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;9;8;0;17;09/2026
+2142627;SANTA CASA DE ITAGUARA;Itaguara;313220;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;18;0;26;09/2026
+2135949;HOSPITAL DE ITAMARANDIBA;Itamarandiba;313250;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;3;16;1;20;09/2026
+2697548;HOSPITAL TRISTAO DA CUNHA;Itambacuri;313270;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;11;2;21;09/2026
+2146444;HOSPITAL SAO JOAO BATISTA DE ITAMOGI;Itamogi;313290;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;14;0;14;09/2026
+2102773;HOSPITAL SAO VICENTE DE PAULO DE ITANHOMI;Itanhomi;313320;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;6;0;10;09/2026
+2143895;SANTA CASA DE ITAPECERICA;Itapecerica;313350;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;14;13;3;30;09/2026
+2117398;FUNDACAO HOSPITALAR SANTO ANTONIO JABOTICATUBAS;Jaboticatubas;313460;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;26;0;26;09/2026
+2775980;SANTA CASA DE MISERICORDIA DE JACUTINGA;Jacutinga;313490;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;23;0;27;09/2026
+2213516;ASSOCIACAO HOSPITALAR DE JECEABA;Jeceaba;313540;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;23;1;24;09/2026
+2139065;HOSPITAL PAULO VI;Jordânia;313650;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;1;17;0;18;09/2026
+2172860;HOSPITAL MONSENHOR GENESIO;Juruaia;313690;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;7;8;0;15;09/2026
+2765098;ASSOCIACAO HOSPITAL BELIZARIO MIRANDA;Lajinha;313770;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;23;1;30;09/2026
+4041690;SANTA CASA DE MISER DE LIMA DUARTE;Lima Duarte;313860;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;2;21;0;23;09/2026
+2099209;HOSPITAL SAO VICENTE DE PAULO MANTENA;Mantena;313960;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;12;13;0;25;09/2026
+2144182;HOSPITAL DR ODILON DE ANDRADE DE MARTINHO CAMPOS;Martinho Campos;314050;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;0;15;0;15;09/2026
+2115077;FUNDACAO DE SAUDE CRISTO REI;Matipó;314090;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;18;3;29;09/2026
+2103230;FUNDACAO HOSPITALAR MENDES PIMENTEL;Mendes Pimentel;314150;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;20 a 30 leitos;20-30;15;6;0;21;09/2026
+2161575;HOSPITAL SAO VICENTE DE PAULO DE MERCES MATRIZ;Mercês;314160;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;2;13;0;15;09/2026
+2760819;HOSPITAL SANTA RITA DE CASSIA;Minduri;314190;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;2;11;0;13;09/2026
+2161702;CASA DE CARIDADE SAO VICENTE DE PAULO;Miraí;314220;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;21;0;26;09/2026
+2143674;HOSPITAL PROFESSOR BASILIO MOEMA;Moema;314240;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;5;6;0;11;09/2026
+2119439;HOSPITAL CRISTO REI;Montalvânia;314270;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;17;0;22;09/2026
+2776022;SANTA CASA DE MONTE ALEGRE DE MINAS;Monte Alegre de Minas;314280;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;5;10;0;15;09/2026
+2167573;HOSPITAL E MATERNIDADE FREI FRANCISCO STIENEN;Monte Belo;314300;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;5;7;0;12;09/2026
+2178648;HOSPITAL CASA DE CARIDADE SAO SEBASTIAO;Morada Nova de Minas;314350;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;15;0;15;09/2026
+2099233;IRMANDADE DA SANTA CASA DE MUZAMBINHO;Muzambinho;314410;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;21;0;27;09/2026
+2776030;SANTA CASA DE NEPOMUCENO;Nepomuceno;314460;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;11;18;0;29;09/2026
+2183811;HOSPITAL SAO BENTO DE NOVO CRUZEIRO;Novo Cruzeiro;314530;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;24;0;24;09/2026
+2122936;HOSPITAL E MATERNIDADE MARIA ELOY;Palma;314670;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;18;0;18;09/2026
+2144174;HOSPITAL SAO GABRIEL;Passa Tempo;314770;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;16;0;16;09/2026
+2127938;SANTA CASA DE MISERICORDIA DE PEDRALVA;Pedralva;314910;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;13;0;13;09/2026
+2154560;HOSPITAL E MATERNIDADE DR EUGENIO GOMES DE CARVALHO;Pedro Leopoldo;314930;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;16;2;0;18;09/2026
+2166305;SANTA CASA DE PERDIZES;Perdizes;314980;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;3;9;0;12;09/2026
+2112647;PEQUENO HOSPITAL NOSSA SENHORA DA PIEDADE;Piedade do Rio Grande;315030;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;7;0;7;09/2026
+2109700;HOSPITAL SAO VICENTE DE PAULO;Piranga;315080;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;19;0;19;09/2026
+2142406;SANTA CASA DE MISERICORDIA DE PITANGUI;Pitangui;315140;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;23;0;30;09/2026
+2178591;SANTA CASA DE MISERICORDIA DE POMPEU;Pompéu;315200;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;19;0;27;09/2026
+2178990;HOSPITAL SAO VICENTE DE PAULO DE POTE;Poté;315240;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;2;22;0;24;09/2026
+2776014;SANTA CASA DE MISERICORDIA SAO VICENTE DE PAULO;Pouso Alto;315260;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;15;0;23;09/2026
+2123436;SANTA CASA DE PRADOS;Prados;315270;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;29;0;29;09/2026
+2145685;HOSPITAL E MATERNIDADE RENASCER;Prata;315280;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;6;12;1;19;09/2026
+2122618;HOSPITAL SAO SEBASTIAO DE RECREIO;Recreio;315410;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;9;17;0;26;09/2026
+2119463;HOSPITAL TACITO DE FREITAS COSTA;Rio Pardo de Minas;315560;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;23;0;27;09/2026
+2144611;HOSPITAL JULIA KUBITSCHEK;Rio Piracicaba;315570;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;20;0;24;09/2026
+2796791;SANTA CASA MISERIOCORDIA DE RIO PRETO;Rio Preto;315590;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;1;15;0;16;09/2026
+2135140;HOSPITAL JOAO CESAR DE OLIVEIRA;Rio Vermelho;315600;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;3;17;0;20;09/2026
+2139138;HOSPITAL SAO VICENTE DE PAULO;Rubim;315660;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;12;16;2;30;09/2026
+8125872;HPS SAUDE;Salinas;315700;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;3;15;0;18;09/2026
+2139111;HOSPITAL SENHOR DO BONFIM;Salto da Divisa;315710;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;0;11;1;12;09/2026
+2144638;SANTA CASA NOSSA SENHORA DAS MERCES;Santa Bárbara;315720;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;23;0;30;09/2026
+2144565;HOSPITAL PADRE ESTEVAN;Santa Maria de Itabira;315800;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;8;0;8;09/2026
+2796570;HOSPITAL MONSENHOR MARCIANO;Santa Rita de Jacutinga;315930;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;2;12;2;16;09/2026
+2760851;HOSPITAL SAO JOAO DE DEUS;Senador Firmino;316570;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;6;0;6;09/2026
+2168448;HOSPITAL NOSSA SENHORA APARECIDA;Serrania;316690;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;3;7;0;10;09/2026
+2167670;HOSPITAL E MATERNIDADE SAO PEDRO;São Pedro da União;316390;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;6;0;6;09/2026
+2123231;HOSPITAL SAO VICENTE DE PAULO;São Vicente de Minas;316530;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;15;1;23;09/2026
+2164825;HOSPITAL BENEFICENCIA PORTUGUESA;Uberaba;317010;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;5;3;0;8;09/2026
+2206552;SANTA CASA DE MISERICORDIA DE UNIAO;União de Minas;317043;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;15;0;22;09/2026
+2104741;HOSPITAL NOSSA SENHORA APARECIDA;Varzelândia;317090;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;0;13;0;13;09/2026
+6856209;HOSPITAL DE DEUS;Vespasiano;317120;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;19;1;30;09/2026
+2764822;CASA DE CARIDADE SANTO ANTONIO;Virgínia;317170;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;28;1;29;09/2026
+2102404;HOSPITAL SANTANA DE AGUA BOA;Água Boa;310060;MG;Minas Gerais;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;0;12;0;12;09/2026
+5621674;INSTITUTO DE SAUDE DE AMPERE ISA;Ampére;410100;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Organização Social (OS);3301;20 a 30 leitos;20-30;3;16;1;20;09/2026
+2742020;INSTITUTO SAUDE SANTA CLARA;Candói;410442;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;3;24;0;27;09/2026
+2571811;HOSPITAL NOSSA SENHORA APARECIDA;Capitão Leônidas Marques;410460;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;18;1;24;09/2026
+2738279;HOSPITAL SANTA SIMONE;Corbélia;410630;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;9;18;1;28;09/2026
+2577380;CEGEN;Cornélio Procópio;410640;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;10;10;30;09/2026
+0015601;HOSPITAL SAO VICENTE CIC;Curitiba;410690;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;20 a 30 leitos;20-30;0;25;0;25;09/2026
+8044325;PRO VITTA ASSOCIACAO BENEF DE ASSIST SOCIAL E SAUDE;Curitiba;410690;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;20;4;2;26;09/2026
+2735962;SANTA CASA DE ENGENHEIRO BELTRAO;Engenheiro Beltrão;410750;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;22;0;27;09/2026
+3139301;HOSPITAL SEMMELWEIS;Guarapuava;410940;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;1;14;2;17;09/2026
+2582058;HOSPITAL UBIRAJARA CONDESSA DE ITAMBARACA;Itambaracá;411100;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;12;0;12;09/2026
+2733617;HOSPITAL E MATERNIDADE SANTA TEREZINHA;Japurá;411240;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;3;12;0;15;09/2026
+2781751;HOSPITAL JESUITAS;Jesuítas;411275;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;25;0;25;09/2026
+2781719;HOSPITAL COMUNITARIO DR LINCOLN GRACA DE JMTAVORA;Joaquim Távora;411280;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;20;0;24;09/2026
+2578506;HOFTALON HOSPITAL DE OLHOS;Londrina;411370;PR;Paraná;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;10;2;0;12;09/2026
+2590166;HOSPITAL SAO JOAO DO IVAI II;Lunardelli;411375;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;9;1;14;09/2026
+2554011;HOSPITAL DE CARIDADE SAO PEDRO;Mallet;411390;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;20;0;24;09/2026
+2962403;HOSPITAL DA CRIANCA DE MARINGA;Maringá;411520;PR;Paraná;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;13;10;23;09/2026
+2810018;HOSPITAL BOM PASTOR;Nova Santa Rosa;411722;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;17;1;18;09/2026
+2810026;INSTITUTO DOUTOR RODOLFO VILELA;Pato Bragado;411845;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;16;0;16;09/2026
+0018090;FUNDACAO HOSPITALAR PINHAIS;Pinhais;411915;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;4;7;1;12;09/2026
+0935662;SANTA CASA DE MISERICORDIA NOSSA SRA DAS GRACAS PIEN;Piên;411910;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;9;2;21;09/2026
+2584832;INSTITUTO DE SAUDE NOSSA SENHORA DE LOURDES DE PLANALTO;Planalto;411980;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;20;1;29;09/2026
+2817667;HOSPITAL CRISTO REI;Quitandinha;412120;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;0;18;1;19;09/2026
+2554097;HOSPITAL DE CARIDADE DONA DARCY VARGAS;Rebouças;412150;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;29;0;29;09/2026
+5539900;UNIDADE HOSPITALAR SAO RAFAEL MEDIC;Rolândia;412240;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;5;5;0;10;09/2026
+2733315;HOSPITAL SANTA MONICA;Rondon;412260;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;20 a 30 leitos;20-30;4;17;1;22;09/2026
+0854646;HOSPITAL BENEFICENTE MOACIR MICHELETTO;Santa Helena;412350;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;15;0;19;09/2026
+4805011;SANTA CASA DE SANTA HELENA;Santa Helena;412350;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;13;10;2;25;09/2026
+2686813;HOSPITAL E MATERNIDADE IMACULADA CONCEICAO;São João do Triunfo;412510;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;13;0;17;09/2026
+2549751;HOSPITAL PAULO FORTES;São Mateus do Sul;412560;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;13;0;20;09/2026
+2573466;SANTA CASA DE MISERICORDIA MARIA SANTISSIMA;São Pedro do Ivaí;412580;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;3;12;1;16;09/2026
+2557185;AAHTS;Teixeira Soares;412700;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;5;0;5;09/2026
+2334755;SANTA CASA SAO VICENTE DE PAULO DE TERRA BOA;Terra Boa;412720;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;9;13;0;22;09/2026
+2582066;SANTA CASA URAI;Uraí;412840;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;28;0;28;09/2026
+2573032;APMI;Vera Cruz do Oeste;412855;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;6;8;0;14;09/2026
+2586096;HOSPITAL DR JOAO FRANCISCO CIOCCARI;Verê;412860;PR;Paraná;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;2;15;1;18;09/2026
+2605449;CASA DE SAUDE NOSSA SENHORA DA CONCEICAO;São Mamede;251490;PB;Paraíba;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;6;10;0;16;09/2026
+2362112;CASA DE SAUDE PADRE COSTA;Uiraúna;251690;PB;Paraíba;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;13;0;13;09/2026
+2322730;HOSPITAL MENINO JESUS APASEU;Uiraúna;251690;PB;Paraíba;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;6;13;0;19;09/2026
+8111510;PSIQUE CLINICA DE REABILITACAO PSIQUIATRICA;Ananindeua;150080;PA;Pará;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;24;1;25;09/2026
+0811645;HOSPITAL ADVENTISTA DE BARCARENA;Barcarena;150130;PA;Pará;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;11;0;11;09/2026
+2311763;HOSPITAL MUNICIPAL DR AFONSO RODRIGUES ALMEIDA NEVES;Barcarena;150130;PA;Pará;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;20;2;2;24;09/2026
+2332930;MATERNIDADE DO POVO MATRIZ;Belém;150140;PA;Pará;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;1;18;27;09/2026
+5917387;HOSPITAL SAO JOAQUIM;Bujaru;150190;PA;Pará;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;6;0;6;09/2026
+7360347;ASSOCIACAO CENAS;Capanema;150220;PA;Pará;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;18;10;2;30;09/2026
+6312314;HOSPITAL DE PORTO TROMBETAS;Oriximiná;150530;PA;Pará;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;9;6;3;18;09/2026
+6931561;HOSPITAL DMI BELO JARDIM;Belo Jardim;260170;PE;Pernambuco;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;10;0;20;09/2026
+2703041;HOSPITAL E MATERNIDADE ALCIDES CURSINO;Buíque;260280;PE;Pernambuco;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;20;0;24;09/2026
+6228852;ICIA;Caruaru;260410;PE;Pernambuco;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;3;10;13;09/2026
+2638991;HOSPITAL INFANTIL PALMIRA SALES;Garanhuns;260600;PE;Pernambuco;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;20;5;0;25;09/2026
+2712067;HOSPITAL SEVERINO TAVORA;Orobó;260970;PE;Pernambuco;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;19;0;23;09/2026
+4206290;FUNDACAO NEUROCARDIO;Petrolina;261110;PE;Pernambuco;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;20 a 30 leitos;20-30;22;0;0;22;09/2026
+0000485;FUNDACAO ALTINO VENTURA;Recife;261160;PE;Pernambuco;Hospital especializado;Entidade sem fins lucrativos;Fundação Privada;3069;20 a 30 leitos;20-30;30;0;0;30;09/2026
+6397018;UNIDADE AVANCADA DO HOSPITAL PORTUGUES DE BOA VIAGEM;Recife;261160;PE;Pernambuco;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;17;0;17;09/2026
+2432307;CENTRO HOSPITALAR SANTA MARIA;Vitória de Santo Antão;261640;PE;Pernambuco;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;10;0;20;09/2026
+2777673;HOSPITAL BENEFICENCIA CHAPADA DO ARARIPE;Marcolândia;220595;PI;Piauí;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;20 a 30 leitos;20-30;25;5;0;30;09/2026
+2365022;HOSPITAL E MATERNIDADE PETRONILA CAVALCANTI;Paulistana;220780;PI;Piauí;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;12;12;1;25;09/2026
+8230978;HAMOPI;Picos;220800;PI;Piauí;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;8;8;0;16;09/2026
+2323478;HOSPITAL SAO CARLOS BORROMEO;Teresina;221100;PI;Piauí;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;4;13;0;17;09/2026
+2287927;HOSPITAL E MATERNIDADE MARIA DE NAZARE;Barra do Piraí;330030;RJ;Rio de Janeiro;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;14;9;6;29;09/2026
+5892732;HOSPITAL LUZIA BENEVENUTO;Belford Roxo;330045;RJ;Rio de Janeiro;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;28;0;0;28;09/2026
+5811406;INSTITUTO ELISA DE CASTRO;Belford Roxo;330045;RJ;Rio de Janeiro;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;10;4;14;09/2026
+2272601;HOSPITAL NOSSA SENHORA DO CARMO;Carmo;330120;RJ;Rio de Janeiro;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;22;0;29;09/2026
+2277174;HOSPITAL NELSON SALLES;Engenheiro Paulo de Frontin;330180;RJ;Rio de Janeiro;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;20;0;26;09/2026
+7550944;HOSPITAL ADVENTISTA SILVESTRE UNIDADE ITABORAI;Itaboraí;330190;RJ;Rio de Janeiro;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;2;2;8;12;09/2026
+2276267;HOSPITAL NATIVIDADE;Natividade;330310;RJ;Rio de Janeiro;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;16;3;26;09/2026
+2273101;HOSPITAL SAO LUCAS;Quatis;330412;RJ;Rio de Janeiro;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;21;1;28;09/2026
+2288907;APMIR;Resende;330420;RJ;Rio de Janeiro;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;3;3;21;27;09/2026
+2280477;HOSPITAL E MATERNIDADE DA ALDEIA;São Pedro da Aldeia;330520;RJ;Rio de Janeiro;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;25;0;0;25;09/2026
+2295105;HOSPITAL SANTA ISABEL;Valença;330610;RJ;Rio de Janeiro;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;16;10;0;26;09/2026
+7938861;CIS CENTRO INTEGRADO DE SAUDE;Vassouras;330620;RJ;Rio de Janeiro;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;1;2;9;12;09/2026
+2474859;HOSPITAL MATERNIDADE DE ACARI;Acari;240010;RN;Rio Grande do Norte;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;14;0;20;09/2026
+2474301;HOSPITAL MATERNIDADE DR TEODULO AVELINO;Afonso Bezerra;240030;RN;Rio Grande do Norte;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;7;1;8;09/2026
+2476266;HOSPITAL MATERNIDADE DR RUY MARIZ;Jardim do Seridó;240570;RN;Rio Grande do Norte;Hospital geral;Entidade sem fins lucrativos;Organização Social (OS);3301;20 a 30 leitos;20-30;10;12;0;22;09/2026
+2473844;HOSPITAL MATERNIDADE ALUISIO ALVES;Lajes;240670;RN;Rio Grande do Norte;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;14;0;21;09/2026
+2361078;MATERNIDADE DR GRACILIANO LORDAO;Parelhas;240890;RN;Rio Grande do Norte;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;20;2;0;22;09/2026
+2407868;HOSPITAL DR NELSON MAIA;Pau dos Ferros;240940;RN;Rio Grande do Norte;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;21;0;0;21;09/2026
+2409658;MATERNIDADE SANTA LUIZA DE MARILLAC;Pau dos Ferros;240940;RN;Rio Grande do Norte;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;15;0;0;15;09/2026
+2409399;APAMI DE PORTALEGRE;Portalegre;241020;RN;Rio Grande do Norte;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;16;6;0;22;09/2026
+2476541;HOSPITAL MARIA CANDIDA DE MEDEIROS MARIZ;Serra Negra do Norte;241340;RN;Rio Grande do Norte;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;16;0;16;09/2026
+2381125;HOSP LINDOLFO FERNANDES;Tenente Ananias;241410;RN;Rio Grande do Norte;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;13;0;20;09/2026
+2262010;HOSPITAL DA COLONIA NOVA;Aceguá;430003;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;11;17;0;28;09/2026
+2265885;HOSPITAL AJURICABA;Ajuricaba;430020;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;19;2;21;09/2026
+2707993;HOSPITAL DE CARIDADE DE ALECRIM;Alecrim;430030;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;28;0;28;09/2026
+2228564;HOSPITAL NOSSA SENHORA;Alpestre;430050;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;3;12;0;15;09/2026
+2228629;HOSPITAL SAO GABRIEL AMETISTA DO SUL;Ametista do Sul;430064;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;23;0;23;09/2026
+2249502;ACHA ARATIBA;Aratiba;430090;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;19;0;29;09/2026
+2227746;ASSOCIACAO BENEFICIENTE HOSPITAL SAO JOSE;Barão;430165;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;12;0;12;09/2026
+6011926;HOSPITAL DE BOM JESUS;Bom Jesus;430230;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;22;1;27;09/2026
+2252023;HOSPITAL DE CARIDADE SANTANA;Bom Retiro do Sul;430240;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;9;15;5;29;09/2026
+2252058;HOSP DR ANUAR ELIAS AESSE BOQUEIRAO DO LEAO;Boqueirão do Leão;430245;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;1;27;1;29;09/2026
+2265958;HOSPITAL DR SERGIO MALTA;Butiá;430270;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;10;6;16;09/2026
+5699525;ASSO;Cacequi;430290;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;25;0;25;09/2026
+2228548;HOSPITAL SAO ROQUE DE CAICARA;Caiçara;430340;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;3;18;0;21;09/2026
+2261154;HCN;Campo Novo;430400;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;25;1;26;09/2026
+2246872;HOSPITAL SANTA LUCIA CASCA;Casca;430490;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;9;13;2;24;09/2026
+2261103;HOSPITAL DE CHIAPETTA;Chiapetta;430540;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;2;19;1;22;09/2026
+3378691;HOSPITAL DA COMUNIDADE AHCROS CONSTANTINA;Constantina;430580;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;21;4;30;09/2026
+2235382;ASSOC HOSP SANTO ANTONIO DE PADUA;Coronel Bicaco;430590;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;24;1;25;09/2026
+2252074;HOSPITAL SAO GABRIEL ARCANJO;Cruzeiro do Sul;430620;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;12;4;16;09/2026
+2246937;HOSPITAL SAO JOSE DAVID CANABARRO;David Canabarro;430630;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;1;27;0;28;09/2026
+6953689;ASDOMF;Dom Feliciano;430650;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;25;0;25;09/2026
+2241145;HOSPITAL BENEFICENTE NOSSA SENHORA DE FATIMA;Flores da Cunha;430820;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;21;1;30;09/2026
+2249545;HOSPITAL SANTA ISABEL;Gaurama;430870;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;28;0;28;09/2026
+2265893;HOSPITAL ADESCO;Humaitá;430970;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;25;0;25;09/2026
+2244179;HOSPITAL DE IVORA;Ivorá;431075;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;7;0;7;09/2026
+2244152;IRDESI DE JAGUARI;Jaguari;431110;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;12;2;20;09/2026
+2244187;HOSPITAL DE MATA;Mata;431210;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;12;0;12;09/2026
+2233444;HOSPITAL DR ERNESTO MAURICIO ARNDT;Morro Redondo;431245;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;18;0;18;09/2026
+2224615;HOSPITAL SAO LUIZ;Mostardas;431250;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;20;1;21;09/2026
+2707942;HOSPITAL BENEFICENTE NOSSA SENHORA APARECIDA;Muçum;431260;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;18;0;18;09/2026
+2252112;HOSPITAL SAO JOAO BATISTA NOVA BRESCIA;Nova Bréscia;431300;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;28;0;28;09/2026
+2241102;HOSPITAL NOVA PETROPOLIS;Nova Petrópolis;431320;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;19;2;25;09/2026
+2246910;HOSPITAL ALTO JACUI NAO ME TOQUE;Não-Me-Toque;431265;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;16;12;0;28;09/2026
+2224607;HOSPITAL SAO JOSE;Palmares do Sul;431365;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;1;28;0;29;09/2026
+2228580;HOSPITAL SANTA TEREZINHA PALMITINHO;Palmitinho;431380;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;16;0;20;09/2026
+2241218;HOSPITAL BENEFICENTE NOSSA SENHORA APARECIDA;Paraí;431400;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;22;1;30;09/2026
+2234467;HOSPITAL PARAISO ASSOCIACAO ASSISTENCIAL E BENEFICENTE;Paraíso do Sul;431402;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;21;1;26;09/2026
+2244969;HOSPITAL DE OLHOS LIONS PASSO FUNDO;Passo Fundo;431410;RS;Rio Grande do Sul;Hospital especializado;Entidade sem fins lucrativos;Fundação Privada;3069;5 a 9 leitos;5-9;8;0;0;8;09/2026
+6010830;HOSPITAL ORTOPEDICO DE PASSO FUNDO;Passo Fundo;431410;RS;Rio Grande do Sul;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;20;0;0;20;09/2026
+2233339;SANTA CASA DE MISERICORDIA DE PEDRO OSORIO;Pedro Osório;431420;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;3;26;0;29;09/2026
+2261138;HOSPITAL PEJUCARA;Pejuçara;431430;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;15;0;15;09/2026
+2244209;CASA DE SAUDE SAO JOSE;Pinhal Grande;431447;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;12;0;12;09/2026
+2237881;HOSPITAL BANCO DE OLHOS;Porto Alegre;431490;RS;Rio Grande do Sul;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;22;0;0;22;09/2026
+2252082;HOSPITAL SANTA ISABEL PROGRESSO;Progresso;431515;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;2;14;6;22;09/2026
+2252171;HOSPITAL DOUTOR OSCAR BENEVOLO;Putinga;431520;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;30;0;30;09/2026
+2263831;ASSOCIACAO HOSPITALAR 15 DE NOVEMBRO;Quinze de Novembro;431535;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;15;0;15;09/2026
+2227703;HOSPITAL NOSSA SENHORA DO ROSARIO DE RIOZINHO;Riozinho;431575;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;27;0;27;09/2026
+2252147;SOCIEDADE BENEFICENTE ROQUE GONZALES;Roca Sales;431580;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;17;0;23;09/2026
+2235447;HOSPITAL PADRE EUGENIO;Rondinha;431620;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;9;14;3;26;09/2026
+2259974;HOSPITAL SANTO ANTONIO ROQUE GONZALES;Roque Gonzales;431630;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;3;19;4;26;09/2026
+2227681;HOSPITAL SAO SALVADOR;Salvador do Sul;431650;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;1;14;0;15;09/2026
+2255928;HOSPITAL MONTE ALVERNE;Santa Cruz do Sul;431680;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;24;0;30;09/2026
+2234475;HOSPITAL SAO JOAO EVANGELISTA;Segredo;432026;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;19;0;19;09/2026
+6364810;HOSPITAL DR ROBERTO BINATTO;São João do Polêsine;431843;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;29;0;29;09/2026
+2250713;HOSPITAL DE CARIDADE SAO PAULO SAO PAULO DAS MISSOES;São Paulo das Missões;431930;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;30;0;30;09/2026
+2244314;HOSPITAL GETUINAR DAVILA DO NASCIMENTO;São Pedro do Sul;431940;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;2;28;0;30;09/2026
+2235366;REDE HOSPITALAR ISAC UNIDADE TRINDADE DO SUL;Trindade do Sul;432195;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;12;1;21;09/2026
+5050170;HOSPITAL DR OSVALDO TEIXEIRA;Tucunduva;432210;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;30;0;30;09/2026
+2236338;HOSPITAL VALE DO SOL;Vale do Sol;432253;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;24;1;30;09/2026
+4479823;HOSPITAL SAO SEBASTIAO MARTIR FILIAL 01;Venâncio Aires;432260;RS;Rio Grande do Sul;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;9;0;9;09/2026
+6926401;HOSPITAL SAO DANIEL COMBONI;Cacoal;110004;RO;Rondônia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;2;15;0;17;09/2026
+6804497;HOSPITAL BOM PASTOR;Guajará-Mirim;110010;RO;Rondônia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;3;19;0;22;09/2026
+0152439;ASTIR;Porto Velho;110020;RO;Rondônia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;24;1;25;09/2026
+8553319;HOSPITAL BENEFICENTE DE TEIXEIROPOLIS;Teixeirópolis;110155;RO;Rondônia;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;5;0;5;09/2026
+2410834;HOSPITAL ROGACIONISTA EVANGELICO;Abelardo Luz;420010;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;12;18;0;30;09/2026
+2377160;FUNDACAO HOSPITALAR ALEX KRIESER;Agrolândia;420020;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;20 a 30 leitos;20-30;0;20;1;21;09/2026
+2418630;HOSPITAL DE ALFREDO WAGNER;Alfredo Wagner;420070;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;0;18;0;18;09/2026
+2300435;HOSPITAL FREI ROGERIO;Anita Garibaldi;420100;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;24;0;24;09/2026
+2691574;HOSPITAL SAO SEBASTIAO;Anitápolis;420110;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;22;2;24;09/2026
+2691493;HOSPITAL OSWALDO CRUZ;Arabutã;420127;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;13;10;1;24;09/2026
+2550938;ARMAZEM HOSPITAL SANTO ANTONIO;Armazém;420150;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;12;4;0;16;09/2026
+2302780;HOSPITAL BENEFICENTE SAO ROQUE;Arroio Trinta;420160;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;18;0;18;09/2026
+2660717;HOSPITAL SAO BENEDITO;Benedito Novo;420220;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;25;0;25;09/2026
+4261151;HOSPITAL DO RIM DE BLUMENAU;Blumenau;420240;SC;Santa Catarina;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;6;0;6;09/2026
+6001165;HOSPITAL UNIVERSITARIO FURB IMAS;Blumenau;420240;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;10;0;0;10;09/2026
+2665085;HOSPITAL NOSSA SENHORA DAS GRACAS;Bom Retiro;420260;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;15;15;0;30;09/2026
+2522489;ASSOCIACAO HOSPITAL E MATERNIDADE DOM JOAQUIM;Brusque;420290;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;21;5;0;26;09/2026
+2538083;HOSPITAL CAIBI;Caibi;420310;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;9;9;0;18;09/2026
+2664992;HOSPITAL SAO LUIZ;Campo Alegre;420330;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;16;12;0;28;09/2026
+2691477;HOSPITAL NOSSA SENHORA DO PATROCINIO;Campo Belo do Sul;420340;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;5;13;0;18;09/2026
+2553163;HOSPITAL PADRE LUIZ HEINEN CAXAMBU DO SUL;Caxambu do Sul;420410;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;8;10;1;19;09/2026
+7286082;HOSPITAL DA CRIANCA AUGUSTA MULLER BOHNER;Chapecó;420420;SC;Santa Catarina;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;5;4;9;09/2026
+2537958;HOSPITAL NOSSA SENHORA DA SAUDE CORONEL FREITAS;Coronel Freitas;420440;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;15;12;0;27;09/2026
+2626667;HOSPITAL CUNHA PORA;Cunha Porã;420470;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;20 a 30 leitos;20-30;12;14;1;27;09/2026
+4623207;ANA SCHMITT HOSPITAL;Florianópolis;420540;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;11;1;0;12;09/2026
+8032750;BEWIKI CARE SANTE;Florianópolis;420540;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;15;2;0;17;09/2026
+2378116;ASSOCIACAO BENEFICIENTE HOSPITAL SAO LUCAS;Guaraciaba;420640;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;11;18;0;29;09/2026
+2378175;HOSPITAL GUARUJA;Guarujá do Sul;420660;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;1;10;3;14;09/2026
+2691531;HOSPITAL DE IMARUI;Imaruí;420720;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;21;0;21;09/2026
+2691507;HOSPITAL PIRATUBA IPIRA;Ipira;420760;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;19;2;25;09/2026
+2378183;HOSPITAL DE IPORA;Iporã do Oeste;420765;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;12;9;1;22;09/2026
+6249604;HOSPITAL SAO CAMILO;Ipumirim;420770;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;11;1;16;09/2026
+2691566;HOSPITAL SAO PEDRO;Itá;420800;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;8;7;1;16;09/2026
+2662876;HNSP PRIME;Lages;420930;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;14;0;0;14;09/2026
+2419246;HOSPITAL HENRIQUE LAGE;Lauro Müller;420960;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;2;17;1;20;09/2026
+2672154;HOSPITAL HOSCOLA;Luiz Alves;421000;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;9;11;2;22;09/2026
+7847777;HOSPITAL JOAO SCHREIBER;Massaranduba;421060;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;14;7;0;21;09/2026
+2553066;HOSPITAL DE MODELO;Modelo;421090;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;3;21;1;25;09/2026
+8324697;HOSPITAL MONTE CASTELO;Monte Castelo;421110;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;11;0;11;09/2026
+2538148;HOSPITAL NOVA ERECHIM;Nova Erechim;421140;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;20 a 30 leitos;20-30;14;10;1;25;09/2026
+2691469;HOSPITAL DE PENHA;Penha;421250;SC;Santa Catarina;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;27;1;0;28;09/2026
+2689863;ASSOCIACAO BENEFICENTE HOSPITALAR SAO CAMILO PERITIBA;Peritiba;421260;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;12;9;1;22;09/2026
+2378000;HOSPITAL JOANA SCHMITT;Petrolândia;421270;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;21;0;21;09/2026
+2537826;HOSPITAL DE PINHALZINHO;Pinhalzinho;421290;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;12;15;1;28;09/2026
+2377225;HOSPITAL DE POUSO REDONDO;Pouso Redondo;421370;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;15;1;16;09/2026
+2538342;HOSPITAL SAO BERNARDO;Quilombo;421420;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;15;0;23;09/2026
+2377462;SOCIEDADE CULTURAL E BENEFICENTE SAO JOSE;Rio do Campo;421450;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;20;1;21;09/2026
+6273874;HOSPITAL DOM BOSCO RIO DOS CEDROS SC;Rio dos Cedros;421470;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;15;10;0;25;09/2026
+2386038;HOSPITAL DE RIO FORTUNA;Rio Fortuna;421490;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;20 a 30 leitos;20-30;8;12;0;20;09/2026
+2377632;HOSPITAL SANTA TEREZINHA DE SALETE;Salete;421530;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;20;1;21;09/2026
+2302543;HOSPITAL SANTA JULIANA;Salto Veloso;421540;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;0;12;0;12;09/2026
+2302748;HOSP E MAT STA CECILIA;Santa Cecília;421550;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;11;13;1;25;09/2026
+2538229;HOSPITAL SAUDADES;Saudades;421730;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;15;10;2;27;09/2026
+2596792;HOSPITAL DE SAO BONIFACIO;São Bonifácio;421590;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;20 a 30 leitos;20-30;8;16;0;24;09/2026
+7105088;HOSPITAL MUNICIPAL NOSSA SENHORA DA GRACA;São Francisco do Sul;421620;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;13;12;0;25;09/2026
+2378809;HOSPITAL DE CEDRO;São José do Cedro;421670;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;11;9;1;21;09/2026
+2378167;HOSPITAL SANTA CASA RURAL;São João do Oeste;421625;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;10;8;1;19;09/2026
+2550881;FUNDACAO MEDICO SOCIAL RURAL DE SAO MARTINHO;São Martinho;421710;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;0;17;0;17;09/2026
+2543443;CASAVITTA SANTE;São Miguel do Oeste;421720;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;19;6;0;25;09/2026
+2377616;HOSPITAL E MATERNIDADE DONA LISETTE;Taió;421780;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;24;1;30;09/2026
+2380129;HOSPITAL SAO LUCAS IMAS;Tangará;421790;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;14;12;0;26;09/2026
+2299569;HOSPITAL SANTO ANTONIO IMAS;Timbé do Sul;421810;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;13;5;1;19;09/2026
+2377373;HOSPITAL TROMBUDO CENTRAL;Trombudo Central;421860;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;7;1;8;09/2026
+2378140;HOSPITAL DE TUNAPOLIS;Tunápolis;421875;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;6;10;1;17;09/2026
+2411245;ASSOCIACAO HOSPITALAR DE VARGEAO;Vargeão;421910;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;10;8;1;19;09/2026
+2377187;HOSPITAL VIDAL RAMOS;Vidal Ramos;421920;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;0;17;0;17;09/2026
+2557843;HOSPITAL SALVATORIANO SANTA MARIA;Videira;421930;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;15;0;25;09/2026
+2377659;ASSOCIACAO HOSPITALAR ANGELINA MENEGHELLI;Vitor Meireles;421935;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;18;0;18;09/2026
+7278977;HOSPITAL MATEUS CALED PADOIN;Witmarsum;421940;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;19;0;19;09/2026
+2666138;HOSPITAL SAO LUCAS;Xavantina;421960;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;19;1;20;09/2026
+2380188;HOSPITAL NOSSA SENHORA DA PAZ;Água Doce;420040;SC;Santa Catarina;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;26;0;26;09/2026
+2421488;FUNDACAO MEDICA SANTA CECILIA;Aquidabã;280020;SE;Sergipe;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;20 a 30 leitos;20-30;4;22;0;26;09/2026
+0003417;FUNDACAO CLIMEDI;Aracaju;280030;SE;Sergipe;Hospital especializado;Entidade sem fins lucrativos;Fundação Privada;3069;5 a 9 leitos;5-9;0;5;0;5;09/2026
+2546027;HOSPITAL E MATERNIDADE SAO JOSE;Itabaiana;280290;SE;Sergipe;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;9;2;4;15;09/2026
+2546124;HOSPITAL SAO LUIZ GONZAGA;Itabaianinha;280300;SE;Sergipe;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;22;2;24;09/2026
+2774720;HOSPITAL DE AGUDOS;Agudos;350070;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;14;11;0;25;09/2026
+2716593;HOSPITAL DE MISERICORDIA ALTINOPOLIS;Altinópolis;350100;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;2;17;0;19;09/2026
+2078937;SANTA CASA DE APARECIDA DOESTE;Aparecida d'Oeste;350260;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;1;11;0;12;09/2026
+2082098;HOSPITAL DR ADHEMAR DE BARROS APIAI;Apiaí;350270;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;13;17;0;30;09/2026
+2084120;PRO SAUDE HOSPITAL GERAL ARARAS;Araras;350330;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;6;4;1;11;09/2026
+2791668;SANTA CASA DE AREALVA;Arealva;350340;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;1;20;0;21;09/2026
+2081768;SANTA CASA DE AURIFLAMA;Auriflama;350420;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;11;19;0;30;09/2026
+2092980;HOSPITAL DE BASTOS;Bastos;350580;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;9;12;0;21;09/2026
+2082497;SANTA CASA HOSPITAL JESUS MARIA JOSE;Bernardino de Campos;350630;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;17;0;22;09/2026
+2080915;AHBB BILAC;Bilac;350640;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;20;0;30;09/2026
+2079402;SANTA CASA SAO VICENTE DE PAULO BOA ESPERANCA DO SUL;Boa Esperança do Sul;350670;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;15;0;15;09/2026
+2791730;SANTA CASA DE MISERICORDIA DE BOCAINA;Bocaina;350680;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;2;15;0;17;09/2026
+2081989;HOSPITAL SAO SEBASTIAO DE BORBOREMA;Borborema;350740;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;15;0;20;09/2026
+2081784;HOSPITAL SANTA THEREZINHA BROTAS;Brotas;350790;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;19;1;27;09/2026
+2079461;SANTA CASA DE MISERICORDIA SAO FRANCISCO BURITAMA;Buritama;350810;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;10;4;22;09/2026
+2079313;HOSPITAL SAO ROQUE CABREUVA;Cabreúva;350840;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;1;7;0;8;09/2026
+2080222;SANTA CASA DE CACONDE;Caconde;350870;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;11;10;0;21;09/2026
+2791684;SANTA CASA DE CAFELANDIA;Cafelândia;350880;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;23;0;29;09/2026
+2081296;HOSPITAL JOAO DEPIERI DE CAJOBI;Cajobi;350930;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;14;0;24;09/2026
+8161402;CASA DE SAUDE HOSPITAL SAO LEOPOLDO MANDIC;Campinas;350950;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;22;5;0;27;09/2026
+4285514;IOU INSTITUTO DE OTORRINOLARINGOLOGIA CABECA E PESCOCO;Campinas;350950;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;10 a 19 leitos;10-19;10;0;0;10;09/2026
+2084252;SOBRAPAR CAMPINAS;Campinas;350950;SP;São Paulo;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;15;0;0;15;09/2026
+3753433;HOSPITAL LEONOR MENDES DE BARROS;Campos do Jordão;350970;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;26;0;26;09/2026
+2082071;SANTA CASA DE CARDOSO;Cardoso;351070;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;13;0;17;09/2026
+2079216;HOSPITAL E MATERNIDADE JOSE FORTUNA;Castilho;351100;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Fundação Privada;3069;20 a 30 leitos;20-30;5;16;0;21;09/2026
+2090333;SANTA CASA DE CERQUEIRA CESAR;Cerqueira César;351140;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;3;24;2;29;09/2026
+2082780;BENEFICENCIA HOSPITALAR DE CESARIO LANGE;Cesário Lange;351160;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;16;0;22;09/2026
+2748436;HOSP MAT BENEF DE CHARQUEADA;Charqueada;351170;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;23;0;23;09/2026
+2080982;HOSPITAL DE CLEMENTINA;Clementina;351190;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;12;0;16;09/2026
+2084430;HOSPITAL E MATERNIDADE MADRE VANNINI;Conchal;351220;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;17;0;27;09/2026
+2079496;SANTA CASA DE CRAVINHOS;Cravinhos;351310;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;11;0;15;09/2026
+2080842;SANTA CASA DE MISERICORDIA DE CANDIDO MOTA;Cândido Mota;351000;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;10;9;0;19;09/2026
+2082810;CONDERG HOSPITAL REGIONAL DE DIVINOLANDIA;Divinolândia;351390;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;12;0;20;09/2026
+2092638;SANTA CASA DE FARTURA;Fartura;351540;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;8;0;12;09/2026
+2745402;SANTA CASA DE MISERICORDIA DE FLORIDA PAULISTA;Flórida Paulista;351600;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;3;25;0;28;09/2026
+2081652;SANTA CASA DE GENERAL SALGADO;General Salgado;351690;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;1;26;0;27;09/2026
+2773333;SANTA CASA DE GUARAREMA;Guararema;351830;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;2;19;0;21;09/2026
+2081520;HOSPITAL E MATERNIDADE DE GUARACAI;Guaraçaí;351780;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;19;0;23;09/2026
+2026805;SANTA CASA DE GUARIBA;Guariba;351860;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;5;13;0;18;09/2026
+2791714;SANTA CASA DE IACANGA;Iacanga;351910;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;15;0;22;09/2026
+2082551;SANTA CASA DE IBIRA;Ibirá;351940;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;27;0;27;09/2026
+2751674;HOSPITAL E MATERNIDADE NOSSA SENHORA DAS GRACAS;Itaporanga;352280;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;24;2;30;09/2026
+2076942;HOSPITAL DE ITATINGA;Itatinga;352350;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;12;0;12;09/2026
+2093227;IRMANDADE DA SANTA CASA DE MISERICORDIA DE ITAI;Itaí;352180;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;19;2;25;09/2026
+2086719;SANTA CASA DE MISERICORDIA DE JOANOPOLIS;Joanópolis;352550;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;10;0;10;09/2026
+2716801;HOSPITAL DA CRIANCA GRENDACC;Jundiaí;352590;SP;São Paulo;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;1;4;5;10;09/2026
+2079976;SANTA CASA DE LARANJAL PAULISTA;Laranjal Paulista;352640;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;22;2;28;09/2026
+2079917;SANTA CASA DE LOUVEIRA;Louveira;352730;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;8;8;24;09/2026
+2082942;SANTA CASA DE MACATUBA;Macatuba;352800;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;18;0;24;09/2026
+2081792;SANTA CASA DE MACAUBAL;Macaubal;352810;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;14;0;14;09/2026
+2079437;HOSPITAL BENEFICENTE DE MARACAI;Maracaí;352880;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;3;14;0;17;09/2026
+2080990;HOSPITAL ESPIRITA DE MARILIA;Marília;352900;SP;São Paulo;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;28;0;28;09/2026
+2086050;MATERNIDADE GOTA DE LEITE;Marília;352900;SP;São Paulo;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;2;4;0;6;09/2026
+2053519;SANTA CASA DR PAULO SERGIO DAVID;Monte Azul Paulista;353150;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;1;14;0;15;09/2026
+2078341;ASSOCIACAO HOSPITAL BENEFICENTE SAGRADO CORACAO DE JESUS;Monte Mor;353180;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;17;5;0;22;09/2026
+2079682;SANTA CASA DE NEVES PAULISTA;Neves Paulista;353250;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;21;0;21;09/2026
+2747685;SANTA CASA DE MISERICORDIA NOVA EUROPA;Nova Europa;353290;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;2;12;0;14;09/2026
+2079291;SANTA CASA DE PALMEIRA DOESTE;Palmeira d'Oeste;353520;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;5;11;0;16;09/2026
+2080958;SANTA CASA DE MISERICORDIA DE PALMITAL;Palmital;353530;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;12;16;0;28;09/2026
+2081229;SANTA CASA DE PARAPUA;Parapuã;353600;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;25;0;25;09/2026
+2078449;SANTA CASA DE PATROCINIO PAULISTA;Patrocínio Paulista;353630;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;13;10;0;23;09/2026
+2080869;SANTA CASA DE PAULO DE FARIA;Paulo de Faria;353660;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;24;0;24;09/2026
+2078902;SANTA CASA PILAR DO SUL;Pilar do Sul;353790;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;3;19;0;22;09/2026
+2079852;SANTA CASA DE PIRACAIA;Piracaia;353860;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;5;14;0;19;09/2026
+2080370;SANTA CASA DE PIRAJUI;Pirajuí;353890;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;12;18;0;30;09/2026
+2079909;HOSP BENEFICENTE DE PIRANGI;Pirangi;353900;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;17;0;27;09/2026
+2791757;SANTA CASA DE PIRATININGA;Piratininga;353940;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;21;0;25;09/2026
+2089548;SANTA CASA DE PITANGUEIRAS;Pitangueiras;353950;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;19;0;27;09/2026
+2080621;SANTA CASA POMPEIA;Pompéia;354000;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;14;0;18;09/2026
+2083493;SANTA CASA DE PONTAL;Pontal;354020;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;8;10;0;18;09/2026
+2080109;SANTA CASA DE POPULINA;Populina;354040;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;2;14;0;16;09/2026
+2096617;HOSPITAL ASSISTENCIAL MARIA CAVALOTTI NEVES POTIRENDABA;Potirendaba;354080;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;21;0;27;09/2026
+2080524;HOSPITAL E MATERNIDADE REGIONAL REGENTE FEIJO;Regente Feijó;354240;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;2;16;0;18;09/2026
+2747693;SANTA CASA DE MISERICORDIA RIBEIRAO BONITO;Ribeirão Bonito;354290;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;5;9;0;14;09/2026
+3314766;HOSPITAL ELECTRO BONINI RIBEIRAO PRETO;Ribeirão Preto;354340;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;8;0;6;14;09/2026
+2081237;HOSPITAL SAO PAULO DE RINOPOLIS;Rinópolis;354380;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;1;16;0;17;09/2026
+2083159;BEZERRA DE MENEZES;Rio Claro;354390;SP;São Paulo;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;8;0;8;09/2026
+2766167;HOSPITAL E MATERNIDADE SAO VICENTE DE PAULO RIO DAS PEDRAS;Rio das Pedras;354400;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;13;17;0;30;09/2026
+2081571;SANTA CASA DE RIOLANDIA;Riolândia;354420;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;23;0;23;09/2026
+2078112;HOSPITAL SANTA RITA DE SALES OLIVEIRA;Sales Oliveira;354490;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;10;0;14;09/2026
+2079380;SANTA CASA DE SALESOPOLIS;Salesópolis;354500;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;7;2;9;09/2026
+2082756;SANTA CASA DE SALTO GRANDE;Salto Grande;354540;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;20;0;25;09/2026
+2079550;SANTA CASA DE SANTA ADELIA;Santa Adélia;354560;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;13;0;20;09/2026
+2080745;SANTA CASA DE SANTA CRUZ DAS PALMEIRAS;Santa Cruz das Palmeiras;354630;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;6;13;0;19;09/2026
+2091267;SANTA CASA SANTA RITA DO PASSA QUATRO;Santa Rita do Passa Quatro;354750;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;19;1;28;09/2026
+2746298;SANTA CASA DE SANTA ROSA DE VITERBO;Santa Rosa de Viterbo;354760;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;3;20;0;23;09/2026
+2081393;HOSPITAL SANTA ROSA DE LIMA DE SERRA NEGRA;Serra Negra;355160;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;19;0;29;09/2026
+2079364;SANTA CASA DE MISERICORDIA DE SERRANA;Serrana;355150;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;14;0;14;09/2026
+2078813;HOSPITAL OFTALMOLOGICO DE SOROCABA;Sorocaba;355220;SP;São Paulo;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;15;1;0;16;09/2026
+2081245;SANTA CASA DE SUD MENNUCCI;Sud Mennucci;355230;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;9;9;0;18;09/2026
+2078546;SANTA CASA SAO BENTO DO SAPUCAI;São Bento do Sapucaí;354860;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;18;0;25;09/2026
+3223728;SANTA CASA DE MISERICORDIA DE SAO BERNARDO DO CAMPO;São Bernardo do Campo;354870;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;6;8;14;09/2026
+5869412;HOSPITAL GACC VALE DO PARAIBA;São José dos Campos;354990;SP;São Paulo;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;0;0;5;5;09/2026
+2079690;SANTA CASA DE MISERICORDIA DE SAO LUIZ DO PARAITINGA;São Luiz do Paraitinga;355000;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;16;0;16;09/2026
+4915615;ASSOCIACAO HOSPITALAR PLATINUM;São Paulo;355030;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;9;0;1;10;09/2026
+2688581;HOSPITAL GERIATRICO E DE CONVALESCENTES D PEDRO II;São Paulo;355030;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;18;0;18;09/2026
+0663913;HOSPITAL SAINT PATRICK;São Paulo;355030;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;16;0;16;09/2026
+2081741;HOSPITAL SBC;São Paulo;355030;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;26;0;30;09/2026
+2688638;INST SUEL ABUJAMRA;São Paulo;355030;SP;São Paulo;Hospital especializado;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;8;0;0;8;09/2026
+6569757;UNIDADE AVANCADA EINSTEIN PERDIZES;São Paulo;355030;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;5 a 9 leitos;5-9;9;0;0;9;09/2026
+2082284;SANTA CASA DE GRAMA;São Sebastião da Grama;355080;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;3;22;0;25;09/2026
+2058243;SANTA CASA DE MISERICORDIA DE SAO SIMAO;São Simão;355090;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;1;11;0;12;09/2026
+2084074;HOSP MARIA VALLE PEREIRA DE TABAPUA;Tabapuã;355260;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;17;0;23;09/2026
+2079399;SANTA CASA DE MISERICORDIA SAO MIGUEL TABATINGA SP;Tabatinga;355270;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;6;17;0;23;09/2026
+2082934;SANTA CASA DE MISERICORDIA DE TAGUAI;Taguaí;355300;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;12;1;17;09/2026
+2749149;SANTA CASA DE MISERICORDIA DE TAMBAU;Tambaú;355330;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;10;15;0;25;09/2026
+2081598;SANTA CASA DE MISERICORDIA SAO LUCAS;Tapiratiba;355360;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;5;8;9;22;09/2026
+2028239;HOSPITAL REGIONAL DE TEODORO SAMPAIO;Teodoro Sampaio;355430;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;8;22;0;30;09/2026
+2083213;HOSPITAL TERRA ROXA;Terra Roxa;355440;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;8;0;12;09/2026
+2080605;HOSPITAL PADRE NICANOR MERINO TORRINHA;Torrinha;355470;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;4;12;0;16;09/2026
+2081342;HOSPITAL SAO LOURENCO;Urupês;355600;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;7;19;0;26;09/2026
+2079968;SANTA CASA DE URANIA;Urânia;355580;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;26;0;26;09/2026
+2092093;HOSPITAL E MATERNIDADE SAO VICENTE DE PAULO VIRADOURO SP;Viradouro;355680;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;0;23;0;23;09/2026
+2077558;HOSPITAL SAO CAMILO AGUAS DE LINDOIA;Águas de Lindóia;350050;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;4;22;0;26;09/2026
+2080508;SANTA CASA DE ALVARES MACHADO;Álvares Machado;350130;SP;São Paulo;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;10 a 19 leitos;10-19;0;18;0;18;09/2026
+5663938;HOSPITAL PADRE LUSO PALMAS;Palmas;172100;TO;Tocantins;Hospital geral;Entidade sem fins lucrativos;Associação Privada;3999;20 a 30 leitos;20-30;25;5;0;30;09/2026
