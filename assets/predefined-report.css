@@ -326,6 +326,11 @@
 .report-result.is-sinan-report:not(.is-sinan-detail) .report-table th:nth-child(2),.report-result.is-sinan-report:not(.is-sinan-detail) .report-table th:nth-child(3),.report-result.is-sinan-report:not(.is-sinan-detail) .report-table th:nth-child(4),.report-result.is-sinan-report:not(.is-sinan-detail) .report-table th:nth-child(5){min-width:160px}
 .report-result.is-sinan-report:not(.is-sinan-detail) .report-table th:nth-child(n+6){min-width:125px}
 .report-result.is-sinan-report.is-sinan-detail .report-table{min-width:1230px}
+.report-result.is-sinan-workhealth-detail .report-table{min-width:max-content}
+.report-result.is-sinan-workhealth-detail .report-table th,.report-result.is-sinan-workhealth-detail .report-table td{min-width:145px;padding:11px 13px;font-size:11px}
+.report-result.is-sinan-workhealth-detail .report-table th{font-size:9px}
+.report-result.is-sinan-workhealth-detail .report-table th:first-child,.report-result.is-sinan-workhealth-detail .report-table td:first-child{min-width:175px;text-align:left}
+.report-result.is-sinan-workhealth-detail .report-table th:nth-last-child(-n+2),.report-result.is-sinan-workhealth-detail .report-table td:nth-last-child(-n+2){min-width:145px;text-align:right}
 @media(max-width:760px){.report-result.is-sinan-report .report-kpis{grid-template-columns:1fr 1fr}.report-result.is-sinan-report .report-kpi:last-child{grid-column:auto}}
 .report-result.is-flow-detail .report-table{min-width:1660px}
 .report-result.is-flow-detail .report-table th:nth-child(1){min-width:195px}

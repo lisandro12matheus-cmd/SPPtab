@@ -672,12 +672,12 @@ def start_tabulation(payload: dict[str,Any]):
         if not _cnes_small_hpp_has_fast_result(year,month) and month not in _cnes_st_national_competencies(year):
             raise ValueError(f"A competência {month:02d}/{year} ainda não está publicada para todas as unidades da Federação no CNES.")
         return _start_tabulation_locked(payload,[])
-    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika","sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante","pqavs-obitos-arboviroses","pqavs-contatos-hanseniase","pqavs-contatos-tuberculose","pqavs-sifilis-congenita","pqavs-violencia-raca-cor","chagas-aguda-cronica","sim-mortalidade-materna-fetal","pqavs-cobertura-vacinal","pqavs-aplicacoes-estabelecimento","cnes-salas-imunizacao"}:
+    if payload.get("predefinedReport") in {"sinan-dengue","sinan-chikungunya","sinan-zika",SINAN_WORKHEALTH_REPORT_ID,"sim-mortalidade","sim-mortalidade-infantil","srag-semanal","sinasc-maternidades","sisagua-residual-desinfetante","pqavs-obitos-arboviroses","pqavs-contatos-hanseniase","pqavs-contatos-tuberculose","pqavs-sifilis-congenita","pqavs-violencia-raca-cor","chagas-aguda-cronica","sim-mortalidade-materna-fetal","pqavs-cobertura-vacinal","pqavs-aplicacoes-estabelecimento","cnes-salas-imunizacao"}:
         year=payload.get("year")
         month=payload.get("month")
         uf=str(payload.get("uf") or "").upper()
         municipality=str(payload.get("municipalityCode") or "")
-        minimum_year=2005 if payload.get("predefinedReport")=="cnes-salas-imunizacao" else 2000
+        minimum_year=2005 if payload.get("predefinedReport")=="cnes-salas-imunizacao" else 2006 if payload.get("predefinedReport")==SINAN_WORKHEALTH_REPORT_ID else 2000
         if not isinstance(year,int) or year<minimum_year or year>date.today().year:
             raise ValueError(f"Selecione um ano entre {minimum_year} e o ano atual.")
         if not isinstance(month,int) or month<1 or month>12:
@@ -3198,6 +3198,426 @@ def _sinan_dbc_download(prefix: str, year: int, progress=None):
             failures.append(exc)
     if failures: raise ValueError(f"Não foi possível baixar {name} do DATASUS: {failures[-1]}")
     return None,None
+
+SINAN_WORKHEALTH_REPORT_ID="sinan-saude-trabalhador"
+SINAN_WORKHEALTH_AGRAVOS={
+    "ACGR":"Acidente de trabalho grave",
+    "ACBI":"Acidente de trabalho com exposição a material biológico",
+    "CANC":"Câncer relacionado ao trabalho",
+    "DERM":"Dermatoses ocupacionais",
+    "PAIR":"Perda auditiva induzida por ruído (PAIR) relacionada ao trabalho",
+    "PNEU":"Pneumoconiose relacionada ao trabalho",
+    "MENT":"Transtornos mentais relacionados ao trabalho",
+}
+SINAN_WORKHEALTH_DIMENSIONS=(
+    ("sex","Sexo",("CS_SEXO",)),
+    ("age","Faixa etária",("NU_IDADE_N",)),
+    ("race","Raça/cor",("CS_RACA",)),
+    ("residence","Município de residência",("ID_MN_RESI",)),
+    ("occupation","Ocupação · CBO",("ID_OCUPA_N",)),
+    ("employment","Situação de trabalho",("SIT_TRAB",)),
+    ("workExperience","Tempo de trabalho na ocupação",("NUTEMPO","TPTEMPO")),
+    ("economicActivity","Atividade econômica · CNAE",("CNAE",)),
+    ("accidentLocation","Local do acidente",("LOCAL_ACID",)),
+    ("outcome","Evolução do caso",("EVOLUCAO",)),
+    ("workLeave","Afastamento do trabalho",("AFASTAMENT",)),
+    ("regime","Regime de tratamento",("REGIME",)),
+    ("conduct","Conduta",("CONDUTA",)),
+    ("cat","Comunicação de Acidente de Trabalho · CAT",("CAT",)),
+)
+SINAN_WORKHEALTH_EXTRA_DIMENSIONS={
+    "ACGR":(
+        ("employerUf","UF do empregador",("UF_EMP",)),
+        ("employerMunicipality","Município do empregador",("MUN_EMP",)),
+        ("accidentCause","Causa do acidente · CID-10",("CID_ACID",)),
+        ("injuryDiagnosis","Diagnóstico da lesão · CID-10",("CID_LESAO",)),
+        ("otherWorkers","Outros trabalhadores atingidos",("MAIS_TRAB",)),
+        ("medicalCare","Atendimento médico",("ATENDE_MED",)),
+        ("affectedBodyPart1","Parte do corpo atingida · 1",("PART_CORP1",)),
+        ("affectedBodyPart2","Parte do corpo atingida · 2",("PART_CORP2",)),
+        ("affectedBodyPart3","Parte do corpo atingida · 3",("PART_CORP3",)),
+        ("outsourcedEmployer","Empregador terceirizado",("TERCEIRIZA",)),
+    ),
+    "ACBI":(
+        ("employerUf","UF do empregador",("UF_EMP",)),
+        ("employerMunicipality","Município do empregador",("MUN_EMP",)),
+        ("workAgent","Agente do acidente",("AGENTE",)),
+        ("exposurePercutaneous","Exposição percutânea",("PERCUTANEA",)),
+        ("exposureMucosa","Exposição em mucosa",("MUCOSA",)),
+        ("exposureIntactSkin","Exposição em pele íntegra",("PELE_INTEG",)),
+        ("exposureNonIntactSkin","Exposição em pele não íntegra",("PELE_NAO_I",)),
+        ("exposureOther","Outro tipo de exposição",("OUTRO_EXP",)),
+        ("organicMaterial","Material orgânico",("MAT_ORG",)),
+        ("circumstance","Circunstância do acidente",("TIPO_ACID",)),
+        ("vaccination","Vacinação contra hepatite B",("VACINA",)),
+        ("sourceKnown","Paciente-fonte conhecido",("FONTE",)),
+        ("epiGloves","Uso de luvas",("LUVA",)),
+        ("epiGown","Uso de avental",("AVENTAL",)),
+        ("epiGlasses","Uso de óculos de proteção",("OCULOS",)),
+        ("epiMask","Uso de máscara",("MASCARA",)),
+        ("epiFaceProtection","Uso de proteção facial",("FACIAL",)),
+        ("epiBoots","Uso de botas",("BOTA",)),
+        ("workerTestHiv","Exame do trabalhador · anti-HIV",("ANTI_HIV",)),
+        ("workerTestHbsAg","Exame do trabalhador · HBsAg",("HBSAG",)),
+        ("workerTestAntiHbs","Exame do trabalhador · anti-HBs",("ANTI_HBS",)),
+        ("workerTestAntiHcv","Exame do trabalhador · anti-HCV",("ANTI_HCV",)),
+        ("conductNoProphylaxis","Conduta: sem indicação de quimioprofilaxia",("SEM_QUIMIO",)),
+        ("conductDeclinedProphylaxis","Conduta: recusou quimioprofilaxia",("RECUSA_QUI",)),
+        ("conductAzt3tc","Conduta: AZT + 3TC",("AZT3TC",)),
+        ("conductAzt3tcIndinavir","Conduta: AZT + 3TC + indinavir",("AZT3TC_IND",)),
+        ("conductAzt3tcNelfinavir","Conduta: AZT + 3TC + nelfinavir",("AZT3TC_NFV",)),
+        ("conductOtherArv","Conduta: outro esquema antirretroviral",("OUTRO_ARV",)),
+        ("conductHepatitisBVaccine","Conduta: vacina contra hepatite B",("VAC_HEP_B",)),
+        ("conductImmunoglobulin","Conduta: imunoglobulina contra hepatite B",("IMU_HEP_B",)),
+        ("sourceTestHbsAg","Exame do paciente-fonte · HBsAg",("FO_HBSAG",)),
+        ("sourceTestHiv","Exame do paciente-fonte · anti-HIV",("FO_ANT_HIV",)),
+        ("sourceTestAntiHbc","Exame do paciente-fonte · anti-HBc",("FO_ANT_HBC",)),
+        ("sourceTestAntiHcv","Exame do paciente-fonte · anti-HCV",("FO_ANT_HCV",)),
+    ),
+}
+def _sinan_workhealth_dimensions(prefix: str):
+    dimensions=list(SINAN_WORKHEALTH_DIMENSIONS)
+    if prefix=="ACGR":
+        dimensions.append(("accidentType","Tipo de acidente",("TIPO_ACID",)))
+    return dimensions+list(SINAN_WORKHEALTH_EXTRA_DIMENSIONS.get(prefix,()))
+
+def _sinan_workhealth_age(value: Any) -> str:
+    raw=re.sub(r"\D","",str(value or ""))
+    if len(raw)!=3 or raw[0] not in {"1","2","3","4"}: return "unknown"
+    unit,amount=raw[0],int(raw[1:])
+    if unit in {"1","2","3"}: return "under1"
+    if amount==0: return "under1"
+    if amount<18: return "1-17"
+    if amount<30: return "18-29"
+    if amount<40: return "30-39"
+    if amount<50: return "40-49"
+    if amount<60: return "50-59"
+    return "60plus"
+
+def _sinan_workhealth_category(dimension: str, raw: Any) -> str:
+    if dimension=="workExperience":
+        if not isinstance(raw,(tuple,list)) or len(raw)<2: return "unknown"
+        amount=re.sub(r"\D","",_sinan_code(raw[0]))
+        unit=_sinan_code(raw[1]).strip().upper()
+        if not amount or unit not in {"1","2","3","4"}: return "unknown"
+        value=int(amount)
+        if value in {0,99,999}: return "unknown"
+        unit_name={"1":"hora","2":"dia","3":"mês","4":"ano"}[unit]
+        plural={"hora":"horas","dia":"dias","mês":"meses","ano":"anos"}
+        return f"{value} {unit_name if value==1 else plural[unit_name]}"
+    code=_sinan_code(raw).strip().upper()
+    if not code or code in {"0","9","99","999","9999","99999","999999","9999999"} or re.fullmatch(r"0+",code): return "unknown"
+    if dimension=="sex": return {"M":"1","F":"2"}.get(code,code if code in {"1","2"} else "unknown")
+    if dimension=="age": return _sinan_workhealth_age(code)
+    if dimension=="race": return code if code in {"1","2","3","4","5"} else "unknown"
+    if dimension=="residence": return _pqavs_municipality(code) or "unknown"
+    if dimension=="occupation": return code if re.fullmatch(r"\d{6}",code) else "unknown"
+    if dimension=="economicActivity": return re.sub(r"[^A-Z0-9]","",code) or "unknown"
+    if dimension=="employerMunicipality": return _pqavs_municipality(code) or "unknown"
+    if dimension=="employerUf":
+        uf_by_ibge={value:key for key,value in PREDEFINED_UF_CODES.items()}
+        normalized=re.sub(r"\D","",code)
+        return uf_by_ibge.get(normalized,code if code in PREDEFINED_UF_CODES else "unknown")
+    if dimension in {"accidentType","accidentLocation","outcome","workLeave","regime","workAgent","conduct","cat"}:
+        return code if re.fullmatch(r"[A-Z0-9]{1,8}",code) else "unknown"
+    if dimension in {"diagnosis","accidentCause","injuryDiagnosis"}: return re.sub(r"[^A-Z0-9.]","",code) or "unknown"
+    return code
+
+def _sinan_workhealth_db(year: int, prefix: str) -> Path:
+    folder=UPLOADS/".cache"/"sinan-workhealth"
+    folder.mkdir(parents=True,exist_ok=True)
+    return folder/f"{prefix.lower()}-{year}-v2.sqlite3"
+
+def _sinan_workhealth_source(prefix: str, year: int, progress=None, include_combinations: bool=False) -> dict[str,Any]:
+    """Stream a national SINAN DBC into local aggregates, optionally preserving cross-field combinations."""
+    target=_sinan_workhealth_db(year,prefix)
+    lock=target.with_suffix(".lock")
+    def read_meta(db):
+        try:
+            row=db.execute("SELECT stage,fetched_at,available,updated_at,fields,records,invalid_dates FROM source_meta WHERE id=1").fetchone()
+            if not row: return None
+            return {"stage":row[0],"fetched_at":float(row[1]),"available":bool(row[2]),"updatedAt":row[3],"fields":json.loads(row[4]),"records":int(row[5]),"invalidDates":int(row[6])}
+        except (sqlite3.Error,ValueError,TypeError): return None
+    with interprocess_lock(lock):
+        db=sqlite3.connect(str(target),timeout=90)
+        try:
+            db.execute("CREATE TABLE IF NOT EXISTS counts (municipality TEXT NOT NULL, month INTEGER NOT NULL, dimension TEXT NOT NULL, category TEXT NOT NULL, amount INTEGER NOT NULL, PRIMARY KEY(municipality,month,dimension,category))")
+            db.execute("CREATE TABLE IF NOT EXISTS combinations (municipality TEXT NOT NULL, month INTEGER NOT NULL, categories TEXT NOT NULL, amount INTEGER NOT NULL, PRIMARY KEY(municipality,month,categories))")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_workhealth_combinations_month ON combinations(municipality,month)")
+            db.execute("CREATE TABLE IF NOT EXISTS combination_meta (id INTEGER PRIMARY KEY CHECK(id=1), version INTEGER NOT NULL)")
+            db.execute("CREATE TABLE IF NOT EXISTS source_meta (id INTEGER PRIMARY KEY CHECK(id=1), stage TEXT, fetched_at REAL NOT NULL, available INTEGER NOT NULL, updated_at TEXT, fields TEXT NOT NULL, records INTEGER NOT NULL, invalid_dates INTEGER NOT NULL)")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_workhealth_month ON counts(municipality,month,dimension)")
+            meta=read_meta(db)
+            combo_meta=db.execute("SELECT version FROM combination_meta WHERE id=1").fetchone()
+            combinations_ready=bool(combo_meta and int(combo_meta[0])==1)
+            if meta:
+                freshness=86400 if not meta["available"] else 60*86400 if meta["stage"]=="FINAIS" else 7*86400
+                if time.time()-meta["fetched_at"]<freshness and (not include_combinations or not meta["available"] or combinations_ready):
+                    meta["path"]=target
+                    return meta
+            dbc=None; dbf=None
+            try:
+                dbc,stage=_sinan_dbc_download(prefix,year,progress)
+                if dbc is None:
+                    fetched=time.time()
+                    db.execute("BEGIN IMMEDIATE")
+                    db.execute("DELETE FROM counts")
+                    db.execute("DELETE FROM combinations")
+                    db.execute("INSERT OR REPLACE INTO combination_meta VALUES (1,?)",(1 if include_combinations else 0,))
+                    db.execute("INSERT OR REPLACE INTO source_meta VALUES (1,NULL,?,0,?,?,0,0)",(fetched,date.today().isoformat(),json.dumps([],separators=(",",":"))))
+                    db.commit()
+                    return {"stage":None,"fetched_at":fetched,"available":False,"updatedAt":date.today().isoformat(),"fields":[],"records":0,"invalidDates":0,"path":target}
+                if progress: progress(23,f"Descompactando {_national_dbc_name(prefix,year)}.dbc")
+                dbf=Path(decompress(dbc))
+                _,_,_,layout=dbf_layout(dbf)
+                required=["DT_NOTIFIC","ID_MUNICIP"]
+                missing=[field for field in required if field not in layout]
+                if missing: raise ValueError(f"A base SINAN {_national_dbc_name(prefix,year)} não contém os campos essenciais: {', '.join(missing)}.")
+                available_dimensions=[]; field_for_dimension={}
+                for key,label,candidates in _sinan_workhealth_dimensions(prefix):
+                    if key=="workExperience":
+                        field=tuple(candidates) if all(candidate in layout for candidate in candidates) else None
+                    else:
+                        field=next((candidate for candidate in candidates if candidate in layout),None)
+                    if field:
+                        available_dimensions.append(key); field_for_dimension[key]=field
+                dimension_fields=(candidate for field in field_for_dimension.values() for candidate in (field if isinstance(field,tuple) else (field,)))
+                fields=["DT_NOTIFIC","ID_MUNICIP"]+list(dict.fromkeys(dimension_fields))
+                processed=[0]; accepted=0; invalid_dates=0
+                pending=defaultdict(int); pending_combinations=defaultdict(int)
+                def flush():
+                    if pending:
+                        db.executemany("INSERT INTO counts(municipality,month,dimension,category,amount) VALUES(?,?,?,?,?) ON CONFLICT(municipality,month,dimension,category) DO UPDATE SET amount=amount+excluded.amount",((municipality,month,dimension,category,amount) for (municipality,month,dimension,category),amount in pending.items()))
+                        pending.clear()
+                    if pending_combinations:
+                        db.executemany("INSERT INTO combinations(municipality,month,categories,amount) VALUES(?,?,?,?) ON CONFLICT(municipality,month,categories) DO UPDATE SET amount=amount+excluded.amount",((municipality,month,categories,amount) for (municipality,month,categories),amount in pending_combinations.items()))
+                        pending_combinations.clear()
+                def scan(done,total):
+                    if progress: progress(min(88,25+int(63*done/max(1,total))),f"Agrupando {_national_dbc_name(prefix,year)} · {done:,} de {total:,} notificações".replace(",","."))
+                db.execute("BEGIN IMMEDIATE")
+                db.execute("DELETE FROM counts")
+                db.execute("DELETE FROM combinations")
+                db.execute("INSERT OR REPLACE INTO combination_meta VALUES (1,?)",(0,))
+                for values in iter_dbf_fields(dbf,fields,processed_counter=processed,scan_callback=scan if progress else None):
+                    row=dict(zip(fields,values))
+                    notified=_pqavs_date(row.get("DT_NOTIFIC"))
+                    municipality=_pqavs_municipality(row.get("ID_MUNICIP"))
+                    if notified is None or notified.year!=year or not municipality:
+                        invalid_dates+=1
+                        continue
+                    month=notified.month; accepted+=1
+                    pending[(municipality,month,"__total__","all")]+=1
+                    category_values={}
+                    for dimension,field in field_for_dimension.items():
+                        raw=tuple(row.get(candidate) for candidate in field) if isinstance(field,tuple) else row.get(field)
+                        category=_sinan_workhealth_category(dimension,raw)
+                        pending[(municipality,month,dimension,category)]+=1
+                        category_values[dimension]=category
+                    if include_combinations:
+                        categories=json.dumps(category_values,ensure_ascii=True,separators=(",",":"),sort_keys=True)
+                        pending_combinations[(municipality,month,categories)]+=1
+                    if len(pending)+len(pending_combinations)>=50000: flush()
+                flush()
+                fetched=time.time(); updated=date.today().isoformat()
+                db.execute("INSERT OR REPLACE INTO combination_meta VALUES (1,?)",(1 if include_combinations else 0,))
+                db.execute("INSERT OR REPLACE INTO source_meta VALUES (1,?,?,?,?,?,?,?)",(stage,fetched,1,updated,json.dumps(available_dimensions,separators=(",",":")),accepted,invalid_dates))
+                db.commit()
+                return {"stage":stage,"fetched_at":fetched,"available":True,"updatedAt":updated,"fields":available_dimensions,"records":accepted,"invalidDates":invalid_dates,"path":target}
+            except Exception:
+                db.rollback()
+                cached=read_meta(db)
+                if cached and (combinations_ready or not include_combinations):
+                    cached["stale"]=True; cached["path"]=target
+                    return cached
+                if cached and not combinations_ready:
+                    raise RuntimeError("Não foi possível reconstruir a tabela cruzada desta base. Tente novamente quando a fonte do SINAN estiver disponível.")
+                raise
+            finally:
+                if dbc is not None: dbc.unlink(missing_ok=True)
+                if dbf is not None: dbf.unlink(missing_ok=True)
+        finally: db.close()
+
+def _sinan_workhealth_value_label(prefix: str, dimension: str, category: str, municipalities: dict[str,str]) -> str:
+    if category=="unknown": return "Ignorado / não informado"
+    if dimension=="sex": return {"1":"Masculino","2":"Feminino"}.get(category,f"Código {category}")
+    if dimension=="age": return {"under1":"Menos de 1 ano","1-17":"1 a 17 anos","18-29":"18 a 29 anos","30-39":"30 a 39 anos","40-49":"40 a 49 anos","50-59":"50 a 59 anos","60plus":"60 anos ou mais"}.get(category,category)
+    if dimension=="race": return {"1":"Branca","2":"Preta","3":"Amarela","4":"Parda","5":"Indígena"}.get(category,f"Código {category}")
+    if dimension=="residence": return f"{municipalities.get(category,'Município não identificado')} · {category}"
+    if dimension=="employerMunicipality": return f"{municipalities.get(category,'Município não identificado')} · {category}"
+    if dimension=="employerUf": return f"{PREDEFINED_UF_NAMES.get(category,category)} · {category}"
+    if dimension=="workExperience": return category
+    if dimension=="occupation": return f"CBO {category}"
+    if dimension=="economicActivity": return f"CNAE {category}"
+    if dimension=="accidentType": return {"1":"Típico","2":"Trajeto","9":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if dimension=="accidentLocation": return {"1":"Instalações do contratante","2":"Via pública","3":"Instalações de terceiros","4":"Domicílio próprio","9":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if dimension=="employment": return {"01":"Empregado com carteira assinada","02":"Empregado sem carteira assinada","03":"Autônomo / conta própria","04":"Servidor público estatutário","05":"Servidor público celetista","06":"Aposentado","07":"Desempregado","08":"Trabalho temporário","09":"Cooperativado","10":"Trabalhador avulso","11":"Empregador","12":"Outros","99":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if dimension=="outcome" and prefix=="ACGR": return {"1":"Cura","2":"Incapacidade temporária","3":"Incapacidade parcial permanente","4":"Incapacidade total permanente","5":"Óbito por acidente de trabalho grave","6":"Óbito por outra causa","7":"Outro","9":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if dimension=="outcome" and prefix=="ACBI": return {"1":"Alta com conversão sorológica","2":"Alta sem conversão sorológica","3":"Alta com paciente-fonte negativo","4":"Abandono","5":"Óbito pelo acidente","6":"Óbito por outra causa","9":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if dimension=="regime": return {"1":"Hospitalar","2":"Ambulatorial","3":"Hospitalar e ambulatorial","9":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if dimension=="cat": return {"1":"Sim","2":"Não","3":"Não se aplica","9":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if dimension=="workAgent" and prefix=="ACBI": return {"1":"Agulha com lúmen","2":"Agulha sem lúmen","3":"Intracath","4":"Vidro","5":"Lâmina / lanceta","6":"Outros","9":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if dimension in {"diagnosis","accidentCause","injuryDiagnosis"}: return f"CID-10 {category}"
+    if dimension.startswith("workerTest"): return {"1":"Positivo","2":"Negativo","3":"Inconclusivo","4":"Não realizado","9":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if dimension.startswith("sourceTest"): return {"1":"Positivo","2":"Negativo","3":"Inconclusivo","4":"Em andamento","5":"Não realizado","9":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if dimension.startswith("exposure") or dimension.startswith("epi") or dimension.startswith("conduct") or dimension in {"sourceKnown","vaccination"}:
+        return {"1":"Sim","2":"Não","3":"Não se aplica","9":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if dimension in {"otherWorkers","medicalCare","outsourcedEmployer"}:
+        return {"1":"Sim","2":"Não","3":"Não se aplica","9":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if dimension.startswith("affectedBodyPart"):
+        return {"01":"Olho","02":"Cabeça","03":"Pescoço","04":"Tórax","05":"Abdome","06":"Mão","07":"Membro superior","08":"Membro inferior","09":"Pé","10":"Todo o corpo","11":"Outro","99":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if dimension=="organicMaterial": return {"1":"Sangue","2":"Líquor","3":"Líquido pleural","4":"Líquido ascítico","5":"Líquido amniótico","6":"Fluido com sangue","7":"Soro / plasma","8":"Outros","9":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if dimension=="circumstance": return {"01":"Medicação endovenosa","02":"Medicação intramuscular","03":"Medicação subcutânea","04":"Medicação intradérmica","05":"Punção para coleta de sangue","06":"Punção não especificada","07":"Descarte em saco de lixo","08":"Descarte em bancada, cama ou chão","09":"Lavanderia","10":"Lavagem de material","11":"Caixa de perfurocortantes","12":"Procedimento cirúrgico","13":"Procedimento odontológico","14":"Procedimento laboratorial","15":"Dextro","16":"Reencape","98":"Outros","99":"Ignorado / não informado"}.get(category,f"Código {category}")
+    return f"Código {category}"
+
+def predefined_sinan_workhealth(payload: dict[str,Any], progress=None):
+    if progress is None: return _predefined_sinan_workhealth_impl(payload,None)
+    stop=threading.Event(); progress_lock=threading.Lock(); latest={"percent":4,"stage":"Preparando as bases de saúde do trabalhador do SINAN"}
+    def publish(percent,stage):
+        with progress_lock: latest["percent"]=percent; latest["stage"]=stage
+        progress(percent,stage)
+    def heartbeat():
+        while not stop.wait(4):
+            try:
+                with progress_lock: progress(latest["percent"],latest["stage"])
+            except Exception: pass
+    thread=threading.Thread(target=heartbeat,name="sinan-workhealth-progress",daemon=True); thread.start()
+    try: return _predefined_sinan_workhealth_impl(payload,publish)
+    finally: stop.set(); thread.join(timeout=1)
+
+def _predefined_sinan_workhealth_impl(payload: dict[str,Any], progress=None):
+    report_id=payload.get("predefinedReport")
+    year=payload.get("year"); month=payload.get("month")
+    uf=str(payload.get("uf") or "").upper(); municipality=str(payload.get("municipalityCode") or "")
+    municipality_name=_report_label(payload.get("municipalityName") or "")[:100]
+    view=str(payload.get("view") or "summary")
+    if report_id!=SINAN_WORKHEALTH_REPORT_ID or view not in {"summary","detail","full"}: raise ValueError("Selecione uma visão válida para a análise de saúde do trabalhador.")
+    if type(year) is not int or not 2006<=year<=date.today().year: raise ValueError("Selecione um ano entre 2006 e o ano atual.")
+    if type(month) is not int or not 1<=month<=12: raise ValueError("Selecione um mês válido.")
+    if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]: raise ValueError("Selecione um município notificante válido.")
+    detail_code=str(payload.get("agravoCode") or "").upper()
+    if view=="detail" and detail_code not in SINAN_WORKHEALTH_AGRAVOS: raise ValueError("Selecione um agravo relacionado ao trabalho para detalhar.")
+    prefixes=[detail_code] if view=="detail" else list(SINAN_WORKHEALTH_AGRAVOS)
+    loaded={}; source_errors=[]; failed_prefixes=[]
+    for index,prefix in enumerate(prefixes,1):
+        try:
+            if progress:
+                progress(5+int(72*(index-1)/max(1,len(prefixes))),f"Consultando {SINAN_WORKHEALTH_AGRAVOS[prefix]} · {index} de {len(prefixes)}")
+            def source_progress(percent,stage):
+                if progress:
+                    source_fraction=max(0,min(1,(float(percent) if isinstance(percent,(int,float)) else 0)/100))
+                    overall=5+int(72*((index-1+source_fraction)/max(1,len(prefixes))))
+                    progress(overall,stage)
+            loaded[prefix]=_sinan_workhealth_source(prefix,year,source_progress if progress else None,include_combinations=view=="detail")
+        except Exception as exc:
+            failed_prefixes.append(prefix)
+            source_errors.append(f"{SINAN_WORKHEALTH_AGRAVOS[prefix]}: {str(exc)[:220]}")
+    available={prefix:meta for prefix,meta in loaded.items() if meta.get("available")}
+    municipalities={}
+    try: municipalities=_sinan_ibge_municipalities()
+    except Exception: pass
+    rows=[]; published_prefixes=[]; missing_prefixes=[]; total_notifications=0
+    if view=="detail":
+        meta=available.get(detail_code)
+        dimensions=[(dimension,label) for dimension,label,_ in _sinan_workhealth_dimensions(detail_code) if meta and dimension in set(meta.get("fields") or [])]
+        if meta:
+            with sqlite3.connect(str(meta["path"]),timeout=30) as db:
+                total_row=db.execute("SELECT amount FROM counts WHERE municipality=? AND month=? AND dimension='__total__' AND category='all'",(municipality,month)).fetchone()
+                total_notifications=int(total_row[0]) if total_row else 0
+                combinations=db.execute("SELECT categories,amount FROM combinations WHERE municipality=? AND month=? ORDER BY amount DESC,categories",(municipality,month)).fetchall()
+                combination_total=0
+                for serialized,amount in combinations:
+                    categories=json.loads(serialized)
+                    notifications=int(amount); combination_total+=notifications
+                    row={"notifications":notifications,"share":round(notifications*100/total_notifications,1) if total_notifications else 0}
+                    for dimension,_label in dimensions:
+                        code=str(categories.get(dimension,"unknown"))
+                        row[dimension]=_sinan_workhealth_value_label(detail_code,dimension,code,municipalities)
+                        row[f"{dimension}Code"]=code
+                    rows.append(row)
+                if combination_total!=total_notifications:
+                    raise RuntimeError("A soma das combinações do detalhamento não corresponde ao total de notificações. Atualize a consulta para reconstruir os dados.")
+        published_prefixes=[detail_code] if meta else []
+        columns=[{"id":dimension,"label":label.upper(),"field":dimension,"type":"text","filterFields":[dimension,f"{dimension}Code"],"sortable":True,"filterable":True} for dimension,label in dimensions]
+        columns.extend([
+            {"id":"notifications","label":"NOTIFICAÇÕES","field":"notifications","type":"number","decimals":0,"sortField":"notifications"},
+            {"id":"share","label":"% DO RECORTE","field":"share","type":"percent","decimals":1,"sortField":"share"},
+        ])
+        notes=[
+            "Cada linha reúne valores que apareceram juntos nas mesmas notificações; a quantidade não representa pessoas únicas.",
+            "A tabela mostra apenas campos presentes na ficha oficial do agravo selecionado.",
+            "O percentual compara a linha com todas as notificações deste recorte. “Ignorado / não informado” quer dizer que o campo não foi preenchido; CBO, CNAE e CID-10 são códigos de ocupação, atividade econômica e diagnóstico.",
+        ]
+        unknown_by_dimension=[]
+        for dimension,label in dimensions:
+            unknown_total=sum(row["notifications"] for row in rows if row.get(f"{dimension}Code")=="unknown")
+            if total_notifications and unknown_total:
+                unknown_by_dimension.append((label,unknown_total,total_notifications))
+        entirely_unknown=[name for name,unknown,total in unknown_by_dimension if unknown==total]
+        if entirely_unknown:
+            names=", ".join(entirely_unknown[:4])+(f" e mais {len(entirely_unknown)-4}" if len(entirely_unknown)>4 else "")
+            reference=max((total for _,unknown,total in unknown_by_dimension if unknown==total),default=0)
+            notes.append(f"Atenção: {names} estão sem preenchimento em todas as {reference} notificações deste recorte.")
+        partial_unknown=[f"{name}: {unknown} de {total} notificações" for name,unknown,total in unknown_by_dimension if unknown<total]
+        if partial_unknown:
+            notes.append("Informação ausente: "+"; ".join(partial_unknown[:4])+(f"; e mais {len(partial_unknown)-4} campos" if len(partial_unknown)>4 else "."))
+        if meta and meta.get("stale"): notes.append("A última leitura local foi mantida porque a fonte oficial não respondeu nesta tentativa.")
+        if not meta: notes.append("A base desse agravo ainda não foi publicada para o ano selecionado.")
+        kpis=[{"label":"NOTIFICAÇÕES DO AGRAVO","value":{"value":total_notifications} if meta else {"text":"—"}},{"label":"CAMPOS NA TABELA","value":{"value":len(dimensions)}}]
+        establishment_name=SINAN_WORKHEALTH_AGRAVOS[detail_code]
+        empty_state=(f"Não há notificações de {establishment_name.lower()} em {municipality_name or municipality} no mês selecionado." if meta and total_notifications==0 else "" if meta else "Não foi possível consultar a base desse agravo nesta tentativa." if detail_code in failed_prefixes else "A base desse agravo ainda não foi publicada para o ano selecionado.")
+        records=total_notifications
+    else:
+        for prefix in SINAN_WORKHEALTH_AGRAVOS:
+            meta=loaded.get(prefix)
+            if not meta or not meta.get("available"):
+                failed=prefix in failed_prefixes
+                if not failed: missing_prefixes.append(prefix)
+                rows.append({"code":prefix,"agravoCode":prefix,"agravoName":SINAN_WORKHEALTH_AGRAVOS[prefix],"notifications":None,"available":False,"sourceStatus":"Falha ao consultar" if failed else "Arquivo ainda não publicado","availableDimensions":"Consulte o status da base"})
+                continue
+            published_prefixes.append(prefix)
+            with sqlite3.connect(str(meta["path"]),timeout=30) as db:
+                found=db.execute("SELECT amount FROM counts WHERE municipality=? AND month=? AND dimension='__total__' AND category='all'",(municipality,month)).fetchone()
+                amount=int(found[0]) if found else 0
+                total_notifications+=amount
+                fields=set(meta.get("fields") or [])
+                available_dimensions=[label for key,label,_ in _sinan_workhealth_dimensions(prefix) if key in fields]
+                dimensions=" · ".join(available_dimensions[:4])+(f" · +{len(available_dimensions)-4} campos" if len(available_dimensions)>4 else "") if available_dimensions else "Somente total de notificações"
+                rows.append({"code":prefix,"agravoCode":prefix,"agravoName":SINAN_WORKHEALTH_AGRAVOS[prefix],"notifications":amount,"available":True,"sourceStatus":"Disponível · "+("base final" if meta.get("stage")=="FINAIS" else "base preliminar")+(" · leitura local" if meta.get("stale") else ""),"availableDimensions":dimensions,"sourceStage":meta.get("stage") or "","stale":bool(meta.get("stale"))})
+        columns=[
+            {"id":"agravo","label":"AGRAVO RELACIONADO AO TRABALHO","kind":"primary","primaryField":"agravoName","secondaryField":"agravoCode","filterFields":["agravoName","agravoCode"],"type":"text"},
+            {"id":"notifications","label":"NOTIFICAÇÕES","metricId":"notifications","type":"number","decimals":0},
+            {"id":"sourceStatus","label":"STATUS DA BASE","field":"sourceStatus","type":"text"},
+            {"id":"availableDimensions","label":"DETALHAMENTO DISPONÍVEL","field":"availableDimensions","type":"text"},
+            {"id":"detail","label":"DETALHAR","kind":"action","actionType":"sinan-workhealth-detail","actionLabel":"Abrir tabela →"},
+        ]
+        notes=[
+            "O mês considera a data de notificação (DT_NOTIFIC), para comparar os sete agravos no mesmo critério. O total representa notificações registradas, não pessoas únicas.",
+            "ACGR corresponde à ficha de acidente de trabalho grave; o recorte não representa a totalidade de acidentes leves.",
+            "Cada agravo tem sua própria ficha; o detalhamento mostra somente os campos correspondentes que estão disponíveis na respectiva base.",
+        ]
+        final_sources=[]; preliminary_sources=[]; stale_sources=[]; invalid_total=0
+        for prefix in published_prefixes:
+            meta=loaded[prefix]
+            (final_sources if meta.get("stage")=="FINAIS" else preliminary_sources).append(SINAN_WORKHEALTH_AGRAVOS[prefix])
+            if meta.get("stale"): stale_sources.append(SINAN_WORKHEALTH_AGRAVOS[prefix])
+            invalid_total+=int(meta.get("invalidDates") or 0)
+        if final_sources: notes.append("Bases finais: "+", ".join(final_sources)+".")
+        if preliminary_sources: notes.append("Bases preliminares: "+", ".join(preliminary_sources)+"; os registros podem ser revisados pela fonte oficial.")
+        if stale_sources: notes.append("A última leitura local foi reaproveitada para: "+", ".join(stale_sources)+".")
+        if invalid_total: notes.append(f"{invalid_total:,} registro(s) sem data de notificação ou município válido foram excluídos.".replace(",","."))
+        if missing_prefixes: notes.append("Algumas bases de agravos não estão publicadas para o ano selecionado; elas não são apresentadas como zero. Os demais agravos disponíveis continuam na análise.")
+        if source_errors: notes.append("Uma ou mais bases não puderam ser atualizadas nesta consulta; as demais fontes foram mantidas no resultado.")
+        kpis=[{"label":"NOTIFICAÇÕES","value":{"value":total_notifications} if published_prefixes else {"text":"—"}},{"label":"AGRAVOS COM BASE PUBLICADA","value":{"value":len(published_prefixes)}}]
+        establishment_name=None
+        records=total_notifications
+        empty_state=(f"Não há notificações dos agravos selecionados para {municipality_name or municipality} no mês escolhido." if published_prefixes and total_notifications==0 and not missing_prefixes and not source_errors else "" if published_prefixes else "Não foi possível consultar as bases do SINAN nesta tentativa." if source_errors else "Nenhum dos arquivos dos agravos selecionados está publicado para o ano escolhido.")
+    return {
+        "ok":True,"report":SINAN_WORKHEALTH_REPORT_ID,"view":view,"flatTable":True,"file":"SINAN · bases DBC oficiais",
+        "year":year,"month":month,"uf":uf,"state":PREDEFINED_UF_NAMES[uf],"municipality":municipality_name or f"Município {municipality}","municipalityCode":municipality,
+        "establishmentCode":detail_code if view=="detail" else None,"establishmentName":establishment_name,
+        "columns":columns,"metrics":[{"id":"notifications","label":"Notificações","decimals":0}] if view!="detail" else [],"kpis":kpis,"rows":rows,"records":records,"emptyStateMessage":empty_state,
+        "notes":notes,"filters":[{"label":"Município notificante","value":municipality_name or municipality}],"cachedAt":time.time(),
+    }
 
 def _pqavs_collect_arbo(prefix: str, file_year: int):
     valid_classes={"10","11","12","5"} if prefix=="DENG" else {"13","5"}
@@ -7423,6 +7843,8 @@ def tabulate(payload, progress=None):
         return predefined_sim_mortality(payload,progress)
     if payload.get("predefinedReport")=="sim-mortalidade-infantil":
         return predefined_sim_infant_mortality(payload,progress)
+    if payload.get("predefinedReport")==SINAN_WORKHEALTH_REPORT_ID:
+        return predefined_sinan_workhealth(payload,progress)
     if payload.get("predefinedReport") in SINAN_AGRAVOS:
         return predefined_sinan_dengue(payload,progress)
     if payload.get("predefinedReport") in {"sia-pa-producao","sia-pa-belem"}:
