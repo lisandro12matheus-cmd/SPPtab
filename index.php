@@ -9,6 +9,12 @@ tabwin2_page_security();
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f4f7f8">
   <meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
+  <!-- Vercel Web Analytics -->
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <!-- End Vercel Web Analytics -->
   <title>TabulaSUS · DATASUS</title>
   <link rel="stylesheet" href="assets/app.css?v=22">
   <link rel="stylesheet" href="assets/file-selection.css?v=1">

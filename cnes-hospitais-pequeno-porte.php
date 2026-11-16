@@ -2,6 +2,12 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
+  <!-- Vercel Web Analytics -->
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <!-- End Vercel Web Analytics -->
   <title>Hospitais de pequeno porte · TabulaSUS</title>
   <link rel="stylesheet" href="assets/app.css?v=22"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/predefined-report.css?v=59"><link rel="stylesheet" href="assets/compact-headings.css?v=1"><link rel="stylesheet" href="assets/cnes-hpp.css?v=2">
   <script src="assets/sidebar.js?v=3" defer></script><script src="assets/cnes-hpp.js?v=3" defer></script>
