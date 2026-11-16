@@ -7,11 +7,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <!-- SEO PRINCIPAL -->
-<title>TabulaSUS | Tabulador SUS, DATASUS, SIA e SIH</title>
+<title>TabulaSUS | Tabulação SUS, DATASUS, TabWin e TabNet</title>
+
+<link rel="icon" type="image/x-icon" href="/assets/spptab-icon.ico" sizes="16x16 20x20 24x24 32x32 40x40 48x48 64x64 128x128 256x256">
 
 <meta
   name="description"
-  content="TabulaSUS (Tabula SUS): ferramenta gratuita para tabulação e análise de dados públicos de saúde. Consulte DATASUS, SIA/SUS, SIH/SUS, CNES e SIGTAP. Conheça uma alternativa ao Tabwin e complemento ao Tabnet."
+  content="Tabulador SUS gratuito para consultar dados do DATASUS: SIA/SUS, SIH/SUS, CNES, SIGTAP, SINAN, SINASC e SIM, com vacinação e indicadores PQA-VS."
 >
 
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -31,12 +33,12 @@
 
 <meta
   property="og:title"
-  content="TabulaSUS — Tabulador e Análise de Dados do SUS"
+  content="TabulaSUS — Tabulação SUS, DATASUS, TabWin e TabNet"
 >
 
 <meta
   property="og:description"
-  content="Ferramenta gratuita para consultar e analisar dados públicos do SUS. DATASUS, SIA/SUS, SIH/SUS, CNES e SIGTAP."
+  content="Tabulador gratuito de dados públicos do SUS: produção ambulatorial e hospitalar, CNES, SIGTAP, vigilância, nascimentos, mortalidade, vacinação e indicadores de saúde."
 >
 
 <meta
@@ -53,12 +55,12 @@
 
 <meta
   name="twitter:title"
-  content="TabulaSUS — Saúde em dados"
+  content="TabulaSUS | Tabulação SUS, DATASUS, TabWin e TabNet"
 >
 
 <meta
   name="twitter:description"
-  content="Tabulador gratuito para consultas e análises de dados públicos do SUS."
+  content="Tabulador SUS gratuito para consultar DATASUS, produção ambulatorial e hospitalar, CNES, SIGTAP, vacinação e indicadores PQA-VS."
 >
 
 <!-- DADOS ESTRUTURADOS -->
@@ -68,9 +70,17 @@
   "@type": "SoftwareApplication",
   "@id": "https://tabulasus.vercel.app/#software",
   "name": "TabulaSUS",
-  "alternateName": "Tabula SUS",
+  "alternateName": ["Tabula SUS", "Tabulador SUS", "Tabulação SUS"],
   "url": "https://tabulasus.vercel.app/",
-  "description": "Aplicativo gratuito para Windows destinado à tabulação e análise de dados públicos de saúde do SUS. Permite consultar informações do DATASUS, SIA/SUS, SIH/SUS, CNES, SIGTAP e outras fontes oficiais.",
+  "description": "Aplicativo gratuito para tabular dados do SUS em todo o Brasil. Reúne relatórios prontos de produção ambulatorial e hospitalar, CNES, SIGTAP, vigilância, nascimentos, mortalidade, imunização e indicadores selecionados do PQA-VS.",
+  "featureList": [
+    "Tabulação e análise de dados públicos do SUS",
+    "Relatórios de produção ambulatorial e hospitalar do DATASUS",
+    "Consultas de estabelecimentos e profissionais do CNES",
+    "Relatórios de imunização, cobertura vacinal e indicadores PQA-VS",
+    "Relatórios de vigilância epidemiológica, nascimentos e mortalidade",
+    "Filtros por estado, município, competência e estabelecimento, conforme cada base"
+  ],
   "applicationCategory": "HealthApplication",
   "applicationSubCategory": "Tabulação e análise de dados de saúde",
   "operatingSystem": "Windows 64-bit",
@@ -371,7 +381,7 @@
   <div class="hero-copy">
 
     <p class="eyebrow">
-      DADOS PÚBLICOS. GESTÃO INFORMADA.
+      TABULAÇÃO SUS · DADOS PÚBLICOS
     </p>
 
     <h1>
@@ -381,14 +391,11 @@
     </h1>
 
     <p class="lead">
-      O TabulaSUS é um tabulador gratuito de dados
-      públicos de saúde, desenvolvido para facilitar
-      consultas e análises de informações do DATASUS.
-
-      Conecte dados do SIA/SUS, SIH/SUS,
-      informações do CNES e a tabela SIGTAP
-      para apoiar a gestão, a regulação e o
-      planejamento em saúde.
+      O TabulaSUS é um tabulador gratuito para consultar
+      dados públicos do SUS e do DATASUS em todo o Brasil.
+      Explore relatórios de produção ambulatorial e hospitalar,
+      CNES, SIGTAP, vigilância, nascimentos, mortalidade,
+      vacinação e indicadores de saúde.
     </p>
 
     <div class="actions">
@@ -627,19 +634,19 @@
       <div>
 
         <p class="source">
-          SINAN · SIVEP-Gripe
+          SINAN · SIVEP-Gripe · PQA-VS
         </p>
 
         <h3>Vigilância epidemiológica</h3>
 
         <p>
-          Acompanhe notificações de arboviroses
-          e casos de síndrome respiratória aguda grave.
+          Acompanhe notificações e casos registrados
+          em relatórios de vigilância e indicadores selecionados.
         </p>
 
         <p class="examples">
-          Dengue · Chikungunya · Zika ·
-          SRAG por semana epidemiológica
+          Dengue · Chikungunya · Zika · Tuberculose · Hanseníase ·
+          Sífilis · SRAG
         </p>
 
       </div>
@@ -691,6 +698,32 @@
 
         <p class="examples">
           Óbitos por semana
+        </p>
+
+      </div>
+
+    </article>
+
+    <article class="report">
+
+      <span class="number">06</span>
+
+      <div>
+
+        <p class="source">
+          PNI · RNDS · CNES · PQA-VS
+        </p>
+
+        <h3>Imunização e indicadores de saúde</h3>
+
+        <p>
+          Consulte cobertura vacinal infantil, doses aplicadas
+          por estabelecimento e indicadores selecionados
+          de vigilância em saúde.
+        </p>
+
+        <p class="examples">
+          Cobertura vacinal · Doses por unidade · Indicadores PQA-VS
         </p>
 
       </div>
@@ -800,13 +833,12 @@
           DADOS ABERTOS DO MINISTÉRIO DA SAÚDE
         </p>
 
-        <h3>Outras fontes para a análise</h3>
+        <h3>Imunização e indicadores de saúde</h3>
 
         <p>
-          As análises também utilizam bases públicas
-          de vigilância, mortalidade e nascimentos,
-          conforme as fontes e os relatórios
-          implementados.
+          Relatórios de vacinação e cobertura infantil
+          se somam aos indicadores selecionados do PQA-VS,
+          com recortes e fontes identificados em cada consulta.
         </p>
 
       </article>
@@ -1181,20 +1213,36 @@
       </summary>
 
       <p>
-        O TabulaSUS é um aplicativo independente
-        que facilita consultas e análises de dados
-        públicos de saúde.
+        O TabulaSUS é um tabulador SUS gratuito e independente
+        que facilita consultas e análises de dados públicos
+        do DATASUS.
 
         O Tabnet é uma ferramenta de tabulação
         disponibilizada pelo DATASUS, enquanto
         o Tabwin é utilizado para trabalhar
         com bases de dados em ambiente local.
 
-        O TabulaSUS oferece uma alternativa
+        O TabulaSUS oferece uma forma complementar
         de trabalho, com consultas predefinidas,
         filtros e integração com outras fontes
         de informação, sem substituir os sistemas
         oficiais.
+      </p>
+
+    </details>
+
+    <details>
+
+      <summary>
+        O TabulaSUS tem relatórios de vacinação e imunização?
+      </summary>
+
+      <p>
+        Sim. Há consultas de cobertura vacinal infantil,
+        doses aplicadas por estabelecimento e indicadores
+        selecionados de vigilância em saúde. Os resultados
+        seguem a fonte, o período e os filtros indicados
+        em cada relatório.
       </p>
 
     </details>
