@@ -265,7 +265,9 @@ def select_extended_files(system: str, year: int, month: int | None = None, uf: 
     cached=cached_source(cache_path)
     freshness=600 if year==datetime.now().year else 86400
     if cached and time.time()-cached["fetched_at"]<freshness:
-        remote_files=cached["names"]; source_mode="cache"
+        # Cache entries contain remote paths; normalize them to the same
+        # (stage, path) shape returned by the live FTP listing below.
+        remote_files=[("cache",remote) for remote in cached["names"]]; source_mode="cache"
     else:
         remote_files=[]; ftp=None; errors=[]
         try:
