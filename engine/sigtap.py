@@ -376,6 +376,40 @@ def ensure_dataset(value: Any) -> tuple[Path, dict[str, str], str]:
             Path(db_name).unlink(missing_ok=True)
 
 
+def procedure_metadata(competence: Any, codes: list[str] | tuple[str, ...]) -> tuple[dict[str, dict[str, str]], dict[str, str], str]:
+    """Look up official SIGTAP labels for a bounded set of procedure codes."""
+    path, metadata, warning = ensure_dataset(competence)
+    clean = sorted({str(code).strip() for code in codes if re.fullmatch(r"\d{10}", str(code).strip())})
+    if len(clean) > 100_000:
+        raise ValueError("O recorte contém códigos SIGTAP demais para enriquecer de uma vez.")
+    procedures: dict[str, dict[str, str]] = {}
+    if clean:
+        with _connection(path) as connection:
+            for offset in range(0, len(clean), 800):
+                chunk = clean[offset:offset + 800]
+                placeholders = ",".join("?" for _ in chunk)
+                rows = connection.execute(
+                    "SELECT p.code,p.name,p.group_code,p.subgroup_code,p.financing,"
+                    "g.label AS group_label,sg.label AS subgroup_label,f.label AS financing_label "
+                    "FROM procedures p "
+                    "LEFT JOIN domains g ON g.kind='group' AND g.code=p.group_code "
+                    "LEFT JOIN domains sg ON sg.kind='subgroup' AND sg.code=p.subgroup_code "
+                    "LEFT JOIN domains f ON f.kind='financing' AND f.code=p.financing "
+                    f"WHERE p.code IN ({placeholders})", chunk
+                ).fetchall()
+                for row in rows:
+                    procedures[row["code"]] = {
+                        "name": row["name"] or "",
+                        "groupCode": row["group_code"] or "",
+                        "group": row["group_label"] or "",
+                        "subgroupCode": row["subgroup_code"] or "",
+                        "subgroup": row["subgroup_label"] or "",
+                        "financingCode": row["financing"] or "",
+                        "financing": row["financing_label"] or "",
+                    }
+    return procedures, metadata, warning
+
+
 def prepare_zip(payload: dict[str, Any]) -> dict[str, Any]:
     competence = _valid_competence(payload.get("competence"))
     listing = discover()

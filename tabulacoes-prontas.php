@@ -45,6 +45,10 @@
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Produção ambulatorial</div><h3>Produção por estabelecimento</h3><p>Compare o apresentado e o aprovado por unidade e abra a composição dos procedimentos.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SIA/SUS · SIGTAP</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
           </article>
+          <article class="predefined-card" data-category="ambulatorial" data-report="sia-pa-procedimentos" role="button" tabindex="0" aria-label="Abrir tabulação: Produção ambulatorial por procedimento">
+            <div class="predefined-card-content"><div class="predefined-card-eyebrow">Produção ambulatorial · SIGTAP</div><h3>Produção por procedimento</h3><p>Compare quantidades e valores apresentados e aprovados por procedimento; detalhe as unidades que o realizaram.</p></div>
+            <div class="predefined-card-footer"><span class="predefined-card-source">SIA/SUS · SIGTAP</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
+          </article>
           <article class="predefined-card" data-category="ambulatorial" data-report="sia-apac-oncologia" role="button" tabindex="0" aria-label="Abrir tabulação: oncologia, quimioterapia e radioterapia">
             <div class="predefined-card-content"><div class="predefined-card-eyebrow">Alta complexidade · APAC</div><h3>Oncologia: quimio e radioterapia</h3><p>Pacientes, APACs e valores de quimioterapia e radioterapia por estabelecimento e procedimento.</p></div>
             <div class="predefined-card-footer"><span class="predefined-card-source">SIA/SUS · APAC AQ · AR</span><span class="predefined-card-open" aria-hidden="true">Abrir relatório <span>↗</span></span></div>
@@ -207,6 +211,6 @@
       <div class="setup-dialog-footer"><div class="setup-default-actions"><button type="button" id="saveSetupDefault">Salvar filtros adicionais como padrão</button><button type="button" id="clearSetupDefault" hidden>Remover padrão</button><span id="setupDefaultStatus" role="status"></span></div><button class="button button-secondary" id="cancelReportSetup" type="button">Cancelar</button><button class="button button-primary" id="openReport" type="button" disabled>Gerar relatório <span aria-hidden="true">→</span></button></div>
     </form>
   </dialog>
-  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=98" defer></script>
+  <script src="assets/tabulations-nav.js?v=1" defer></script><script src="assets/predefined-report.js?v=99" defer></script>
 </body>
 </html>

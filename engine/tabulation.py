@@ -16,7 +16,7 @@ from typing import Any
 
 from official_source import download_file as portal_download_file, open_verified_https
 from storage_lock import interprocess_lock
-from sigtap import matching_codes as sigtap_matching_codes
+from sigtap import matching_codes as sigtap_matching_codes, procedure_metadata as sigtap_procedure_metadata
 
 ROOT = Path(__file__).resolve().parents[1]
 UPLOADS = Path(os.environ.get("TABWIN2_DATA_DIR", ROOT / "uploads")).expanduser().resolve()
@@ -5722,6 +5722,7 @@ def predefined_sia_apac(payload: dict[str,Any], progress=None):
 
 def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
     """Monthly state-level SIA production, with optional municipal and classification filters."""
+    procedure_report=str(payload.get("predefinedReport") or "") == "sia-pa-procedimentos"
     if progress: progress(2,"Conferindo a base ambulatorial")
     source=safe_file(payload.get("path",""))
     relative=source.relative_to(UPLOADS).as_posix()
@@ -5735,9 +5736,16 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
     view=str(payload.get("predefinedView") or "summary")
     if view not in {"summary","detail"}:
         raise ValueError("A visualização solicitada não existe.")
-    establishment=_report_code(str(payload.get("establishmentCode") or ""),7) if view=="detail" else ""
-    if view=="detail" and (not establishment or len(re.sub(r"\D","",str(payload.get("establishmentCode") or "")))>7):
-        raise ValueError("Selecione um estabelecimento válido para detalhar.")
+    procedure_code=""
+    establishment=""
+    if view=="detail" and procedure_report:
+        procedure_code=_report_code(str(payload.get("procedureCode") or ""),10)
+        if not procedure_code or len(re.sub(r"\D","",str(payload.get("procedureCode") or "")))!=10:
+            raise ValueError("Selecione um procedimento SIGTAP válido para detalhar.")
+    elif view=="detail":
+        establishment=_report_code(str(payload.get("establishmentCode") or ""),7)
+        if not establishment or len(re.sub(r"\D","",str(payload.get("establishmentCode") or "")))>7:
+            raise ValueError("Selecione um estabelecimento válido para detalhar.")
 
     municipality=str(payload.get("municipalityCode") or "").strip()
     selected_filter_codes={}
@@ -5805,11 +5813,19 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
     def establishment_label(code):
         return _report_label(establishment_labels.get(code) or establishment_legal_labels.get(code) or f"CNES {code}")
     procedure_labels=_report_relation_index(relation_mapping("SIA",procedure_option),10) if procedure_option else {}
-    complexity_labels=relation_mapping("SIA",complexity_option) if view=="detail" and complexity_option else {}
+    complexity_labels=relation_mapping("SIA",complexity_option) if view=="detail" and not procedure_report and complexity_option else {}
 
     sigtap_filter,sigtap_source=_sigtap_procedure_filter(payload,2000+int(filename_match.group("yy")),int(filename_match.group("mm")),fieldinfo,"PA_PROC_ID",dbf)
     archive=UPLOADS/"DEFINICOES"/"originais"/"TAB_SIA.zip"
-    identity={"report":"sia-pa-production-v6","source":cache_file_identity(source),"dbf":cache_file_identity(dbf),"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"uf":uf,"municipality":municipality,"filters":selected_filter_codes,"sigtap":payload.get("sigtapFilters"),"sigtapVersion":sigtap_source.get("sha256") if sigtap_source else None,"sigtapAuditVersion":1}
+    sigtap_catalog_status=None
+    sigtap_catalog_warning=""
+    if procedure_report:
+        try:
+            if progress: progress(7,"Consultando o SIGTAP oficial da competência")
+            _,sigtap_catalog_status,sigtap_catalog_warning=sigtap_procedure_metadata(f"{2000+int(filename_match.group('yy')):04d}{int(filename_match.group('mm')):02d}",[])
+        except Exception as exc:
+            sigtap_catalog_warning=f"A tabela SIGTAP desta competência não pôde ser carregada ({str(exc)[:240]}). Os códigos e nomes preservados na definição SIA continuam disponíveis."
+    identity={"report":"sia-pa-procedures-v1" if procedure_report else "sia-pa-production-v6","source":cache_file_identity(source),"dbf":cache_file_identity(dbf),"definition":cache_file_identity(archive),"view":view,"establishment":establishment,"procedure":procedure_code,"uf":uf,"municipality":municipality,"filters":selected_filter_codes,"sigtap":payload.get("sigtapFilters"),"sigtapVersion":(sigtap_source.get("sha256") if sigtap_source else None) or (sigtap_catalog_status or {}).get("sha256"),"sigtapAuditVersion":1}
     target=cache_target("predefined-reports",identity)
     cached=cache_read(target)
     if isinstance(cached,dict) and cached.get("ok") is True:
@@ -5819,6 +5835,7 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
     filters=[]
     if municipality: filters.append(("PA_UFMUN",municipality))
     filters.extend(selected_filter_codes.items())
+    if procedure_report and view=="detail": filters.append(("PA_PROC_ID",procedure_code))
     if sigtap_filter: filters.append(sigtap_filter)
     municipality_name=str(payload.get("municipalityName") or "").strip()[:80] if municipality else "Todos os municípios"
     for spec in PREDEFINED_FILTER_SPECS:
@@ -5835,15 +5852,15 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
     legal_nature_name=filter_name_summary(legal_nature_names) if legal_nature_names else "Todas as naturezas jurídicas"
     filter_summary=[{"label":spec["label"],"value":filter_name_summary(selected_filter_names[spec["key"]])} for spec in PREDEFINED_FILTER_SPECS if spec["key"] in selected_filter_names]
     if progress: progress(12,"Somando a produção do recorte selecionado")
-    group_field="PA_CODUNI" if view=="summary" else "PA_PROC_ID"
+    group_field=("PA_PROC_ID" if view=="summary" else "PA_CODUNI") if procedure_report else ("PA_CODUNI" if view=="summary" else "PA_PROC_ID")
     names=list(dict.fromkeys([group_field,"PA_CODUNI","PA_QTDAPR","PA_QTDPRO","PA_VALAPR","PA_VALPRO"]))
-    has_complexity=view=="detail" and "PA_NIVCPL" in fieldinfo
-    has_financing=view=="detail" and financing_option is not None
+    has_complexity=view=="detail" and not procedure_report and "PA_NIVCPL" in fieldinfo
+    has_financing=(procedure_report or view=="detail") and financing_option is not None
     if has_complexity: names.append("PA_NIVCPL")
     if has_financing: names.append("PA_TPFIN")
     positions={name:index for index,name in enumerate(names)}
     decimals={name:int(fieldinfo[name]["decimals"]) for name in ("PA_QTDAPR","PA_QTDPRO","PA_VALAPR","PA_VALPRO")}
-    sums=defaultdict(lambda:[0,0,0,0,0,0,0,0,0,0,0])
+    sums=defaultdict(lambda:[0,0,0,0,0,0,0,0,set()])
     processed=[0]
     scope=" · ".join(part for part in (municipality_name if municipality else PREDEFINED_UF_NAMES[uf],*(filter_name_summary(selected_filter_names[spec["key"]]) for spec in PREDEFINED_FILTER_SPECS if spec["key"] in selected_filter_names)) if part)
     def scan_progress(done,_total):
@@ -5853,9 +5870,9 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
         dbf,names,with_index=True,pre_filter=filters or None,processed_counter=processed,scan_callback=scan_progress if progress else None
     ):
         cnes=_report_code(record[positions["PA_CODUNI"]],7)
-        if not cnes or (view=="detail" and cnes!=establishment):
+        if not cnes or (view=="detail" and not procedure_report and cnes!=establishment):
             continue
-        code=_report_code(record[positions[group_field]],7 if view=="summary" else 10)
+        code=_report_code(record[positions[group_field]],10 if group_field=="PA_PROC_ID" else 7)
         if not code:
             continue
         q_presented=scaled_integer(record[positions["PA_QTDPRO"]],decimals["PA_QTDPRO"])
@@ -5864,7 +5881,9 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
         v_approved=scaled_integer(record[positions["PA_VALAPR"]],decimals["PA_VALAPR"])
         complexity_code=record[positions["PA_NIVCPL"]].strip() if has_complexity else ""
         financing_code=_report_code(record[positions["PA_TPFIN"]],2) if has_financing else ""
-        if view=="detail":
+        if procedure_report:
+            group_key=code
+        elif view=="detail":
             group_key=(code,complexity_code,financing_code)
         else:
             group_key=code
@@ -5877,6 +5896,7 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
         row[5]+=max(0,v_presented-v_approved)
         row[6]+=int(q_presented>0 and q_approved==0)
         row[7]+=1
+        if financing_code: row[8].add(financing_code)
     metrics=[
         {"id":"qtd_aprovada","label":"Quantidade aprovada","decimals":decimals["PA_QTDAPR"]},
         {"id":"qtd_apresentada","label":"Quantidade apresentada","decimals":decimals["PA_QTDPRO"]},
@@ -5886,13 +5906,26 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
         {"id":"valor_glosado","label":"Glosa de valor","decimals":max(decimals["PA_VALPRO"],decimals["PA_VALAPR"])},
         {"id":"sem_aprovacao","label":"Rejeições¹","decimals":0},
     ]
-    metric_indexes=(0,1,2,3,4,5,6)
+    if procedure_report:
+        metrics=metrics[:-1]
+    metric_indexes=(0,1,2,3,4,5) if procedure_report else (0,1,2,3,4,5,6)
     totals=[sum(values[index] for values in sums.values()) for index in metric_indexes]
     rows=[]
     sortable_rows=[]
     financing_labels=relation_mapping("SIA",financing_option) if has_financing else {}
+    sigtap_metadata={}
+    if procedure_report and sigtap_catalog_status:
+        codes=[str(key) for key in sums if isinstance(key,str) and re.fullmatch(r"\d{10}",key)] if view=="summary" else [procedure_code]
+        try:
+            sigtap_metadata,_,sigtap_catalog_warning=sigtap_procedure_metadata(f"{2000+int(filename_match.group('yy')):04d}{int(filename_match.group('mm')):02d}",codes)
+        except Exception as exc:
+            sigtap_catalog_warning=f"A complementação SIGTAP não ficou disponível: {str(exc)[:240]}"
     for group_key,values in sums.items():
-        if view=="detail":
+        if procedure_report:
+            code=group_key
+            complexity_label=""
+            financing_label=""
+        elif view=="detail":
             code,complexity_code,financing_code=group_key
             complexity_label=_report_label(str(cnv_label(complexity_labels,complexity_code) or "").strip()) if complexity_code else "Não informado"
             financing_label=(_report_label(str(cnv_label(financing_labels,financing_code) or "").strip()) if financing_code else "Não informado") if has_financing else "Não disponível na base"
@@ -5900,26 +5933,50 @@ def predefined_sia_pa_production(payload: dict[str,Any], progress=None):
             code=group_key
             complexity_label="Complexidade não disponível" if view=="detail" else ""
             financing_label="Financiamento não disponível" if view=="detail" else ""
-        label=establishment_label(code) if view=="summary" else _report_label(procedure_labels.get(code) or "Descrição indisponível na referência oficial")
-        row={"code":code,"label":label,"values":[scaled_text(values[index],metric["decimals"]) for index,metric in zip(metric_indexes,metrics)],"records":values[7]}
-        if view=="detail": row.update({"complexity":complexity_label,"financing":financing_label})
+        if procedure_report:
+            if view=="summary":
+                official=sigtap_metadata.get(code,{})
+                label=_report_label(official.get("name") or procedure_labels.get(code) or "Descrição indisponível na referência oficial")
+                group_label=_report_label(official.get("group") or "Não identificado no SIGTAP")
+                subgroup_label=_report_label(official.get("subgroup") or "Não identificado no SIGTAP")
+                sigtap_financing_label=_report_label(official.get("financing") or "Não informado no SIGTAP")
+                actual_financing=sorted({_report_label(str(cnv_label(financing_labels,fin_code) or "")) for fin_code in values[8] if cnv_label(financing_labels,fin_code)})
+                row={"code":code,"label":label,"group":group_label,"subgroup":subgroup_label,"sigtapFinancing":sigtap_financing_label,
+                    "financing":" · ".join(actual_financing) if actual_financing else ("Não disponível na base" if not has_financing else "Não informado"),
+                    "values":[scaled_text(values[index],metric["decimals"]) for index,metric in zip(metric_indexes,metrics)],"records":values[7]}
+            else:
+                label=establishment_label(code)
+                actual_financing=sorted({_report_label(str(cnv_label(financing_labels,fin_code) or "")) for fin_code in values[8] if cnv_label(financing_labels,fin_code)})
+                row={"code":code,"label":label,"financing":" · ".join(actual_financing) if actual_financing else ("Não disponível na base" if not has_financing else "Não informado"),
+                    "values":[scaled_text(values[index],metric["decimals"]) for index,metric in zip(metric_indexes,metrics)],"records":values[7]}
+        else:
+            label=establishment_label(code) if view=="summary" else _report_label(procedure_labels.get(code) or "Descrição indisponível na referência oficial")
+            row={"code":code,"label":label,"values":[scaled_text(values[index],metric["decimals"]) for index,metric in zip(metric_indexes,metrics)],"records":values[7]}
+        if not procedure_report and view=="detail": row.update({"complexity":complexity_label,"financing":financing_label})
         sort_measure=values[2]
         sortable_rows.append((-int(sort_measure),label.casefold(),code,(complexity_label.casefold(),financing_label.casefold()),row))
     sortable_rows.sort(key=lambda item:item[:4])
     rows=[item[4] for item in sortable_rows]
     total_values=[scaled_text(value,metric["decimals"]) for value,metric in zip(totals,metrics)]
+    report_metrics=metrics
+    if procedure_report:
+        report_metrics=[{**item,"label":item["label"].replace("Glosa de ","Diferença positiva · ")} for item in metrics]
     result={
-        "ok":True,"report":"sia-pa-producao","view":view,"file":source.name,"path":relative,
+        "ok":True,"report":"sia-pa-procedimentos" if procedure_report else "sia-pa-producao","view":view,"file":source.name,"path":relative,
         "year":2000+int(filename_match.group("yy")),"month":int(filename_match.group("mm")),"uf":uf,"state":PREDEFINED_UF_NAMES[uf],
         "municipality":municipality_name,"municipalityCode":municipality or None,"manager":manager_name,"managerCode":manager_codes[0] if len(manager_codes)==1 else None,
         "managerCodes":manager_codes,"legalNature":legal_nature_name,"legalNatureCode":legal_nature_codes[0] if len(legal_nature_codes)==1 else None,"legalNatureCodes":legal_nature_codes,"establishmentCode":establishment or None,
         "filters":filter_summary,
-        "establishmentName":establishment_label(establishment) if establishment else None,
-        "dimensionLabel":"Estabelecimento" if view=="summary" else "Código SIGTAP · Procedimento",
-        "detailDimensions":[{"id":"complexity","label":"Complexidade"},{"id":"financing","label":"Financiamento (MAC/FAEC)"}] if view=="detail" else [],
-        "metrics":metrics,"totals":total_values,"records":sum(values[7] for values in sums.values()),"rows":rows,
-        "notes":["No detalhamento, um mesmo procedimento pode aparecer em mais de uma linha quando houver diferenças de complexidade ou financiamento (MAC/FAEC).","Glosas são calculadas pela diferença positiva entre o apresentado e o aprovado.","¹ A base PA não tem um campo separado de rejeição. O indicador conta as linhas com quantidade apresentada maior que zero e quantidade aprovada igual a zero; não representa um total oficial de registros rejeitados."],
+        "establishmentName":(sigtap_metadata.get(procedure_code,{}).get("name") or procedure_labels.get(procedure_code) or f"Procedimento SIGTAP {procedure_code}") if procedure_report and view=="detail" else (establishment_label(establishment) if establishment else None),
+        "dimensionLabel":("Procedimento · SIGTAP" if view=="summary" else "Estabelecimento") if procedure_report else ("Estabelecimento" if view=="summary" else "Código SIGTAP · Procedimento"),
+        "secondaryPrefix":("SIGTAP " if view=="summary" else "CNES ") if procedure_report else None,
+        "summaryDimensions":([{"id":"group","label":"Grupo SIGTAP"},{"id":"subgroup","label":"Subgrupo SIGTAP"},{"id":"sigtapFinancing","label":"Financiamento SIGTAP"}]+([{"id":"financing","label":"Financiamento registrado · SIA"}] if has_financing else [])) if procedure_report and view=="summary" else [],
+        "detailDimensions":[{"id":"financing","label":"Financiamento registrado · SIA"}] if procedure_report and view=="detail" and has_financing else ([{"id":"complexity","label":"Complexidade"},{"id":"financing","label":"Financiamento (MAC/FAEC)"}] if view=="detail" else []),
+        "metrics":report_metrics,"totals":total_values,"records":sum(values[7] for values in sums.values()),"rows":rows,
+        "notes":(["Grupo, subgrupo e financiamento SIGTAP descrevem o cadastro oficial da competência. “Financiamento registrado · SIA” vem do campo da produção ambulatorial e pode reunir mais de uma modalidade quando o procedimento aparece com fontes diferentes.","As diferenças mostradas são comparações entre valores apresentados e aprovados na base PA; não devem ser interpretadas automaticamente como glosa oficial."] if procedure_report else ["No detalhamento, um mesmo procedimento pode aparecer em mais de uma linha quando houver diferenças de complexidade ou financiamento (MAC/FAEC).","Glosas são calculadas pela diferença positiva entre o apresentado e o aprovado.","¹ A base PA não tem um campo separado de rejeição. O indicador conta as linhas com quantidade apresentada maior que zero e quantidade aprovada igual a zero; não representa um total oficial de registros rejeitados."]),
     }
+    if procedure_report and sigtap_catalog_warning:
+        result["notes"].append(sigtap_catalog_warning)
     _attach_sigtap_source(result,sigtap_source)
     if progress: progress(97,"Finalizando totais e descrições")
     cache_write(target,result,max_bytes=25_000_000,keep=30)
@@ -7847,7 +7904,7 @@ def tabulate(payload, progress=None):
         return predefined_sinan_workhealth(payload,progress)
     if payload.get("predefinedReport") in SINAN_AGRAVOS:
         return predefined_sinan_dengue(payload,progress)
-    if payload.get("predefinedReport") in {"sia-pa-producao","sia-pa-belem"}:
+    if payload.get("predefinedReport") in {"sia-pa-producao","sia-pa-belem","sia-pa-procedimentos"}:
         return predefined_sia_pa_production(payload,progress)
     if payload.get("predefinedReport") in SIA_APAC_REPORTS:
         return predefined_sia_apac(payload,progress)

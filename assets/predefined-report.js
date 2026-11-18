@@ -170,6 +170,20 @@
       summaryTitle:'Produção por estabelecimento', detailTitlePrefix:'Procedimentos SIGTAP', detailCountLabel:'COMPOSIÇÕES SIGTAP',
       filters:siaFilterDefinitions, tableSearchSummary:'Buscar estabelecimento ou CNES', tableSearchDetail:'Buscar código SIGTAP ou procedimento'
     },
+    'sia-pa-procedimentos': {
+      id:'sia-pa-procedimentos', system:'sia', systemCode:'SIA', kind:'PA', systemLabel:'SIA/SUS', sourceLabel:'produção ambulatorial por procedimento',
+      workspaceTitle:'Procedimentos ambulatoriais · SIA/SUS', introLabel:'PRODUÇÃO AMBULATORIAL · SIGTAP', introTitle:'Produção ambulatorial por procedimento.',
+      introDescription:'Quantidades e valores apresentados e aprovados por procedimento, com classificação SIGTAP e abertura dos estabelecimentos produtores.',
+      setupTitle:'Produção por procedimento', setupDescription:'Escolha a UF e as competências da produção ambulatorial. Município e filtros oficiais são opcionais.',
+      emptyMessage:'Escolha a UF e a competência. Município, gestor, natureza jurídica, complexidade e financiamento são opcionais.',
+      municipalityLabel:'MUNICÍPIO',
+      filterNote:'Grupo, subgrupo e financiamento SIGTAP descrevem a referência oficial da competência. O financiamento registrado vem dos dados da produção SIA. Os filtros adicionais valem para toda a consulta.',
+      methodTitle:'Como interpretar as diferenças:', methodText:' as diferenças entre apresentado e aprovado são comparações dos campos da base PA e não devem ser tratadas automaticamente como glosa oficial. A produção é agrupada por código SIGTAP; o detalhamento mostra as unidades que registraram o procedimento.',
+      countMetric:'qtd_aprovada', countLabel:'QUANTIDADE APROVADA', valueMetric:'valor_aprovado', valueLabel:'VALOR APROVADO',
+      summaryTitle:'Produção ambulatorial por procedimento', detailTitlePrefix:'Estabelecimentos · procedimento SIGTAP', detailCountLabel:'ESTABELECIMENTOS NO RECORTE', summaryCountLabel:'PROCEDIMENTOS NO RECORTE', summaryCountUniqueField:'code', detailCountUniqueField:'code',
+      itemLabel:'procedimentos', detailItemLabel:'estabelecimentos',
+      filters:siaFilterDefinitions, tableSearchSummary:'Buscar procedimento ou código SIGTAP', tableSearchDetail:'Buscar estabelecimento ou CNES'
+    },
     'sih-rd-producao': {
       id:'sih-rd-producao', system:'sih', systemCode:'SIH', kind:'RD', systemLabel:'SIH/SUS', sourceLabel:'produção hospitalar',
       workspaceTitle:'Produção Hospitalar · SIH/SUS', introLabel:'PRODUÇÃO HOSPITALAR · SIH/SUS', introTitle:'Produção hospitalar por estabelecimento.',
@@ -567,7 +581,7 @@
   filterCategories = Object.fromEntries(Object.keys(filterDefinitions).map((type) => [type, []]));
   const linkedYear = Number(params.get('ano')) || 0;
   const linkedMonths = [...new Set(params.getAll('mes').map(Number).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b);
-  const linkedCnes = (params.get('cnes') || '').replace(/\D/g, '').slice(0, 7);
+  const linkedCnes = (params.get('cnes') || '').replace(/\D/g, '').slice(0, activeReport.id === 'sia-pa-procedimentos' ? 10 : 7);
   const requestedAgravoCode = String(params.get('agravo') || '').toUpperCase();
   const linkedAgravoCode = activeReport.id === 'sinan-saude-trabalhador' && sinanWorkhealthAgravoCodes.has(requestedAgravoCode) ? requestedAgravoCode : '';
   const linkedAih = (params.get('aih') || '').replace(/\D/g, '').slice(0, 13);
@@ -1486,7 +1500,7 @@
       return [...columns, competenceColumn, ...actions];
     }
     const summaryView = activeView === 'summary';
-    let dimensions = summaryView ? [] : [...(activeResult.detailDimensions || [{ id:'complexity', label:'Complexidade' }])];
+    let dimensions = summaryView ? [...(activeResult.summaryDimensions || [])] : [...(activeResult.detailDimensions || [{ id:'complexity', label:'Complexidade' }])];
     if (activeReport.id === 'sia-pa-producao' && !summaryView) {
       const extraDimensions = dimensions.filter((dimension) => !['complexity','financing'].includes(dimension.id));
       dimensions = [
@@ -1497,11 +1511,11 @@
     }
     const columns = [{
       id:'primary', label:summaryView ? (activeResult.dimensionLabel || 'ESTABELECIMENTO') : (activeResult.dimensionLabel || 'PROCEDIMENTO · SIGTAP'),
-      kind:'primary', primaryField:'label', secondaryField:'code', secondaryPrefix:summaryView ? 'CNES ' : '',
+      kind:'primary', primaryField:'label', secondaryField:'code', secondaryPrefix:activeResult.secondaryPrefix || (summaryView ? 'CNES ' : ''),
       type:'text', sortField:'label', filterFields:['label','code'], sticky:true, filterable:true, sortable:true
     }];
     for (const dimension of dimensions) columns.push({ id:`dimension:${dimension.id}`, label:dimension.label, field:dimension.id, type:'text', filterable:true, sortable:true });
-    for (const [index, metric] of (activeResult.metrics || []).entries()) columns.push({ id:`metric:${metric.id}`, label:metric.label, metricId:metric.id, metricIndex:index, type:'number', decimals:metric.decimals, filterable:true, sortable:true });
+    for (const [index, metric] of (activeResult.metrics || []).entries()) columns.push({ id:`metric:${metric.id}`, label:metric.label, metricId:metric.id, metricIndex:index, type:activeReport.id === 'sia-pa-procedimentos' && metric.id.startsWith('valor_') ? 'currency' : 'number', decimals:metric.decimals, filterable:true, sortable:true });
     columns.push(competenceColumn);
     if (summaryView) columns.push({ id:'action', label:'Detalhamento', kind:'action', filterable:false, sortable:false });
     return columns;
@@ -1845,7 +1859,7 @@
       ];
     } else {
       cards = [
-        [activeView === 'summary' ? 'ESTABELECIMENTOS' : activeReport.detailCountLabel, formatNumber(rows.length)],
+        [activeView === 'summary' ? (activeReport.summaryCountLabel || 'ESTABELECIMENTOS') : activeReport.detailCountLabel, formatNumber((activeView === 'summary' ? activeReport.summaryCountUniqueField : activeReport.detailCountUniqueField) ? new Set(rows.map((row) => String(row[(activeView === 'summary' ? activeReport.summaryCountUniqueField : activeReport.detailCountUniqueField)] || '')).filter(Boolean)).size : rows.length)],
         [activeReport.countLabel, qtyIndex >= 0 ? formatScaled(totals[qtyIndex], metrics[qtyIndex].decimals) : '—'],
         [activeReport.valueLabel, valueIndex >= 0 ? `R$ ${formatScaled(totals[valueIndex], metrics[valueIndex].decimals)}` : '—']
       ];
@@ -2788,7 +2802,7 @@
       sourcePaths.professionalPath = filesByKind.SP.path;
       sourcePaths.professionalDbfPath = dbfPaths.SP;
     }
-    let job = await api({ action:'tabulate_start', path:file.path, dbfPath, ...sourcePaths, predefinedReport:activeReport.id, predefinedView:view, ...filters, ...((view === 'detail' || view === 'services') ? { establishmentCode:cnes } : {}), ...(view === 'services' ? { aih } : {}), ...(activeReport.id === 'sih-rd-fluxo' && view === 'detail' ? { originMunicipalityCode:activeOriginCode, destinationMunicipalityCode:activeDestinationCode } : {}) });
+    let job = await api({ action:'tabulate_start', path:file.path, dbfPath, ...sourcePaths, predefinedReport:activeReport.id, predefinedView:view, ...filters, ...((view === 'detail' || view === 'services') && activeReport.id !== 'sia-pa-procedimentos' ? { establishmentCode:cnes } : {}), ...(activeReport.id === 'sia-pa-procedimentos' && view === 'detail' ? { procedureCode:cnes } : {}), ...(view === 'services' ? { aih } : {}), ...(activeReport.id === 'sih-rd-fluxo' && view === 'detail' ? { originMunicipalityCode:activeOriginCode, destinationMunicipalityCode:activeDestinationCode } : {}) });
     if (job.done && job.result) return stampMonthlyResult(job.result, year, month);
     if (!job.job_id) throw new Error('O TabulaSUS não retornou uma tarefa de tabulação válida.');
     const tabulationJobId = job.job_id;
@@ -3296,7 +3310,7 @@
     const current = new URLSearchParams(location.search);
     const year = Number(current.get('ano'));
     const months = [...new Set(current.getAll('mes').map(Number).filter((month) => month >= 1 && month <= 12))].sort((a, b) => a - b);
-    const cnes = (current.get('cnes') || '').replace(/\D/g, '').slice(0, 7);
+    const cnes = (current.get('cnes') || '').replace(/\D/g, '').slice(0, current.get('relatorio') === 'sia-pa-procedimentos' ? 10 : 7);
     const routeAgravoCode = String(current.get('agravo') || '').toUpperCase();
     const agravoCode = current.get('relatorio') === 'sinan-saude-trabalhador' && sinanWorkhealthAgravoCodes.has(routeAgravoCode) ? routeAgravoCode : '';
     const aih = (current.get('aih') || '').replace(/\D/g, '').slice(0, 13);
