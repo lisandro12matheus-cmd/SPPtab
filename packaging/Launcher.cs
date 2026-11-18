@@ -851,13 +851,15 @@ internal static class LauncherProgram
                     if (!hashMatch.Success || !String.Equals(Sha256File(archivePath), hashMatch.Groups[1].Value, StringComparison.OrdinalIgnoreCase))
                         throw new InvalidOperationException("O pacote baixado não passou pela verificação de integridade. Nenhum arquivo foi alterado.");
 
-                    string helperPath = Path.Combine(Path.GetTempPath(), "SPPtab-Updater-" + Guid.NewGuid().ToString("N") + ".exe");
-                    File.Copy(Path.Combine(BaseDirectory, "SPPtab.exe"), helperPath);
+                    // Keep the updater beside the installed app. A randomly named executable
+                    // launched from %TEMP% resembles a dropper and can trigger security tools.
+                    string helperPath = Path.Combine(BaseDirectory, "SPPtab-Updater.exe");
+                    File.Copy(Path.Combine(BaseDirectory, "SPPtab.exe"), helperPath, true);
                     ProcessStartInfo helper = new ProcessStartInfo(helperPath,
                         "--apply-update " + Quote(archivePath) + " " + Quote(hashMatch.Groups[1].Value) + " " + Process.GetCurrentProcess().Id + " " + Quote(BaseDirectory));
                     helper.UseShellExecute = true;
-                    helper.WindowStyle = ProcessWindowStyle.Hidden;
-                    helper.WorkingDirectory = Path.GetTempPath();
+                    helper.WindowStyle = ProcessWindowStyle.Normal;
+                    helper.WorkingDirectory = BaseDirectory;
                     Process.Start(helper);
                     BeginInvoke((MethodInvoker)delegate
                     {
