@@ -10,7 +10,7 @@ tabwin2_page_security();
   <meta name="theme-color" content="#f4f7f8">
   <meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>TabulaSUS · DATASUS</title>
-  <link rel="stylesheet" href="assets/app.css?v=22">
+  <link rel="stylesheet" href="assets/app.css?v=23">
   <link rel="stylesheet" href="assets/file-selection.css?v=1">
   <link rel="stylesheet" href="assets/brand.css?v=1">
   <link rel="stylesheet" href="assets/launch.css?v=4">
@@ -89,11 +89,12 @@ tabwin2_page_security();
       </section>
 
       <section class="workspace" id="filesStep" aria-label="Seleção de arquivos DATASUS" hidden>
-        <div class="files-step-heading"><div class="step-heading"><span class="step-number">02</span><div><h2>Selecione os arquivos</h2><p>Escolha a base, o ano e a competência para consultar o DATASUS.</p></div><span class="source-status"><span class="source-dot"></span> Fonte oficial</span></div><button class="button-secondary change-state" id="changeStateButton" type="button"><span aria-hidden="true">←</span> Trocar estado</button></div>
+        <div class="files-step-heading"><div class="step-heading"><span class="step-number">02</span><div><h2>Selecione os arquivos</h2><p>Escolha um sistema, o tipo de dado e o período publicado pelo DATASUS.</p></div><span class="source-status"><span class="source-dot"></span> Fonte oficial</span></div><button class="button-secondary change-state" id="changeStateButton" type="button"><span aria-hidden="true">←</span> Trocar estado</button></div>
         <div class="filters">
-          <label class="field field-system"><span>BASE DE DADOS</span><select id="system"><option value="sia">Ambulatorial · SIA/SUS</option><option value="sih">Hospitalar · SIH/SUS</option></select></label>
+          <label class="field field-system"><span>BASE DE DADOS</span><select id="system"><option value="sia">Ambulatorial · SIA/SUS</option><option value="sih">Hospitalar · SIH/SUS</option><option value="sinan">Agravos · SINAN</option><option value="sim">Óbitos por residência · SIM</option><option value="sinasc">Nascidos vivos · SINASC</option><option value="cnes">Estabelecimentos e serviços · CNES</option></select></label>
+          <label class="field" id="fileTypeField" hidden><span id="fileTypeLabel">TIPO DE ARQUIVO</span><select id="fileType"><option value="">Todos os tipos</option></select></label>
           <label class="field"><span>ANO</span><select id="year"></select></label>
-          <label class="field"><span>COMPETÊNCIA</span><select id="month" disabled><option value="">Buscando períodos…</option></select></label>
+          <label class="field" id="monthField"><span>COMPETÊNCIA</span><select id="month" disabled><option value="">Buscando períodos…</option></select></label>
           <button class="button button-primary" id="searchButton" type="button"><span class="search-glyph">⌕</span> Buscar arquivos</button>
         </div>
         <div class="scope-note"><span class="info-icon">i</span><span id="scopeCopy">A lista acompanha o estado escolhido. O município selecionado poderá ser aplicado à tabulação quando o relatório tiver um campo municipal compatível; isso não altera a abrangência do arquivo DBC.</span></div>
@@ -124,7 +125,7 @@ tabwin2_page_security();
       <footer class="page-footer"><span>TabulaSUS <span class="footer-separator">·</span> <span id="pageStepLabel">escolha da localidade</span></span><span>Dados públicos do Ministério da Saúde / DATASUS</span></footer>
     </main>
   </div>
-  <script src="assets/app.js?v=26" defer></script>
+  <script src="assets/app.js?v=27" defer></script>
   <script src="assets/tabulations-nav.js?v=1" defer></script>
   <script src="assets/launch-splash.js?v=3" defer></script>
 </body>

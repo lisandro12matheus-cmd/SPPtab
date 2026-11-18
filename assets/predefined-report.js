@@ -274,24 +274,24 @@
       methodText:` os totais representam notificações de ${name}, não pessoas únicas. Prováveis excluem as descartadas; confirmadas seguem a classificação final própria do agravo. ${kind === 'CHIK' ? 'Internações registradas incluem notificações ainda não confirmadas.' : 'Gestantes notificadas incluem casos ainda não confirmados.'} Cada linha mostra semana, unidade e residência.`,
     };
   }
-  const sinanWorkhealthAgravoCodes = new Set(['ACGR','ACBI','CANC','DERM','PAIR','PNEU','MENT']);
+  const sinanWorkhealthAgravoCodes = new Set(['ACGR','ACBI','CANC','DERM','PAIR','PNEU','MENT','LERD','IEXO']);
   reportConfigurations['sinan-saude-trabalhador'] = {
     id:'sinan-saude-trabalhador', system:'sinan', systemCode:'SINAN', kind:'TRABALHO', remoteSource:true, tableMode:'flat', monthlyDetail:true,
-    firstYear:2006, defaultUf:'PA', filters:{}, fileLabel:'SINAN · bases oficiais', loaderDetail:'agravos relacionados ao trabalho',
+    firstYear:2007, defaultUf:'PA', filters:{}, fileLabel:'SINAN · bases oficiais', loaderDetail:'agravos relacionados ao trabalho',
     systemLabel:'SINAN · SAÚDE DO TRABALHADOR', sourceLabel:'agravos relacionados ao trabalho',
     workspaceTitle:'Saúde do trabalhador · SINAN', introLabel:'VIGILÂNCIA EM SAÚDE DO TRABALHADOR · SINAN',
     introTitle:'Agravos relacionados ao trabalho.',
     introDescription:'Consulte notificações de acidentes e doenças relacionadas ao trabalho, com detalhamento dos campos disponíveis em cada agravo.',
     setupTitle:'Agravos relacionados ao trabalho',
-    setupDescription:'Escolha o município notificante, o ano e os meses. A consulta reúne acidente de trabalho grave; acidente de trabalho com exposição a material biológico; câncer relacionado ao trabalho; dermatoses ocupacionais; PAIR; pneumoconiose relacionada ao trabalho; e transtornos mentais relacionados ao trabalho.',
-    emptyMessage:'Escolha o município notificante e ao menos um mês para consultar os sete agravos relacionados ao trabalho.',
+    setupDescription:'Escolha o município notificante, o ano e os meses. A consulta reúne nove agravos: acidentes, doenças ocupacionais, LER/DORT e intoxicação exógena relacionada ao trabalho.',
+    emptyMessage:'Escolha o município notificante e ao menos um mês para consultar os nove agravos relacionados ao trabalho.',
     missingMunicipalityMessage:'Selecione o município onde as notificações foram registradas.',
     municipalityLabel:'MUNICÍPIO NOTIFICANTE', monthLabel:'MÊS DA NOTIFICAÇÃO', competenceLabel:'MÊS DA NOTIFICAÇÃO',
     monthHelp:'O mês considera a data de notificação para comparar os agravos no mesmo critério.',
     availabilityText:'Consulta municipal · bases oficiais do SINAN · detalhamento conforme os campos de cada agravo.',
-    filterNote:'A tabela reúne sete agravos em linhas separadas. O detalhamento permite explorar sexo, idade, raça/cor, residência, ocupação, atividade econômica e outros campos quando constarem na base do agravo.',
+    filterNote:'A tabela reúne nove agravos em linhas separadas. O detalhamento permite explorar sexo, idade, raça/cor, residência, ocupação, atividade econômica e campos específicos de cada ficha. Em intoxicação exógena, entram apenas notificações com exposição decorrente do trabalho marcada como Sim.',
     methodTitle:'Como interpretar:',
-    methodText:' cada total representa notificações registradas no SINAN, não pessoas únicas. O mês usa a data de notificação para permitir comparação entre agravos; campos ausentes em uma versão não são convertidos em zero nem inventados.',
+    methodText:' cada total representa notificações registradas no SINAN, não pessoas únicas. O mês usa a data de notificação para permitir comparação entre agravos; campos ausentes em uma versão não são convertidos em zero nem inventados. Intoxicações só são classificadas como ocupacionais quando DOENCA_TRA = Sim, conforme a ficha do SINAN.',
     summaryTitle:'Notificações por agravo relacionado ao trabalho', detailTitlePrefix:'Detalhamento do agravo',
     itemLabel:'agravos relacionados ao trabalho', detailItemLabel:'combinações de respostas',
     backLabel:'← Agravos', tableSearchSummary:'Buscar agravo', tableSearchDetail:'Buscar em qualquer coluna'

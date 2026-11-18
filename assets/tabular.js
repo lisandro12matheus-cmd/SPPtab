@@ -4,12 +4,13 @@
   const $ = (selector) => document.querySelector(selector);
   const fileSelect = $('#sourceFile');
   const BROWSER_CACHE_PREFIX = 'spptab-tabulation-v2:';
+  const filePeriod = (file) => file?.month ? `Competência ${String(file.month).padStart(2, '0')}/${file.year}` : `Ano ${file?.year}`;
   const BROWSER_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
   const LOCATION_KEY = 'spptab-location-v1';
   const ACTIVE_FILE_KEY = 'spptab-active-file-v1';
   const ACTIVE_STAGE_KEY = 'spptab-tabulation-stage-v1';
   const PENDING_PRESET_KEY = 'spptab-pending-preset-v1';
-  const stateNames = {AC:'Acre',AL:'Alagoas',AP:'Amapá',AM:'Amazonas',BA:'Bahia',CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',MA:'Maranhão',MT:'Mato Grosso',MS:'Mato Grosso do Sul',MG:'Minas Gerais',PA:'Pará',PB:'Paraíba',PR:'Paraná',PE:'Pernambuco',PI:'Piauí',RJ:'Rio de Janeiro',RN:'Rio Grande do Norte',RS:'Rio Grande do Sul',RO:'Rondônia',RR:'Roraima',SC:'Santa Catarina',SP:'São Paulo',SE:'Sergipe',TO:'Tocantins'};
+  const stateNames = {AC:'Acre',AL:'Alagoas',AP:'Amapá',AM:'Amazonas',BA:'Bahia',CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',MA:'Maranhão',MT:'Mato Grosso',MS:'Mato Grosso do Sul',MG:'Minas Gerais',PA:'Pará',PB:'Paraíba',PR:'Paraná',PE:'Pernambuco',PI:'Piauí',RJ:'Rio de Janeiro',RN:'Rio Grande do Norte',RS:'Rio Grande do Sul',RO:'Rondônia',RR:'Roraima',SC:'Santa Catarina',SP:'São Paulo',SE:'Sergipe',TO:'Tocantins',BR:'Brasil'};
 
   let files = [];
   let libraryRoot = '';
@@ -199,8 +200,9 @@
       libraryRoot = data.library_root || '';
       fileSelect.replaceChildren(new Option(files.length ? 'Selecione uma base…' : 'Nenhuma base importada', ''));
       files.forEach((file) => {
-        const period = `${String(file.month).padStart(2, '0')}/${file.year}`;
-        fileSelect.add(new Option(`${file.system} · ${file.kind} · ${period} · ${stateNames[file.uf] || file.uf} · ${file.name} (${formatBytes(file.size)})`, file.path));
+        const period = filePeriod(file);
+        const place = file.uf === 'BR' ? 'Brasil · nacional' : stateNames[file.uf] || file.uf;
+        fileSelect.add(new Option(`${file.system} · ${file.kind} · ${period} · ${place} · ${file.name} (${formatBytes(file.size)})`, file.path));
       });
       $('#sourceDetails').textContent = files.length
         ? `${files.length.toLocaleString('pt-BR')} ${files.length === 1 ? 'arquivo disponível' : 'arquivos disponíveis'} na biblioteca.`
@@ -255,7 +257,7 @@
     activeFilters = [];
     $('#toConvert').disabled = !selected;
     $('#sourceDetails').textContent = selected
-      ? `${selected.system} · ${selected.kind} · competência ${String(selected.month).padStart(2, '0')}/${selected.year} · ${formatBytes(selected.size)}${selected.converted ? ' · leitura já preparada' : ' · leitura automática na primeira tabulação'}`
+      ? `${selected.system} · ${selected.kind} · ${filePeriod(selected)} · ${formatBytes(selected.size)}${selected.converted ? ' · leitura já preparada' : ' · leitura automática na primeira tabulação'}`
       : 'Escolha um DBC da biblioteca.';
     $('#notice1').hidden = true;
   }
@@ -1050,7 +1052,7 @@
       '',
     ));
     compatible.forEach((file) => {
-      const period = `${String(file.month).padStart(2, '0')}/${file.year}`;
+      const period = filePeriod(file);
       select.add(new Option(`${period} · ${file.name} · ${formatBytes(file.size)}`, file.path));
     });
     select.disabled = compatible.length === 0;
@@ -1070,7 +1072,7 @@
       const name = document.createElement('strong');
       name.textContent = file.name;
       const period = document.createElement('small');
-      period.textContent = `${String(file.month).padStart(2, '0')}/${file.year} · ${file.kind}${file.path === selected?.path ? ' · base principal' : ''}`;
+      period.textContent = `${filePeriod(file)} · ${file.kind}${file.path === selected?.path ? ' · base principal' : ''}`;
       copy.append(name, period);
 
       const remove = document.createElement('button');
@@ -1225,7 +1227,7 @@
       return;
     }
 
-    $('#definitionStatus').textContent = 'Lendo a estrutura do DBC e consultando a definição oficial…';
+    $('#definitionStatus').textContent = 'Lendo os campos do DBC e a definição disponível para esta base…';
     setSchemaLoading(true);
     $('#tabControls').hidden = true;
     $('#runButton').disabled = true;

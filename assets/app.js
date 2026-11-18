@@ -2,8 +2,12 @@
   'use strict';
   const apiUrl = 'api.php';
   const system = document.querySelector('#system');
+  const fileType = document.querySelector('#fileType');
+  const fileTypeField = document.querySelector('#fileTypeField');
+  const fileTypeLabel = document.querySelector('#fileTypeLabel');
   const year = document.querySelector('#year');
   const month = document.querySelector('#month');
+  const monthField = document.querySelector('#monthField');
   const searchButton = document.querySelector('#searchButton');
   const ufSelect = document.querySelector('#uf');
   const municipalitySelect = document.querySelector('#municipality');
@@ -30,7 +34,42 @@
   const notice = document.querySelector('#notice');
   const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const ACTIVE_FILE_KEY = 'spptab-active-file-v1';
-  const stateNames = {AC:'Acre',AL:'Alagoas',AP:'Amapá',AM:'Amazonas',BA:'Bahia',CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',MA:'Maranhão',MT:'Mato Grosso',MS:'Mato Grosso do Sul',MG:'Minas Gerais',PA:'Pará',PB:'Paraíba',PR:'Paraná',PE:'Pernambuco',PI:'Piauí',RJ:'Rio de Janeiro',RN:'Rio Grande do Norte',RS:'Rio Grande do Sul',RO:'Rondônia',RR:'Roraima',SC:'Santa Catarina',SP:'São Paulo',SE:'Sergipe',TO:'Tocantins'};
+  const stateNames = {AC:'Acre',AL:'Alagoas',AP:'Amapá',AM:'Amazonas',BA:'Bahia',CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',MA:'Maranhão',MT:'Mato Grosso',MS:'Mato Grosso do Sul',MG:'Minas Gerais',PA:'Pará',PB:'Paraíba',PR:'Paraná',PE:'Pernambuco',PI:'Piauí',RJ:'Rio de Janeiro',RN:'Rio Grande do Norte',RS:'Rio Grande do Sul',RO:'Rondônia',RR:'Roraima',SC:'Santa Catarina',SP:'São Paulo',SE:'Sergipe',TO:'Tocantins',BR:'Brasil'};
+  const systemConfig = {
+    sia:{minYear:2008,monthly:true},
+    sih:{minYear:2008,monthly:true},
+    sinan:{minYear:2007,monthly:false,national:true,typeLabel:'AGRAVO / TIPO DE NOTIFICAÇÃO',types:[['','Todos os agravos publicados'],['ACBI','Acidente de trabalho com exposição a material biológico'],['ACGR','Acidente de trabalho'],['AIDA','Aids · adulto'],['AIDC','Aids · criança'],['ANIM','Acidente por animais peçonhentos'],['ANTR','Atendimento antirrábico humano'],['BOTU','Botulismo'],['CANC','Câncer relacionado ao trabalho'],['CHAG','Doença de Chagas aguda'],['CHIK','Chikungunya'],['COLE','Cólera'],['COQU','Coqueluche'],['DCRJ','Notificação SINAN · DCRJ'],['DENG','Dengue'],['DERM','Dermatoses ocupacionais'],['DIFT','Difteria'],['ESPO','Esporotricose'],['ESQU','Esquistossomose'],['EXAN','Notificação SINAN · EXAN'],['FMAC','Febre maculosa'],['FTIF','Febre tifóide'],['HANS','Hanseníase'],['HANT','Hantavirose'],['HEPA','Hepatites virais'],['HIVA','Infecção pelo HIV · HIVA'],['HIVC','Infecção pelo HIV · HIVC'],['HIVE','Infecção pelo HIV · HIVE'],['HIVG','Infecção pelo HIV · gestante'],['IEXO','Intoxicação exógena · base completa'],['LEIV','Leishmaniose visceral'],['LEPT','Leptospirose'],['LER','LER/DORT · arquivo histórico'],['LERD','LER/DORT relacionadas ao trabalho'],['LTAN','Leishmaniose tegumentar'],['MALA','Malária'],['MENI','Meningite'],['MENT','Transtornos mentais relacionados ao trabalho'],['NTRA','Notificação de trabalho infantil'],['PAIR','PAIR relacionada ao trabalho'],['PEST','Peste'],['PFA','Paralisia flácida aguda · arquivo histórico'],['PFAN','Paralisia flácida aguda'],['PNEU','Pneumoconiose relacionada ao trabalho'],['RAIV','Raiva humana'],['ROTA','Rotavírus'],['SDTA','Surto de doença transmitida por alimento'],['SIFA','Sífilis adquirida'],['SIFC','Sífilis congênita'],['SIFG','Sífilis em gestante'],['SRC','Síndrome da rubéola congênita'],['TETA','Tétano acidental'],['TETN','Tétano neonatal'],['TOXC','Toxoplasmose congênita'],['TOXG','Toxoplasmose gestacional'],['TRAC','Tracoma'],['TUBE','Tuberculose'],['VARC','Varicela'],['VIOL','Violência interpessoal e autoprovocada'],['ZIKA','Zika']]},
+    sim:{minYear:1996,monthly:false,fixedKind:'DO'},
+    sinasc:{minYear:1996,monthly:false,fixedKind:'DN'},
+    cnes:{minYear:2005,monthly:true,typeLabel:'CONJUNTO DO CNES',types:[['ST','Estabelecimentos'],['LT','Leitos'],['PF','Profissionais'],['EQ','Equipamentos'],['SR','Serviços especializados'],['HB','Habilitações'],['GM','Gestão municipal'],['IN','Incentivos'],['EE','Ensino'],['EF','Equipes'],['EP','Profissionais específicos'],['RC','Regras contratuais'],['DC','Dados complementares']]}
+  };
+  const monthlySystem = () => Boolean(systemConfig[system.value]?.monthly);
+  function configureSystemControls() {
+    const config=systemConfig[system.value] || systemConfig.sia;
+    const previousYear=Number(year.value)||currentYear;
+    year.replaceChildren();
+    for(let value=currentYear;value>=config.minYear;value-=1) year.add(new Option(String(value),String(value)));
+    year.value=String(Math.max(config.minYear,Math.min(currentYear,previousYear)));
+    const hasTypes=Array.isArray(config.types);
+    fileTypeField.hidden=!hasTypes;
+    if(hasTypes) {
+      fileTypeLabel.textContent=config.typeLabel;
+      const previous=fileType.value;
+      fileType.replaceChildren(...config.types.map(([value,label])=>new Option(label,value)));
+      fileType.value=config.types.some(([value])=>value===previous)?previous:config.types[0][0];
+    } else fileType.replaceChildren();
+    monthField.hidden=!config.monthly;
+    month.disabled=!config.monthly;
+    document.querySelector('.filters')?.classList.toggle('has-filetype',hasTypes);
+    document.querySelector('.filters')?.classList.toggle('is-annual',!config.monthly);
+    document.querySelector('#scopeCopy').textContent=config.national
+      ? 'O SINAN publica arquivos anuais nacionais por agravo. A UF escolhida ajuda no contexto; o arquivo pode conter notificações de todo o Brasil e poderá ser filtrado por município na tabulação.'
+      : !config.monthly
+        ? 'Esta base é publicada por ano. O arquivo anual será baixado e poderá ser consultado e tabulado localmente.'
+        : system.value==='cnes'
+          ? 'O CNES é publicado por competência mensal. Selecione o conjunto de dados desejado; cada tipo contém informações específicas da rede de saúde.'
+          : 'A lista acompanha o estado escolhido. O município selecionado poderá ser aplicado à tabulação quando o relatório tiver um campo municipal compatível; isso não altera a abrangência do arquivo DBC.';
+  }
   const LOCATION_KEY = 'spptab-location-v1';
   const fileEntry = new URLSearchParams(window.location.search).get('etapa') === 'arquivos';
   let location = {uf:'', municipalityCode:'', municipalityName:'', useMunicipalManager:false};
@@ -54,13 +93,7 @@
   let filesRequest = 0;
 
   const currentYear = new Date().getFullYear();
-  for (let y = currentYear; y >= 2008; y -= 1) {
-    const option = document.createElement('option');
-    option.value = String(y);
-    option.textContent = String(y);
-    year.append(option);
-  }
-  year.value = String(currentYear);
+  configureSystemControls();
   month.innerHTML = '<option value="">Escolha uma localidade primeiro</option>';
   searchButton.disabled = true;
 
@@ -409,6 +442,19 @@
 
   async function loadCompetencies(preferredMonth = null) {
     if (!location.uf || !location.municipalityName) return;
+    if (!monthlySystem()) {
+      competenciesRequest += 1;
+      filesRequest += 1;
+      competencyContext = '';
+      competencyFilesByMonth = new Map();
+      currentFiles = [];
+      downloadButton.disabled = true;
+      monthField.hidden = true;
+      searchButton.disabled = false;
+      await searchFiles({quiet:true,annual:true});
+      return;
+    }
+    monthField.hidden = false;
     const requestedSystem = system.value;
     const requestedYear = Number(year.value);
     const context = competencyKey(requestedSystem, requestedYear, location.uf);
@@ -468,8 +514,10 @@
         ? `${file.modified.slice(6,8)}/${file.modified.slice(4,6)}/${file.modified.slice(0,4)}` : '—';
       const isSaved = Boolean(file.downloaded);
       const status = isSaved ? '<span class="saved-pill">Na biblioteca</span>' : file.incomplete ? '<span class="incomplete-pill">Importação incompleta</span>' : '<span class="pending-pill">Disponível</span>';
+      const periodLabel=file.month?`Competência ${String(file.month).padStart(2,'0')}/${file.year || year.value}`:`Ano ${file.year || year.value}${file.uf==='BR'?' · abrangência nacional':''}${file.stage==='FINAIS'?' · base final':file.stage==='PRELIM'?' · base preliminar':''}`;
+      const placeLabel=file.uf==='BR'?'Brasil':`${stateNames[file.uf || location.uf] || file.uf || location.uf}`;
       row.innerHTML = `<td><input class="file-check" type="checkbox" aria-label="Selecionar ${escapeHtml(file.name)}" data-index="${index}"></td>
-        <td><div class="file-identity"><span class="file-icon">DBC</span><span><strong>${escapeHtml(file.name)}</strong><small>${escapeHtml(stateNames[file.uf || location.uf] || file.uf || location.uf)} · competência ${String(file.month).padStart(2,'0')}/${year.value}</small></span></div></td>
+        <td><div class="file-identity"><span class="file-icon">DBC</span><span><strong>${escapeHtml(file.name)}</strong><small>${escapeHtml(placeLabel)} · ${escapeHtml(periodLabel)}</small></span></div></td>
         <td><span class="type-pill"><b>${escapeHtml(file.kind)}</b> ${escapeHtml(file.label)}</span></td>
         <td>${escapeHtml(file.size_label || '—')}</td><td>${status}</td><td>${updated}</td><td class="file-action-cell"></td>`;
       {
@@ -493,7 +541,9 @@
       fileRows.append(row);
     });
     document.querySelector('#fileCount').textContent = String(files.length);
-    document.querySelector('#resultsSummary').textContent = `${files.length} ${files.length === 1 ? 'arquivo disponível' : 'arquivos disponíveis'} para ${monthNames[Number(month.value) - 1]} de ${year.value}.`;
+    document.querySelector('#resultsSummary').textContent = monthlySystem()
+      ? `${files.length} ${files.length === 1 ? 'arquivo disponível' : 'arquivos disponíveis'} para ${monthNames[Number(month.value) - 1]} de ${year.value}.`
+      : `${files.length} ${files.length === 1 ? 'arquivo disponível' : 'arquivos disponíveis'} no ano de ${year.value}.`;
     emptyState.hidden = true;
     resultsContent.hidden = false;
     updateSelection();
@@ -540,7 +590,8 @@
   }
 
   function competencyKey(systemCode = system.value, dataYear = year.value, uf = location.uf) {
-    return `${systemCode}:${dataYear}:${uf}`;
+    const type=(systemCode==='cnes'?fileType.value:'');
+    return `${systemCode}:${dataYear}:${uf}:${type}`;
   }
 
   function cacheCompetencyRows(context, files, sourceMode, months = [], complete = true) {
@@ -559,7 +610,7 @@
 
   function fetchCompetencies(context, systemCode, dataYear, uf) {
     if (pendingCompetencyContext === context && pendingCompetencyPromise) return pendingCompetencyPromise;
-    const promise = request({action:'competencies', system:systemCode, year:dataYear, uf});
+    const promise = request({action:'competencies', system:systemCode, year:dataYear, uf, kind:systemCode==='cnes'?fileType.value:''});
     pendingCompetencyContext = context;
     pendingCompetencyPromise = promise;
     const clearPending = () => {
@@ -574,6 +625,7 @@
 
   function prefetchCompetencies(uf = location.uf) {
     if (!uf) return;
+    if (!monthlySystem()) return;
     const systemCode = system.value;
     const dataYear = Number(year.value);
     const context = competencyKey(systemCode, dataYear, uf);
@@ -625,15 +677,17 @@
   }
 
   async function searchFiles(options = {}) {
-    if (!month.value) return;
+    const monthly=monthlySystem();
+    if (monthly && !month.value) return;
     const requestId = ++filesRequest;
     const requestedUf = location.uf;
-    const requestedMonth = month.value;
+    const requestedMonth = monthly ? month.value : '';
     const requestedSystem = system.value;
     const requestedYear = Number(year.value);
+    const requestedKind=systemConfig[requestedSystem]?.fixedKind || fileType.value || '';
     clearNotice();
     searchButton.disabled = true;
-    const period = `${monthNames[Number(requestedMonth) - 1]} de ${requestedYear}`;
+    const period = monthly ? `${monthNames[Number(requestedMonth) - 1]} de ${requestedYear}` : `ano de ${requestedYear}`;
     if (options.quiet === true) {
       setLookupLoading('Localizando arquivos', `Consultando os arquivos de ${period} para ${stateLabel()}.`);
     } else {
@@ -644,13 +698,17 @@
       ]);
     }
     try {
-      const data = await request({action:'files', system:requestedSystem, year:requestedYear, month:Number(requestedMonth), uf:requestedUf});
+      const requestBody={action:'files',system:requestedSystem,year:requestedYear,uf:requestedUf,kind:requestedKind};
+      if(monthly) requestBody.month=Number(requestedMonth);
+      const data = await request(requestBody);
       if (requestId !== filesRequest || requestedUf !== location.uf) return;
-      const context = competencyKey(requestedSystem, requestedYear, requestedUf);
-      if (competencyContext !== context) cacheCompetencyRows(context, data.files || [], data.source_mode, [Number(requestedMonth)], false);
-      else {
-        competencyFilesByMonth.set(Number(requestedMonth), {files:data.files || [], sourceMode:data.source_mode || ''});
-        competencySourceMode = data.source_mode || competencySourceMode;
+      if(monthly) {
+        const context = competencyKey(requestedSystem, requestedYear, requestedUf);
+        if (competencyContext !== context) cacheCompetencyRows(context, data.files || [], data.source_mode, [Number(requestedMonth)], false);
+        else {
+          competencyFilesByMonth.set(Number(requestedMonth), {files:data.files || [], sourceMode:data.source_mode || ''});
+          competencySourceMode = data.source_mode || competencySourceMode;
+        }
       }
       showFileResults(data);
     } catch (error) {
@@ -658,7 +716,7 @@
       setEmpty('Não foi possível buscar os arquivos', 'Tente novamente em instantes.');
       showNotice(error.message, 'error');
     } finally {
-      if (requestId === filesRequest) searchButton.disabled = !month.value;
+      if (requestId === filesRequest) searchButton.disabled = monthly ? !month.value : false;
     }
   }
 
@@ -693,13 +751,15 @@
       {title:'Validando e salvando na biblioteca', copy:'Aguarde a confirmação antes de fechar esta tela.'}
     ]);
     try {
-      const data = await request({action:'download', system:system.value, year:Number(year.value), month:Number(month.value), uf:location.uf, names:validNames});
+      const downloadPayload={action:'download',system:system.value,year:Number(year.value),uf:location.uf,names:validNames,kind:systemConfig[system.value]?.fixedKind || fileType.value || ''};
+      if(monthlySystem()) downloadPayload.month=Number(month.value);
+      const data = await request(downloadPayload);
       const count = data.files.length;
       const already = data.files.filter((file) => file.already_present).length;
       const suffix = already ? ` ${already} ${already === 1 ? 'já estava na biblioteca.' : 'já estavam na biblioteca.'}` : '';
       const sources = [...new Set(data.files.map((file) => file.source_mode).filter((mode) => mode && mode !== 'biblioteca local'))];
       const sourceNote = sources.length ? ` Fonte: ${sources.join(' + ')}.` : '';
-      showNotice(`${count} ${count === 1 ? 'arquivo salvo' : 'arquivos salvos'} em uploads/${system.value.toUpperCase()}/${year.value}/${String(month.value).padStart(2,'0')}.${suffix}${sourceNote}`, 'success');
+      showNotice(`${count} ${count === 1 ? 'arquivo salvo' : 'arquivos salvos'} na biblioteca local (${data.folder || 'uploads'}).${suffix}${sourceNote}`, 'success');
       const saved = new Map(data.files.map((file) => [file.name.toUpperCase(), file]));
       const markImported = (file) => {
         const imported = saved.get(file.name.toUpperCase());
@@ -750,7 +810,8 @@
     updateLocationSummary();
   });
   document.querySelector('#municipalitySearch').addEventListener('input', filterMunicipalityOptions);
-  system.addEventListener('change', () => loadCompetencies());
+  system.addEventListener('change', () => { configureSystemControls(); loadCompetencies(); });
+  fileType.addEventListener('change', () => loadCompetencies());
   year.addEventListener('change', () => loadCompetencies());
   month.addEventListener('change', () => { if (!showCachedMonth()) searchFiles(); });
   searchButton.addEventListener('click', searchFiles);

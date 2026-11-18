@@ -68,6 +68,11 @@ CNES_OPEN_DATA_HOST = "apidadosabertos.saude.gov.br"
 CNES_ESTABLISHMENT_CACHE = UPLOADS/".cache"/"cnes-establishment-classifications.sqlite3"
 CNES_ESTABLISHMENT_CACHE_LOCK = threading.RLock()
 FILENAME = re.compile(r"^(?P<kind>[A-Z]{2,4}?)(?P<uf>[A-Z]{2})(?P<yy>\d{2})(?P<mm>\d{2})(?:[A-Z])?\.DBC$", re.I)
+ANNUAL_FILENAME_PATTERNS = {
+    "SINAN": re.compile(r"^(?P<kind>[A-Z0-9]{2,8}?)BR(?P<yy>\d{2})\.DBC$", re.I),
+    "SIM": re.compile(r"^DO(?P<uf>[A-Z]{2})(?P<year>19\d{2}|20\d{2})\.DBC$", re.I),
+    "SINASC": re.compile(r"^DN(?P<uf>[A-Z]{2})(?P<year>19\d{2}|20\d{2})\.DBC$", re.I),
+}
 SP_EXTRA_DIMENSIONS = (("SP_NAIH","AIH"),("SP_PF_DOC","CNS do profissional"))
 JOB_WRITE_LOCK = threading.Lock()
 ATOMIC_JOB_WRITE_LOCK = threading.RLock()
@@ -312,18 +317,39 @@ def dbc_header(path: Path):
     if not fields: raise ValueError("O DBC não contém descritores de campos DBF válidos.")
     return fields,records
 
+class FileMetaMatch:
+    """Small compatibility wrapper for monthly and annual DATASUS filenames."""
+    def __init__(self, values): self.values=values
+    def group(self, name): return self.values.get(name)
+
 def meta(path: Path):
-    match = FILENAME.match(path.name)
-    if not match: raise ValueError("Nome de arquivo DBC fora do padrão esperado.")
     rel = path.relative_to(UPLOADS)
     system = rel.parts[0].upper()
-    kind = match.group("kind").upper()
-    return system, kind, match
+    if system in {"SIA","SIH","CNES"}:
+        match = FILENAME.match(path.name)
+        if not match: raise ValueError("Nome de arquivo DBC fora do padrão esperado.")
+        values=match.groupdict()
+        values["year"]=str(2000+int(values["yy"]))
+        values["month"]=str(int(values["mm"]))
+        return system, values["kind"].upper(), FileMetaMatch(values)
+    pattern=ANNUAL_FILENAME_PATTERNS.get(system)
+    match=pattern.match(path.name) if pattern else None
+    if not match: raise ValueError("Nome de arquivo DBC fora do padrão esperado.")
+    values=match.groupdict()
+    values.setdefault("kind", "DO" if system=="SIM" else "DN" if system=="SINASC" else "")
+    if values.get("year"):
+        values["yy"]=str(int(values["year"])%100).zfill(2)
+        values["year"]=str(int(values["year"]))
+    else:
+        values["uf"]="BR"
+        values["year"]=str(2000+int(values["yy"]))
+    values["mm"]=None
+    return system, values["kind"].upper(), FileMetaMatch(values)
 
 def municipality_field(system: str, fieldnames):
     """Return the known service-location field only when this report has it."""
     available={str(name).upper() for name in fieldnames}
-    candidates={"SIA":("PA_UFMUN",),"SIH":("MUNIC_MOV",)}.get(system,())
+    candidates={"SIA":("PA_UFMUN",),"SIH":("MUNIC_MOV",),"SINAN":("ID_MUNICIP","ID_MN_RESI"),"SIM":("CODMUNRES","CODMUNOCOR"),"SINASC":("CODMUNRES","CODMUNNASC"),"CNES":("CO_MUNICIPIO_GESTOR","CO_MUNICIPIO",)}.get(system,())
     return next((name for name in candidates if name in available),"")
 
 def municipality_code(payload, fieldnames, field):
@@ -361,9 +387,10 @@ def catalog():
             dbf=safe_converted_path(rel)
             dbf_exists=dbf.is_file(); dbf_stat=dbf.stat() if dbf_exists else None
             source_stat=p.stat()
-            files.append({"path":rel,"name":p.name,"system":sysname,"kind":kind,"uf":m.group("uf").upper(),"year":2000+int(m.group("yy")),"month":int(m.group("mm")),"size":source_stat.st_size,"mtime_ns":source_stat.st_mtime_ns,"downloaded_at":info.get("downloaded_at"),"converted":dbf_exists,"dbf_path":converted if dbf_exists else None,"dbf_size":dbf_stat.st_size if dbf_stat else None,"dbf_mtime_ns":dbf_stat.st_mtime_ns if dbf_stat else None,"conversion":active_jobs.get(rel)})
+            file_year=int(m.group("year")); file_month=int(m.group("month")) if m.group("month") else None
+            files.append({"path":rel,"name":p.name,"system":sysname,"kind":kind,"uf":m.group("uf").upper(),"year":file_year,"month":file_month,"size":source_stat.st_size,"mtime_ns":source_stat.st_mtime_ns,"downloaded_at":info.get("downloaded_at"),"converted":dbf_exists,"dbf_path":converted if dbf_exists else None,"dbf_size":dbf_stat.st_size if dbf_stat else None,"dbf_mtime_ns":dbf_stat.st_mtime_ns if dbf_stat else None,"conversion":active_jobs.get(rel)})
         except Exception: continue
-    files.sort(key=lambda x:(x["system"],-x["year"],-x["month"],x["name"]))
+    files.sort(key=lambda x:(x["system"],-x["year"],-(x["month"] or 0),x["name"]))
     return {"ok":True,"files":files,"library_root":str(UPLOADS),"definitionIdentities":definition_identities}
 
 def delete_library_file(payload: dict[str,Any]):
@@ -374,8 +401,8 @@ def delete_library_file(payload: dict[str,Any]):
 
 def _delete_library_file_locked(payload: dict[str,Any], source: Path, relative: str):
     system,_,_=meta(source)
-    if system not in {"SIA","SIH"}:
-        raise ValueError("Somente arquivos ambulatoriais e hospitalares importados podem ser removidos daqui.")
+    if system not in {"SIA","SIH","SINAN","SIM","SINASC","CNES"}:
+        raise ValueError("Este tipo de arquivo não pode ser removido pela biblioteca.")
 
     jobs=UPLOADS/".jobs"
     if jobs.is_dir():
@@ -677,7 +704,7 @@ def start_tabulation(payload: dict[str,Any]):
         month=payload.get("month")
         uf=str(payload.get("uf") or "").upper()
         municipality=str(payload.get("municipalityCode") or "")
-        minimum_year=2005 if payload.get("predefinedReport")=="cnes-salas-imunizacao" else 2006 if payload.get("predefinedReport")==SINAN_WORKHEALTH_REPORT_ID else 2000
+        minimum_year=2005 if payload.get("predefinedReport")=="cnes-salas-imunizacao" else 2007 if payload.get("predefinedReport")==SINAN_WORKHEALTH_REPORT_ID else 2000
         if not isinstance(year,int) or year<minimum_year or year>date.today().year:
             raise ValueError(f"Selecione um ano entre {minimum_year} e o ano atual.")
         if not isinstance(month,int) or month<1 or month>12:
@@ -835,6 +862,7 @@ def ensure_archive(system: str) -> Path:
     return path
 
 def archive_def(system: str, kind: str):
+    if system.upper() not in {"SIA","SIH"}: return None,None
     name=DEF_MAP.get(kind)
     if not name: return None,None
     archive=ensure_archive(system)
@@ -847,6 +875,45 @@ def archive_def(system: str, kind: str):
     dest.parent.mkdir(parents=True,exist_ok=True)
     if not dest.exists() or dest.stat().st_size!=len(data): dest.write_bytes(data)
     return name,data
+
+GENERIC_FIELD_LABELS={
+    "DT_NOTIFIC":"Data da notificação · DT_NOTIFIC","ID_MUNICIP":"Município de notificação · ID_MUNICIP",
+    "ID_MN_RESI":"Município de residência · ID_MN_RESI","CS_SEXO":"Sexo · CS_SEXO","NU_IDADE_N":"Idade · NU_IDADE_N",
+    "CS_RACA":"Raça/cor · CS_RACA","ID_OCUPA_N":"Ocupação · CBO · ID_OCUPA_N","DOENCA_TRA":"Exposição decorrente do trabalho · DOENCA_TRA",
+    "CODMUNRES":"Município de residência · CODMUNRES","CODMUNOCOR":"Município de ocorrência · CODMUNOCOR",
+    "CODMUNNASC":"Município de nascimento · CODMUNNASC","CO_CNES":"Estabelecimento · CNES · CO_CNES",
+    "CO_MUNICIPIO":"Município · CO_MUNICIPIO","CO_MUNICIPIO_GESTOR":"Município gestor · CO_MUNICIPIO_GESTOR",
+    "PA_UFMUN":"Estabelecimento de atendimento · PA_UFMUN","PA_VALAPR":"Valor aprovado · PA_VALAPR",
+    "PA_VALPRO":"Valor apresentado · PA_VALPRO","PA_QTDAPR":"Quantidade aprovada · PA_QTDAPR",
+    "PA_QTDPRO":"Quantidade apresentada · PA_QTDPRO","MUNIC_MOV":"Município do atendimento · MUNIC_MOV",
+}
+
+def generated_field_label(name: str) -> str:
+    code=str(name).upper()
+    if code in GENERIC_FIELD_LABELS: return GENERIC_FIELD_LABELS[code]
+    readable=re.sub(r"_+"," ",code).strip().title()
+    return f"{readable} · {code}" if readable else code
+
+def generated_definition(fields):
+    """Build usable line/column/filter options from a DBC header when no DEF ships with the dataset."""
+    import csv,io
+    output=io.StringIO(newline="")
+    writer=csv.writer(output,lineterminator="\n")
+    for field in fields:
+        name=str(field.get("name") or "").upper()
+        if not re.fullmatch(r"[A-Z0-9_]{1,11}",name): continue
+        label=generated_field_label(name)
+        writer.writerow(["L"+label,name])
+        writer.writerow(["C"+label,name])
+        writer.writerow(["S"+label,name])
+        if str(field.get("type") or "").upper() in {"N","F","I","B"}:
+            writer.writerow(["I"+label,name])
+    return output.getvalue().encode("cp1252", "replace")
+
+def definition_for(system: str, kind: str, fields):
+    name,data=archive_def(system,kind)
+    if data is not None: return name,data,"oficial"
+    return f"Estrutura do arquivo · {system} {kind}",generated_definition(fields),"cabeçalho DBC"
 
 def parse_def(data: bytes, fields: list[dict[str,Any]]):
     text=data.decode("cp1252","replace")
@@ -989,31 +1056,28 @@ def schema(relative: str):
     converted=safe_converted_path(relative)
     dbf_identity=cache_file_identity(converted) if converted.is_file() else None
     source_identity=cache_file_identity(path)
-    archive=ensure_archive(system)
-    definition_identity=cache_file_identity(archive)
-    identity={"cacheVersion":1,"parser":"official-def-schema-v1","source":source_identity,"dbf":dbf_identity,"definition":definition_identity,"kind":kind,"system":system}
+    fields,records=dbc_header(path)
+    defname,definition,definition_source=definition_for(system,kind,fields)
+    definition_identity={"sha256":hashlib.sha256(definition).hexdigest(),"source":definition_source}
+    identity={"cacheVersion":2,"parser":"datasus-def-schema-v2","source":source_identity,"dbf":dbf_identity,"definition":definition_identity,"kind":kind,"system":system}
     target=cache_target("schemas",identity)
     with interprocess_lock(target.with_suffix(".lock")):
         cached=cache_read(target)
         cached_definition=cached.get("definition") if isinstance(cached,dict) else None
         if isinstance(cached,dict) and isinstance(cached_definition,dict) and cached.get("ok") is True and cached.get("sourceIdentity")==source_identity and cached_definition.get("identity")==definition_identity:
             return cached
-        fields,records=dbc_header(path)
-        defname,definition=archive_def(system,kind)
-        if definition is None: raise RuntimeError(f"A definição {defname or 'do arquivo'} não foi encontrada no pacote oficial {system}.")
         rows,cols,selections,increments,group=parse_def(definition,fields)
         add_sp_identifier_options(kind,[f["name"] for f in fields],rows)
         relationFiles={item.get("relation", "").lower() for collection in (rows,cols,selections,increments) for item in collection if item.get("relation", "").lower().endswith(".cnv")}
         fieldnames={f["name"].upper() for f in fields}
         municipality=municipality_field(system,fieldnames)
-        result={"ok":True,"file":{"path":relative,"name":path.name,"system":system,"kind":kind,"uf":filename_match.group("uf").upper()},"dbfPath":dbf_identity["path"] if dbf_identity else None,"dbfIdentity":dbf_identity,"sourceIdentity":source_identity,"definition":{"name":defname,"archive":f"uploads/DEFINICOES/originais/TAB_{system}.zip","size":len(definition),"identity":definition_identity,"relationFiles":len(relationFiles)},"fields":fields,"lineOptions":rows,"columnOptions":cols,"selectionOptions":selections,"increments":increments,"groupField":group,"municipalityField":municipality,"recordCount":records}
+        result={"ok":True,"file":{"path":relative,"name":path.name,"system":system,"kind":kind,"uf":filename_match.group("uf").upper(),"year":int(filename_match.group("year")),"month":int(filename_match.group("month")) if filename_match.group("month") else None},"dbfPath":dbf_identity["path"] if dbf_identity else None,"dbfIdentity":dbf_identity,"sourceIdentity":source_identity,"definition":{"name":defname,"archive":f"uploads/DEFINICOES/originais/TAB_{system}.zip" if definition_source=="oficial" else None,"source":definition_source,"size":len(definition),"identity":definition_identity,"relationFiles":len(relationFiles)},"fields":fields,"lineOptions":rows,"columnOptions":cols,"selectionOptions":selections,"increments":increments,"groupField":group,"municipalityField":municipality,"recordCount":records}
         cache_write(target,result,max_bytes=12_000_000,keep=100)
         return result
 
 def preset_context(relative: str):
     path=safe_file(relative); system,kind,match=meta(path); fields,_=dbc_header(path)
-    defname,definition=archive_def(system,kind)
-    if definition is None: raise RuntimeError("A definição oficial deste arquivo não está disponível.")
+    defname,definition,_=definition_for(system,kind,fields)
     stable_fields=sorted(({key:str(field.get(key,"")) for key in ("name","type","length","decimals")} for field in fields),key=lambda field:field["name"].upper())
     uf=match.group("uf").upper()
     signature_data={"system":system,"kind":kind,"uf":uf,"definition":hashlib.sha256(definition).hexdigest(),"fields":stable_fields}
@@ -1058,7 +1122,7 @@ def write_preset_store(data):
 def validated_preset_options(relative: str, supplied):
     if not isinstance(supplied,dict): raise ValueError("A combinação não contém opções válidas.")
     context=preset_context(relative)
-    defname,definition=archive_def(context["system"],context["kind"])
+    defname,definition,_=definition_for(context["system"],context["kind"],context["fields"])
     rows,columns,selections,increments,group=parse_def(definition,context["fields"])
     add_sp_identifier_options(context["kind"],[field["name"] for field in context["fields"]],rows)
     row_ids={item["id"] for item in rows}; column_ids={item["id"] for item in columns}; selection_ids={item["id"] for item in selections}
@@ -1146,8 +1210,7 @@ def category_values(payload):
         sources.append({"source":source,"path":path,"system":current_system,"kind":current_kind,"uf":current_uf,"fields":current_fields})
     system,kind=sources[0]["system"],sources[0]["kind"]
     fields=sources[0]["fields"]
-    defname,definition=archive_def(system,kind)
-    if definition is None: raise RuntimeError("Definição oficial indisponível para este arquivo.")
+    defname,definition,_=definition_for(system,kind,[{"name":name,**info} for name,info in fields.items()])
     lines,columns,selections,_,_=parse_def(definition,[{"name":name,**info} for name,info in fields.items()])
     add_sp_identifier_options(kind,fields.keys(),lines)
     groups={"line":lines,"column":columns,"selection":selections}
@@ -1160,7 +1223,7 @@ def category_values(payload):
     municipality=municipality_code(payload,fields,munfield)
     usemun=bool(municipality)
     archive=UPLOADS/"DEFINICOES"/"originais"/f"TAB_{system}.zip"
-    identity={"cacheVersion":8,"dbfs":[cache_file_identity(item["path"]) for item in sources],"option":option["id"],"type":option_type,"municipalityCode":municipality,"definition":cache_file_identity(archive) if archive.is_file() else defname}
+    identity={"cacheVersion":9,"dbfs":[cache_file_identity(item["path"]) for item in sources],"option":option["id"],"type":option_type,"municipalityCode":municipality,"definition":cache_file_identity(archive) if archive.is_file() else defname}
     target=cache_target("category-values",identity)
     with interprocess_lock(target.with_suffix(".lock")):
         cached=cache_read(target)
@@ -3208,6 +3271,8 @@ SINAN_WORKHEALTH_AGRAVOS={
     "PAIR":"Perda auditiva induzida por ruído (PAIR) relacionada ao trabalho",
     "PNEU":"Pneumoconiose relacionada ao trabalho",
     "MENT":"Transtornos mentais relacionados ao trabalho",
+    "LERD":"LER/DORT relacionadas ao trabalho",
+    "IEXO":"Intoxicação exógena relacionada ao trabalho",
 }
 SINAN_WORKHEALTH_DIMENSIONS=(
     ("sex","Sexo",("CS_SEXO",)),
@@ -3226,6 +3291,65 @@ SINAN_WORKHEALTH_DIMENSIONS=(
     ("cat","Comunicação de Acidente de Trabalho · CAT",("CAT",)),
 )
 SINAN_WORKHEALTH_EXTRA_DIMENSIONS={
+    "LERD":(
+        ("diagnosis","Diagnóstico específico de LER/DORT",("DIAG_ESP",)),
+        ("symptomSensitivity","Alteração de sensibilidade",("SENSIBILI",)),
+        ("movementLimitation","Limitação de movimento",("LIMITA_MOV",)),
+        ("muscleAlteration","Alteração muscular",("MUSCULAR",)),
+        ("movementReduction","Diminuição do movimento",("MENOS_MOV",)),
+        ("inflammatorySigns","Sinais flogísticos",("FLOGISTICO",)),
+        ("pain","Dor",("DOR",)),
+        ("otherSymptoms","Outros sinais e sintomas",("OUTRO_SIN",)),
+        ("taskLimitation","Limitação para tarefas",("TAREFAS",)),
+        ("repetitiveWork","Movimentos repetitivos no trabalho",("REPETITIVO",)),
+        ("workBreaks","Pausas para descanso",("HA_PAUSA",)),
+        ("longWorkday","Jornada diária superior a seis horas",("MAIS_6HS",)),
+        ("stressfulEnvironment","Ambiente de trabalho estressante",("STRESS",)),
+        ("productionIncentive","Prêmios ou incentivos por produção",("PREMIOS",)),
+        ("riskExposureTime","Tempo de exposição ao agente de risco",("NUTEMPORIS","TPTEMPORIS")),
+        ("associatedTuberculosis","Tuberculose associada",("TUBE",)),
+        ("associatedDiabetes","Diabetes associada",("DIABETES",)),
+        ("associatedAsthma","Asma associada",("ASMA",)),
+        ("associatedLeprosy","Hanseníase associada",("HANSENIASE",)),
+        ("associatedMentalHealth","Transtorno mental associado",("MENTAL",)),
+        ("associatedHypertension","Hipertensão associada",("HIPERTEN",)),
+        ("otherWorkersAffected","Outros trabalhadores com a mesma doença",("TRAB_DOE",)),
+        ("workLeave","Afastamento para tratamento",("AFASTAMENT",)),
+        ("leaveDuration","Tempo de afastamento",("NU_AFAST","TP_AFAST")),
+        ("leaveOutcome","Evolução durante afastamento",("EVOL_AFAST",)),
+        ("riskRemoval","Afastamento do agente de risco",("AFAST_RISC",)),
+        ("personalProtection","Adoção de proteção individual",("INDIVIDUAL",)),
+        ("workOrganizationChange","Mudança na organização do trabalho",("MUDA_TRAB",)),
+        ("collectiveProtection","Adoção de proteção coletiva",("COLETIVA",)),
+        ("workplaceRemoval","Afastamento do local de trabalho",("AFAST_TRAB",)),
+        ("otherConduct","Outras condutas",("CONDUTA",)),
+    ),
+    "IEXO":(
+        ("workExposureLocation","Local de exposição",("LOC_EXPO",)),
+        ("toxicAgent","Agente tóxico",("AGENTE_TOX",)),
+        ("otherExposureLocation","Outro local de exposição · especificação",("LOC_EXP_DE",)),
+        ("toxicAgentDetail","Agente tóxico · detalhe",("AGENTE_1",)),
+        ("toxicAgentDetail2","Agente tóxico · detalhe 2",("AGENTE_2",)),
+        ("toxicAgentDetail3","Agente tóxico · detalhe 3",("AGENTE_3",)),
+        ("activeIngredient","Princípio ativo",("P_ATIVO_1",)),
+        ("activeIngredient2","Princípio ativo 2",("P_ATIVO_2",)),
+        ("activeIngredient3","Princípio ativo 3",("P_ATIVO_3",)),
+        ("productUse","Uso do produto",("UTILIZACAO",)),
+        ("workActivity","Atividade no trabalho",("ATIVIDA_1",)),
+        ("workActivity2","Atividade no trabalho · opção 2",("ATIVIDA_2",)),
+        ("workActivity3","Atividade no trabalho · opção 3",("ATIVIDA_3",)),
+        ("exposureRoute","Via de exposição",("VIA_1",)),
+        ("exposureRoute2","Via de exposição · opção 2",("VIA_2",)),
+        ("exposureRoute3","Via de exposição · opção 3",("VIA_3",)),
+        ("exposureCircumstance","Circunstância da exposição",("CIRCUNSTAN",)),
+        ("otherExposureCircumstance","Outra circunstância · especificação",("CIRCUN_DES",)),
+        ("exposureType","Tipo de exposição",("TPEXP",)),
+        ("hospitalization","Houve hospitalização",("HOSPITAL",)),
+        ("caseClassification","Classificação final",("CLASSI_FIN",)),
+        ("confirmedDiagnosis","Diagnóstico confirmado",("DIAG_CONF",)),
+        ("employerUf","UF do empregador",("UF_EMP",)),
+        ("employerMunicipality","Município do empregador",("MUN_EMP",)),
+    ),
     "ACGR":(
         ("employerUf","UF do empregador",("UF_EMP",)),
         ("employerMunicipality","Município do empregador",("MUN_EMP",)),
@@ -3295,14 +3419,15 @@ def _sinan_workhealth_age(value: Any) -> str:
     return "60plus"
 
 def _sinan_workhealth_category(dimension: str, raw: Any) -> str:
-    if dimension=="workExperience":
+    if dimension in {"workExperience","riskExposureTime","leaveDuration"}:
         if not isinstance(raw,(tuple,list)) or len(raw)<2: return "unknown"
         amount=re.sub(r"\D","",_sinan_code(raw[0]))
         unit=_sinan_code(raw[1]).strip().upper()
-        if not amount or unit not in {"1","2","3","4"}: return "unknown"
+        unit_names={"1":"hora","2":"dia","3":"mês","4":"ano","H":"hora","D":"dia","M":"mês","A":"ano"}
+        if not amount or unit not in unit_names: return "unknown"
         value=int(amount)
         if value in {0,99,999}: return "unknown"
-        unit_name={"1":"hora","2":"dia","3":"mês","4":"ano"}[unit]
+        unit_name=unit_names[unit]
         plural={"hora":"horas","dia":"dias","mês":"meses","ano":"anos"}
         return f"{value} {unit_name if value==1 else plural[unit_name]}"
     code=_sinan_code(raw).strip().upper()
@@ -3326,7 +3451,7 @@ def _sinan_workhealth_category(dimension: str, raw: Any) -> str:
 def _sinan_workhealth_db(year: int, prefix: str) -> Path:
     folder=UPLOADS/".cache"/"sinan-workhealth"
     folder.mkdir(parents=True,exist_ok=True)
-    return folder/f"{prefix.lower()}-{year}-v2.sqlite3"
+    return folder/f"{prefix.lower()}-{year}-v4.sqlite3"
 
 def _sinan_workhealth_source(prefix: str, year: int, progress=None, include_combinations: bool=False) -> dict[str,Any]:
     """Stream a national SINAN DBC into local aggregates, optionally preserving cross-field combinations."""
@@ -3370,19 +3495,19 @@ def _sinan_workhealth_source(prefix: str, year: int, progress=None, include_comb
                 if progress: progress(23,f"Descompactando {_national_dbc_name(prefix,year)}.dbc")
                 dbf=Path(decompress(dbc))
                 _,_,_,layout=dbf_layout(dbf)
-                required=["DT_NOTIFIC","ID_MUNICIP"]
+                required=["DT_NOTIFIC","ID_MUNICIP"]+( ["DOENCA_TRA"] if prefix=="IEXO" else [] )
                 missing=[field for field in required if field not in layout]
                 if missing: raise ValueError(f"A base SINAN {_national_dbc_name(prefix,year)} não contém os campos essenciais: {', '.join(missing)}.")
                 available_dimensions=[]; field_for_dimension={}
                 for key,label,candidates in _sinan_workhealth_dimensions(prefix):
-                    if key=="workExperience":
+                    if key in {"workExperience","riskExposureTime","leaveDuration"}:
                         field=tuple(candidates) if all(candidate in layout for candidate in candidates) else None
                     else:
                         field=next((candidate for candidate in candidates if candidate in layout),None)
                     if field:
                         available_dimensions.append(key); field_for_dimension[key]=field
                 dimension_fields=(candidate for field in field_for_dimension.values() for candidate in (field if isinstance(field,tuple) else (field,)))
-                fields=["DT_NOTIFIC","ID_MUNICIP"]+list(dict.fromkeys(dimension_fields))
+                fields=["DT_NOTIFIC","ID_MUNICIP"]+( ["DOENCA_TRA"] if prefix=="IEXO" else [] )+list(dict.fromkeys(dimension_fields))
                 processed=[0]; accepted=0; invalid_dates=0
                 pending=defaultdict(int); pending_combinations=defaultdict(int)
                 def flush():
@@ -3400,6 +3525,11 @@ def _sinan_workhealth_source(prefix: str, year: int, progress=None, include_comb
                 db.execute("INSERT OR REPLACE INTO combination_meta VALUES (1,?)",(0,))
                 for values in iter_dbf_fields(dbf,fields,processed_counter=processed,scan_callback=scan if progress else None):
                     row=dict(zip(fields,values))
+                    # SINAN IEXO contains all exposure settings. This report is
+                    # explicitly occupational, so include only the official
+                    # work/occupation flag marked Sim (1); 2 and 9 are excluded.
+                    if prefix=="IEXO" and _sinan_code(row.get("DOENCA_TRA")).strip()!="1":
+                        continue
                     notified=_pqavs_date(row.get("DT_NOTIFIC"))
                     municipality=_pqavs_municipality(row.get("ID_MUNICIP"))
                     if notified is None or notified.year!=year or not municipality:
@@ -3445,21 +3575,41 @@ def _sinan_workhealth_value_label(prefix: str, dimension: str, category: str, mu
     if dimension=="residence": return f"{municipalities.get(category,'Município não identificado')} · {category}"
     if dimension=="employerMunicipality": return f"{municipalities.get(category,'Município não identificado')} · {category}"
     if dimension=="employerUf": return f"{PREDEFINED_UF_NAMES.get(category,category)} · {category}"
-    if dimension=="workExperience": return category
+    if dimension in {"workExperience","riskExposureTime","leaveDuration"}: return category
     if dimension=="occupation": return f"CBO {category}"
     if dimension=="economicActivity": return f"CNAE {category}"
     if dimension=="accidentType": return {"1":"Típico","2":"Trajeto","9":"Ignorado / não informado"}.get(category,f"Código {category}")
     if dimension=="accidentLocation": return {"1":"Instalações do contratante","2":"Via pública","3":"Instalações de terceiros","4":"Domicílio próprio","9":"Ignorado / não informado"}.get(category,f"Código {category}")
     if dimension=="employment": return {"01":"Empregado com carteira assinada","02":"Empregado sem carteira assinada","03":"Autônomo / conta própria","04":"Servidor público estatutário","05":"Servidor público celetista","06":"Aposentado","07":"Desempregado","08":"Trabalho temporário","09":"Cooperativado","10":"Trabalhador avulso","11":"Empregador","12":"Outros","99":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if dimension=="outcome" and prefix=="LERD": return {"1":"Cura","2":"Cura não confirmada","3":"Incapacidade temporária","4":"Incapacidade permanente parcial","5":"Incapacidade permanente total","6":"Óbito por doença relacionada ao trabalho","7":"Óbito por outra causa","8":"Outro","9":"Ignorado / não informado"}.get(category,f"Código {category}")
     if dimension=="outcome" and prefix=="ACGR": return {"1":"Cura","2":"Incapacidade temporária","3":"Incapacidade parcial permanente","4":"Incapacidade total permanente","5":"Óbito por acidente de trabalho grave","6":"Óbito por outra causa","7":"Outro","9":"Ignorado / não informado"}.get(category,f"Código {category}")
     if dimension=="outcome" and prefix=="ACBI": return {"1":"Alta com conversão sorológica","2":"Alta sem conversão sorológica","3":"Alta com paciente-fonte negativo","4":"Abandono","5":"Óbito pelo acidente","6":"Óbito por outra causa","9":"Ignorado / não informado"}.get(category,f"Código {category}")
     if dimension=="regime": return {"1":"Hospitalar","2":"Ambulatorial","3":"Hospitalar e ambulatorial","9":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if dimension=="leaveOutcome" and prefix=="LERD": return {"1":"Melhora","2":"Piora","9":"Ignorado / não informado"}.get(category,f"Código {category}")
     if dimension=="cat": return {"1":"Sim","2":"Não","3":"Não se aplica","9":"Ignorado / não informado"}.get(category,f"Código {category}")
     if dimension=="workAgent" and prefix=="ACBI": return {"1":"Agulha com lúmen","2":"Agulha sem lúmen","3":"Intracath","4":"Vidro","5":"Lâmina / lanceta","6":"Outros","9":"Ignorado / não informado"}.get(category,f"Código {category}")
-    if dimension in {"diagnosis","accidentCause","injuryDiagnosis"}: return f"CID-10 {category}"
+    if dimension in {"diagnosis","confirmedDiagnosis","accidentCause","injuryDiagnosis"}: return f"CID-10 {category}"
     if dimension.startswith("workerTest"): return {"1":"Positivo","2":"Negativo","3":"Inconclusivo","4":"Não realizado","9":"Ignorado / não informado"}.get(category,f"Código {category}")
     if dimension.startswith("sourceTest"): return {"1":"Positivo","2":"Negativo","3":"Inconclusivo","4":"Em andamento","5":"Não realizado","9":"Ignorado / não informado"}.get(category,f"Código {category}")
-    if dimension.startswith("exposure") or dimension.startswith("epi") or dimension.startswith("conduct") or dimension in {"sourceKnown","vaccination"}:
+    sinan_yes_no_dimensions={
+        "LERD":{"symptomSensitivity","movementLimitation","muscleAlteration","movementReduction","inflammatorySigns","pain","otherSymptoms","taskLimitation","repetitiveWork","workBreaks","longWorkday","stressfulEnvironment","productionIncentive","associatedTuberculosis","associatedDiabetes","associatedAsthma","associatedLeprosy","associatedMentalHealth","associatedHypertension","otherWorkersAffected","workLeave","riskRemoval","personalProtection","workOrganizationChange","collectiveProtection","workplaceRemoval","otherConduct"},
+        "IEXO":{"hospitalization"},
+    }
+    if dimension in sinan_yes_no_dimensions.get(prefix,set()):
+        return {"1":"Sim","2":"Não","9":"Ignorado / não informado"}.get(category,f"Código {category}")
+    if prefix=="IEXO":
+        iexo_labels={
+            "workExposureLocation":{"1":"Residência","2":"Ambiente de trabalho","3":"Trajeto do trabalho","4":"Serviço de saúde","5":"Escola / creche","6":"Ambiente externo","7":"Outro","9":"Ignorado / não informado"},
+            "toxicAgent":{"01":"Medicamento","02":"Agrotóxico · uso agrícola","03":"Agrotóxico · uso doméstico","04":"Agrotóxico · saúde pública","05":"Raticida","06":"Produto veterinário","07":"Produto de uso domiciliar","08":"Cosmético / higiene pessoal","09":"Produto químico industrial","10":"Metal","11":"Droga de abuso","12":"Planta tóxica","13":"Alimento / bebida","14":"Outro","99":"Ignorado / não informado"},
+            "productUse":{"1":"Inseticida","2":"Herbicida","3":"Carrapaticida","4":"Raticida","5":"Fungicida","6":"Preservante para madeira","7":"Outro","8":"Não se aplica","9":"Ignorado / não informado"},
+            "workActivity":{"01":"Diluição","02":"Pulverização","03":"Tratamento de sementes","04":"Armazenagem","05":"Colheita","06":"Transporte","07":"Desinsetização","08":"Produção / formulação","09":"Outro","10":"Não se aplica","99":"Ignorado / não informado"},
+            "exposureRoute":{"1":"Digestiva","2":"Cutânea","3":"Respiratória","4":"Ocular","5":"Parenteral","6":"Vaginal","7":"Transplacentária","8":"Outra","9":"Ignorado / não informado"},
+            "exposureCircumstance":{"01":"Uso habitual","02":"Acidental","03":"Ambiental","04":"Uso terapêutico","05":"Prescrição inadequada","06":"Erro de administração","07":"Automedicação","08":"Abuso","09":"Ingestão de alimento / bebida","10":"Tentativa de suicídio","11":"Tentativa de aborto","12":"Violência / homicídio","13":"Outra","99":"Ignorado / não informado"},
+            "exposureType":{"1":"Aguda · única","2":"Aguda · repetida","3":"Crônica","4":"Aguda sobre crônica","9":"Ignorado / não informado"},
+            "caseClassification":{"1":"Intoxicação confirmada","2":"Só exposição","3":"Reação adversa","4":"Outro diagnóstico","5":"Síndrome de abstinência","9":"Ignorado / não informado"},
+        }
+        if dimension in iexo_labels: return iexo_labels[dimension].get(category,f"Código {category}")
+    if dimension in {"exposurePercutaneous","exposureMucosa","exposureIntactSkin","exposureNonIntactSkin","exposureOther"} or dimension.startswith("epi") or dimension.startswith("conduct") or dimension in {"sourceKnown","vaccination"}:
         return {"1":"Sim","2":"Não","3":"Não se aplica","9":"Ignorado / não informado"}.get(category,f"Código {category}")
     if dimension in {"otherWorkers","medicalCare","outsourcedEmployer"}:
         return {"1":"Sim","2":"Não","3":"Não se aplica","9":"Ignorado / não informado"}.get(category,f"Código {category}")
@@ -3491,7 +3641,7 @@ def _predefined_sinan_workhealth_impl(payload: dict[str,Any], progress=None):
     municipality_name=_report_label(payload.get("municipalityName") or "")[:100]
     view=str(payload.get("view") or "summary")
     if report_id!=SINAN_WORKHEALTH_REPORT_ID or view not in {"summary","detail","full"}: raise ValueError("Selecione uma visão válida para a análise de saúde do trabalhador.")
-    if type(year) is not int or not 2006<=year<=date.today().year: raise ValueError("Selecione um ano entre 2006 e o ano atual.")
+    if type(year) is not int or not 2007<=year<=date.today().year: raise ValueError("Selecione um ano entre 2007 e o ano atual.")
     if type(month) is not int or not 1<=month<=12: raise ValueError("Selecione um mês válido.")
     if uf not in PREDEFINED_UF_CODES or not re.fullmatch(r"\d{6}",municipality) or municipality[:2]!=PREDEFINED_UF_CODES[uf]: raise ValueError("Selecione um município notificante válido.")
     detail_code=str(payload.get("agravoCode") or "").upper()
@@ -3591,7 +3741,8 @@ def _predefined_sinan_workhealth_impl(payload: dict[str,Any], progress=None):
             {"id":"detail","label":"DETALHAR","kind":"action","actionType":"sinan-workhealth-detail","actionLabel":"Abrir tabela →"},
         ]
         notes=[
-            "O mês considera a data de notificação (DT_NOTIFIC), para comparar os sete agravos no mesmo critério. O total representa notificações registradas, não pessoas únicas.",
+            "O mês considera a data de notificação (DT_NOTIFIC), para comparar os nove agravos no mesmo critério. O total representa notificações registradas, não pessoas únicas.",
+            "Na intoxicação exógena, entram somente notificações com DOENCA_TRA = 1 (exposição decorrente do trabalho/ocupação marcada como Sim); respostas Não e Ignorado não são somadas como casos ocupacionais.",
             "ACGR corresponde à ficha de acidente de trabalho grave; o recorte não representa a totalidade de acidentes leves.",
             "Cada agravo tem sua própria ficha; o detalhamento mostra somente os campos correspondentes que estão disponíveis na respectiva base.",
         ]
@@ -7928,7 +8079,7 @@ def tabulate(payload, progress=None):
         if not isinstance(item,dict): raise ValueError("A lista de arquivos é inválida.")
         source=safe_file(item.get("path","")); canonical_relative=source.relative_to(UPLOADS).as_posix(); system,kind,filename_match=meta(source); uf=filename_match.group("uf").upper(); dbf=safe_dbf(item.get("dbfPath") or converted_relative(canonical_relative),canonical_relative)
         if sources and (system,kind,uf)!=(sources[0]["system"],sources[0]["kind"],sources[0]["uf"]): raise ValueError("Todos os arquivos precisam pertencer à mesma família, tipo de base e unidade da Federação.")
-        sources.append({"source":source,"dbf":dbf,"system":system,"kind":kind,"uf":uf,"year":2000+int(filename_match.group("yy")),"month":int(filename_match.group("mm"))})
+        sources.append({"source":source,"dbf":dbf,"system":system,"kind":kind,"uf":uf,"year":int(filename_match.group("year")),"month":int(filename_match.group("month")) if filename_match.group("month") else None})
     system,kind=sources[0]["system"],sources[0]["kind"]
     _,_,_,fieldinfo=dbf_layout(sources[0]["dbf"])
     fieldset=set(fieldinfo)
@@ -7941,8 +8092,7 @@ def tabulate(payload, progress=None):
         if set(other)!=fieldset or any((other[n]["type"],other[n]["length"],other[n]["decimals"])!=(v["type"],v["length"],v["decimals"]) for n,v in fieldinfo.items()):
             raise ValueError(f"O arquivo {item['source'].name} possui campos diferentes dos demais selecionados.")
     fields=[{"name":name,"type":info["type"],"length":info["length"],"decimals":info["decimals"]} for name,info in fieldinfo.items()]
-    defname,definition=archive_def(system,kind)
-    if definition is None: raise RuntimeError("Definição oficial indisponível para este arquivo.")
+    defname,definition,_=definition_for(system,kind,fields)
     rows,cols,selections,increments,group=parse_def(definition,fields)
     add_sp_identifier_options(kind,fieldset,rows)
     rowoption=next((item for item in rows if item["id"]==payload.get("row")),None)

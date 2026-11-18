@@ -184,3 +184,11 @@
 .location-step-screen .map-caption{border-color:rgba(196,214,239,.16);color:#b1c2da}
 .location-step-screen .map-key{color:#d4dfef}
 .location-step-screen .map-placeholder{color:#bdcbe0}
+
+/* Filtros de arquivos variam conforme a fonte publica dados mensais ou anuais. */
+.filters [hidden]{display:none!important}
+.filters.has-filetype{grid-template-columns:minmax(180px,1.25fr) minmax(175px,1fr) minmax(100px,.65fr) minmax(135px,.9fr) auto}
+.filters.has-filetype.is-annual{grid-template-columns:minmax(205px,1.25fr) minmax(220px,1fr) minmax(110px,.7fr) auto}
+.filters.is-annual:not(.has-filetype){grid-template-columns:minmax(220px,1.35fr) minmax(120px,.7fr) auto}
+@media(max-width:1050px){.filters.has-filetype,.filters.has-filetype.is-annual,.filters.is-annual:not(.has-filetype){grid-template-columns:repeat(2,minmax(0,1fr))}.filters.has-filetype .button,.filters.has-filetype.is-annual .button,.filters.is-annual:not(.has-filetype) .button{grid-column:1/-1;width:100%}}
+@media(max-width:760px){.filters.has-filetype,.filters.has-filetype.is-annual,.filters.is-annual:not(.has-filetype){grid-template-columns:repeat(2,minmax(0,1fr))}.filters.has-filetype .field-system,.filters.has-filetype.is-annual .field-system,.filters.is-annual:not(.has-filetype) .field-system{grid-column:1/-1}.filters.has-filetype .button,.filters.has-filetype.is-annual .button,.filters.is-annual:not(.has-filetype) .button{grid-column:1/-1;width:100%}}

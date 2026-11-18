@@ -15,7 +15,8 @@
   const confirmRemove = $('#confirmRemove');
   const cancelRemove = $('#cancelRemove');
   const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-  const stateNames = {AC:'Acre',AL:'Alagoas',AP:'Amapá',AM:'Amazonas',BA:'Bahia',CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',MA:'Maranhão',MT:'Mato Grosso',MS:'Mato Grosso do Sul',MG:'Minas Gerais',PA:'Pará',PB:'Paraíba',PR:'Paraná',PE:'Pernambuco',PI:'Piauí',RJ:'Rio de Janeiro',RN:'Rio Grande do Norte',RS:'Rio Grande do Sul',RO:'Rondônia',RR:'Roraima',SC:'Santa Catarina',SE:'Sergipe',SP:'São Paulo',TO:'Tocantins'};
+  const stateNames = {AC:'Acre',AL:'Alagoas',AP:'Amapá',AM:'Amazonas',BA:'Bahia',CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',MA:'Maranhão',MT:'Mato Grosso',MS:'Mato Grosso do Sul',MG:'Minas Gerais',PA:'Pará',PB:'Paraíba',PR:'Paraná',PE:'Pernambuco',PI:'Piauí',RJ:'Rio de Janeiro',RN:'Rio Grande do Norte',RS:'Rio Grande do Sul',RO:'Rondônia',RR:'Roraima',SC:'Santa Catarina',SE:'Sergipe',SP:'São Paulo',TO:'Tocantins',BR:'Brasil'};
+  const systemNames = {SIA:'Ambulatorial · SIA/SUS',SIH:'Hospitalar · SIH/SUS',SINAN:'Agravos · SINAN',SIM:'Óbitos por residência · SIM',SINASC:'Nascidos vivos · SINASC',CNES:'Rede de saúde · CNES'};
   let files = [];
   let pendingFile = null;
   let busy = false;
@@ -104,16 +105,16 @@
     const filename = document.createElement('strong');
     filename.textContent = file.name;
     const period = document.createElement('small');
-    const month = monthNames[(Number(file.month) || 1) - 1] || '';
-    period.textContent = `${month} ${file.year} · ${String(file.kind || '').toUpperCase()}`;
+    const month = Number(file.month);
+    period.textContent = `${month ? `${monthNames[month - 1]} · ` : 'Ano · '}${file.year} · ${String(file.kind || '').toUpperCase()}`;
     copy.append(filename, period);
     identityWrap.append(icon, copy);
     identity.append(identityWrap);
 
     const systemCell = makeCell();
     const systemPill = document.createElement('span');
-    systemPill.className = `bases-system-pill ${file.system === 'SIH' ? 'is-sih' : 'is-sia'}`;
-    systemPill.textContent = file.system === 'SIH' ? 'Hospitalar · SIH/SUS' : 'Ambulatorial · SIA/SUS';
+    systemPill.className = `bases-system-pill ${file.system === 'SIH' ? 'is-sih' : ['SINAN','SIM','SINASC','CNES'].includes(file.system) ? 'is-public-health' : 'is-sia'}`;
+    systemPill.textContent = systemNames[file.system] || file.system;
     systemCell.append(systemPill);
 
     const stateCell = makeCell();
@@ -175,8 +176,8 @@
       if (uf !== 'all' && String(file.uf || '').toUpperCase() !== uf) return false;
       if (!term) return true;
       const status = statusOf(file).label;
-      const fileMonth = Number(file.month) || 1;
-      const text = [file.name, file.path, file.system, file.kind, file.uf, stateNames[file.uf], file.year, monthNames[fileMonth - 1], `${String(fileMonth).padStart(2, '0')}/${file.year}`, status].join(' ').toLocaleLowerCase('pt-BR');
+      const fileMonth = Number(file.month);
+      const text = [file.name, file.path, file.system, systemNames[file.system], file.kind, file.uf, stateNames[file.uf], file.year, fileMonth ? monthNames[fileMonth - 1] : 'ano', fileMonth ? `${String(fileMonth).padStart(2, '0')}/${file.year}` : '', status].join(' ').toLocaleLowerCase('pt-BR');
       return text.includes(term);
     });
   }
@@ -191,6 +192,7 @@
     $('#totalCount').textContent = String(files.length);
     $('#siaCount').textContent = String(files.filter((file) => file.system === 'SIA').length);
     $('#sihCount').textContent = String(files.filter((file) => file.system === 'SIH').length);
+    $('#otherCount').textContent = String(files.filter((file) => ['SINAN','SIM','SINASC','CNES'].includes(file.system)).length);
     $('#convertedCount').textContent = String(files.filter((file) => file.converted).length);
     $('#libraryCountTag').textContent = `${files.length} ${files.length === 1 ? 'arquivo' : 'arquivos'}`;
     $('#visibleCount').textContent = `${visible.length} ${visible.length === 1 ? 'arquivo' : 'arquivos'}`;
@@ -199,7 +201,7 @@
     empty.hidden = visible.length > 0;
     if (noFiles) {
       $('#emptyTitle').textContent = 'Sua biblioteca ainda está vazia';
-      $('#emptyCopy').textContent = 'Adicione arquivos DBC ambulatoriais ou hospitalares para começar a organizar suas bases.';
+      $('#emptyCopy').textContent = 'Busque arquivos públicos do DATASUS para começar a organizar suas bases.';
     } else if (visible.length === 0) {
       $('#emptyTitle').textContent = 'Nenhum arquivo encontrado';
       $('#emptyCopy').textContent = 'Altere a busca ou os filtros de sistema, ano, competência e estado para ver outras bases.';
@@ -215,7 +217,7 @@
     pendingFile = file;
     $('#removeError').hidden = true;
     $('#removeError').textContent = '';
-    $('#removeFileName').textContent = `${file.name} · ${file.system} · ${String(file.month).padStart(2, '0')}/${file.year}`;
+    $('#removeFileName').textContent = `${file.name} · ${systemNames[file.system] || file.system} · ${file.month ? `${String(file.month).padStart(2, '0')}/${file.year}` : `ano ${file.year}`}`;
     if (typeof dialog.showModal === 'function') dialog.showModal();
     else if (window.confirm(`Remover ${file.name}? O DBC e os dados preparados para leitura serão excluídos deste computador.`)) removeFile();
   }

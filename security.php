@@ -243,7 +243,7 @@ function tabwin2_validate_api_payload(array $payload): void
             throw new RuntimeException('Selecione até 100 arquivos válidos.');
         }
         foreach ($names as $name) {
-            if (!is_string($name) || strlen($name) > 24 || !preg_match('/\A[A-Za-z0-9]{2,8}[A-Za-z]{2}\d{4}[A-Za-z]?\.dbc\z/i', $name)) {
+            if (!is_string($name) || strlen($name) > 24 || !preg_match('/\A(?:[A-Za-z0-9]{2,8}[A-Za-z]{2}\d{4}[A-Za-z]?|[A-Za-z0-9]{2,8}BR\d{2})\.dbc\z/i', $name)) {
                 http_response_code(400);
                 throw new RuntimeException('A seleção contém um nome de arquivo inválido.');
             }

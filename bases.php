@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7f8"><meta name="csrf-token" content="<?= htmlspecialchars(tabwin2_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
   <title>Minhas bases · TabulaSUS</title>
-  <link rel="stylesheet" href="assets/app.css?v=22"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/tabular-refine.css?v=18"><link rel="stylesheet" href="assets/bases.css?v=3"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
+  <link rel="stylesheet" href="assets/app.css?v=23"><link rel="stylesheet" href="assets/brand.css?v=1"><link rel="stylesheet" href="assets/tabular-refine.css?v=18"><link rel="stylesheet" href="assets/bases.css?v=4"><link rel="stylesheet" href="assets/compact-headings.css?v=1">
   <link rel="stylesheet" href="assets/rating.css?v=1"><script src="assets/sidebar.js?v=3" defer></script><script src="assets/rating.js?v=1" defer></script>
 </head>
 <body>
@@ -25,12 +25,13 @@
     </aside>
     <main class="main-content bases-main">
       <header class="topbar"><div class="breadcrumb">Dados públicos <span>/</span> <strong>Minhas bases</strong></div><div class="top-tag"><span></span><b id="libraryCountTag">Biblioteca local</b></div></header>
-      <section class="intro bases-intro"><div class="eyebrow"><span class="eyebrow-line"></span> BIBLIOTECA LOCAL</div><h1>Minhas bases</h1><p>Gerencie os arquivos ambulatoriais e hospitalares que você adicionou. A leitura é preparada automaticamente na primeira tabulação.</p></section>
+      <section class="intro bases-intro"><div class="eyebrow"><span class="eyebrow-line"></span> BIBLIOTECA LOCAL</div><h1>Minhas bases</h1><p>Organize arquivos do SIA, SIH, SINAN, SIM, SINASC e CNES. A leitura é preparada automaticamente na primeira tabulação.</p></section>
 
       <section class="bases-summary" aria-label="Resumo da biblioteca">
         <article class="bases-stat"><div class="bases-stat-icon"><span class="tile-motif" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></div><div><span>ARQUIVOS NA BIBLIOTECA</span><strong id="totalCount">—</strong><small>Arquivos DBC importados</small></div></article>
         <article class="bases-stat"><div class="bases-stat-icon bases-stat-icon--soft">SIA</div><div><span>AMBULATORIAL</span><strong id="siaCount">—</strong><small>SIA/SUS</small></div></article>
         <article class="bases-stat"><div class="bases-stat-icon bases-stat-icon--soft">SIH</div><div><span>HOSPITALAR</span><strong id="sihCount">—</strong><small>SIH/SUS</small></div></article>
+        <article class="bases-stat"><div class="bases-stat-icon bases-stat-icon--soft">+</div><div><span>VIGILÂNCIA E CADASTROS</span><strong id="otherCount">—</strong><small>SINAN · SIM · SINASC · CNES</small></div></article>
         <article class="bases-stat"><div class="bases-stat-icon bases-stat-icon--ready">✓</div><div><span>LEITURA PREPARADA</span><strong id="convertedCount">—</strong><small>Prontas para novas tabulações</small></div></article>
       </section>
 
@@ -38,7 +39,7 @@
         <div class="bases-library-head"><div class="bases-title-group"><span class="bases-heading-icon" aria-hidden="true"><span class="tile-motif" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></span><div><h2 id="libraryTitle">Arquivos importados</h2><p>Organizados por sistema, estado e competência.</p></div></div><a class="button button-primary" href="index.php"><span aria-hidden="true">＋</span> Adicionar arquivos</a></div>
         <div class="bases-toolbar">
           <label class="bases-search"><span class="sr-only">Buscar arquivos na biblioteca</span><span aria-hidden="true">⌕</span><input id="librarySearch" type="search" placeholder="Buscar arquivo, estado ou competência" autocomplete="off"></label>
-          <label class="bases-filter bases-filter--system"><span class="sr-only">Filtrar sistema</span><select id="systemFilter" aria-label="Filtrar sistema"><option value="all">Todos os sistemas</option><option value="SIA">Ambulatorial · SIA/SUS</option><option value="SIH">Hospitalar · SIH/SUS</option></select></label>
+          <label class="bases-filter bases-filter--system"><span class="sr-only">Filtrar sistema</span><select id="systemFilter" aria-label="Filtrar sistema"><option value="all">Todos os sistemas</option><option value="SIA">Ambulatorial · SIA/SUS</option><option value="SIH">Hospitalar · SIH/SUS</option><option value="SINAN">Agravos · SINAN</option><option value="SIM">Óbitos por residência · SIM</option><option value="SINASC">Nascidos vivos · SINASC</option><option value="CNES">Rede de saúde · CNES</option></select></label>
           <label class="bases-filter bases-filter--year"><span class="sr-only">Filtrar ano</span><select id="yearFilter" aria-label="Filtrar ano"><option value="all">Todos os anos</option></select></label>
           <label class="bases-filter bases-filter--competency"><span class="sr-only">Filtrar competência</span><select id="competencyFilter" aria-label="Filtrar competência"><option value="all">Todas as competências</option></select></label>
           <label class="bases-filter bases-filter--state"><span class="sr-only">Filtrar estado</span><select id="stateFilter" aria-label="Filtrar estado"><option value="all">Todos os estados</option></select></label>
@@ -47,7 +48,7 @@
         <div class="bases-table-wrap">
           <table class="bases-table"><thead><tr><th>ARQUIVO / COMPETÊNCIA</th><th>SISTEMA</th><th>ESTADO</th><th>TAMANHO</th><th>LEITURA</th><th class="bases-actions-heading">AÇÕES</th></tr></thead><tbody id="libraryRows"></tbody></table>
           <div class="bases-loading" id="libraryLoading" role="status" aria-live="polite"><span class="tile-motif tile-motif--large" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><strong>Carregando sua biblioteca</strong><span>Localizando os arquivos deste computador…</span></div>
-          <div class="bases-empty" id="libraryEmpty" hidden><span class="bases-empty-mark" aria-hidden="true"><span class="tile-motif" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></span><strong id="emptyTitle">Sua biblioteca ainda está vazia</strong><p id="emptyCopy">Adicione arquivos DBC ambulatoriais ou hospitalares para começar a organizar suas bases.</p><a class="button button-primary" href="index.php">Buscar arquivos</a></div>
+          <div class="bases-empty" id="libraryEmpty" hidden><span class="bases-empty-mark" aria-hidden="true"><span class="tile-motif" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></span><strong id="emptyTitle">Sua biblioteca ainda está vazia</strong><p id="emptyCopy">Busque arquivos públicos do DATASUS para começar a organizar suas bases.</p><a class="button button-primary" href="index.php">Buscar arquivos</a></div>
         </div>
         <div class="bases-footnote"><span class="bases-info-mark" aria-hidden="true">i</span><span>Remover um arquivo apaga o DBC e os dados preparados para leitura deste computador.</span></div>
         <div class="bases-notice" id="libraryNotice" role="status" aria-live="polite" hidden></div>
@@ -64,6 +65,6 @@
     <div class="remove-dialog-error" id="removeError" role="alert" hidden></div>
     <div class="remove-dialog-actions"><button class="button-secondary" id="cancelRemove" type="button">Manter arquivo</button><button class="button remove-confirm" id="confirmRemove" type="button">Remover arquivo</button></div>
   </dialog>
-      <script src="assets/bases.js?v=8" defer></script><script src="assets/tabulations-nav.js?v=1" defer></script>
+      <script src="assets/bases.js?v=11" defer></script><script src="assets/tabulations-nav.js?v=1" defer></script>
 </body>
 </html>

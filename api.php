@@ -137,7 +137,9 @@ if (in_array($action, $sigtapActions, true)) {
 } elseif ($action === 'municipalities_all') {
     $payload['action'] = 'municipalities_all';
 } else {
-    if (!in_array($payload['system'] ?? '', ['sia', 'sih'], true)) {
+    $system = (string) ($payload['system'] ?? '');
+    $dataSystems = ['sia'=>2008,'sih'=>2008,'sinan'=>2007,'sim'=>1996,'sinasc'=>1996,'cnes'=>2005];
+    if (!array_key_exists($system, $dataSystems)) {
         respond(['ok' => false, 'error' => 'Selecione uma base válida.'], 400);
     }
     $uf = strtoupper((string) ($payload['uf'] ?? ''));
@@ -145,10 +147,10 @@ if (in_array($action, $sigtapActions, true)) {
         respond(['ok' => false, 'error' => 'Selecione uma unidade da Federação válida.'], 400);
     }
     $year = filter_var($payload['year'] ?? null, FILTER_VALIDATE_INT);
-    if ($year === false || $year < 2008 || $year > (int) date('Y')) {
+    if ($year === false || $year < $dataSystems[$system] || $year > (int) date('Y')) {
         respond(['ok' => false, 'error' => 'Ano fora do intervalo disponível.'], 400);
     }
-    if ($action !== 'competencies') {
+    if ($action !== 'competencies' && in_array($system, ['sia','sih','cnes'], true)) {
         $month = filter_var($payload['month'] ?? null, FILTER_VALIDATE_INT);
         if ($month === false || $month < 1 || $month > 12) {
             respond(['ok' => false, 'error' => 'Competência inválida.'], 400);
@@ -157,6 +159,10 @@ if (in_array($action, $sigtapActions, true)) {
     }
     $payload['uf'] = $uf;
     $payload['year'] = $year;
+    $payload['system'] = $system;
+    if (isset($payload['kind']) && (!is_string($payload['kind']) || strlen($payload['kind']) > 8 || !preg_match('/^[A-Za-z0-9]*$/D', $payload['kind']))) {
+        respond(['ok' => false, 'error' => 'Tipo de arquivo inválido.'], 400);
+    }
     $payload['action'] = $action;
 }
 

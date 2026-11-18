@@ -34,6 +34,41 @@ REMOTE = {
     "sia": "/dissemin/publicos/SIASUS/200801_/Dados",
     "sih": "/dissemin/publicos/SIHSUS/200801_/Dados",
 }
+ANNUAL_REMOTE = {
+    "sim": "/dissemin/publicos/SIM/CID10/DORES",
+    "sinasc": "/dissemin/publicos/SINASC/1996_/Dados/DNRES",
+}
+SIM_PRELIM_REMOTE = "/dissemin/publicos/SIM/PRELIM/DORES"
+SINAN_REMOTE = "/dissemin/publicos/SINAN/DADOS"
+CNES_REMOTE = "/dissemin/publicos/CNES/200508_/Dados"
+CNES_TYPES = {
+    "ST": "Estabelecimentos", "LT": "Leitos", "PF": "Profissionais",
+    "EQ": "Equipamentos", "SR": "Serviços especializados", "HB": "Habilitações",
+    "GM": "Gestão municipal", "IN": "Incentivos", "EE": "Ensino",
+    "EF": "Equipes", "EP": "Profissionais específicos", "RC": "Regras contratuais",
+    "DC": "Dados complementares",
+}
+SINAN_TYPES = {
+    "ACBI":"Acidente de trabalho com exposição a material biológico", "ACGR":"Acidente de trabalho",
+    "AIDA":"Aids · adulto", "AIDC":"Aids · criança", "ANIM":"Acidente por animais peçonhentos",
+    "ANTR":"Atendimento antirrábico humano", "BOTU":"Botulismo",
+    "CANC":"Câncer relacionado ao trabalho", "CHAG":"Doença de Chagas aguda", "CHIK":"Chikungunya",
+    "COLE":"Cólera", "COQU":"Coqueluche", "DCRJ":"Notificação SINAN · DCRJ",
+    "DENG":"Dengue", "DERM":"Dermatoses ocupacionais", "DIFT":"Difteria", "ESPO":"Esporotricose",
+    "ESQU":"Esquistossomose", "EXAN":"Notificação SINAN · EXAN", "FMAC":"Febre maculosa",
+    "FTIF":"Febre tifóide", "HANS":"Hanseníase", "HANT":"Hantavirose", "HEPA":"Hepatites virais",
+    "HIVA":"Infecção pelo HIV · HIVA", "HIVC":"Infecção pelo HIV · HIVC", "HIVE":"Infecção pelo HIV · HIVE",
+    "HIVG":"Infecção pelo HIV · gestante", "IEXO":"Intoxicação exógena", "LEIV":"Leishmaniose visceral",
+    "LEPT":"Leptospirose", "LER":"LER/DORT", "LERD":"LER/DORT relacionadas ao trabalho",
+    "LTAN":"Leishmaniose tegumentar", "MALA":"Malária", "MENI":"Meningite", "MENT":"Transtornos mentais relacionados ao trabalho",
+    "NTRA":"Notificação de trabalho infantil", "PAIR":"PAIR relacionada ao trabalho", "PEST":"Peste",
+    "PFA":"Paralisia flácida aguda · arquivo histórico", "PFAN":"Paralisia flácida aguda",
+    "PNEU":"Pneumoconiose relacionada ao trabalho", "RAIV":"Raiva humana",
+    "ROTA":"Rotavírus", "SDTA":"Surto de doença transmitida por alimento", "SIFA":"Sífilis adquirida",
+    "SIFC":"Sífilis congênita", "SIFG":"Sífilis em gestante", "SRC":"Síndrome da rubéola congênita", "TETA":"Tétano acidental",
+    "TETN":"Tétano neonatal", "TOXC":"Toxoplasmose congênita", "TOXG":"Toxoplasmose gestacional",
+    "TRAC":"Tracoma", "TUBE":"Tuberculose", "VARC":"Varicela", "VIOL":"Violência interpessoal e autoprovocada", "ZIKA":"Zika",
+}
 ROOT = Path(__file__).resolve().parents[1]
 UPLOADS = Path(os.environ.get("TABWIN2_DATA_DIR", ROOT / "uploads")).expanduser().resolve()
 UPLOADS.mkdir(parents=True, exist_ok=True)
@@ -158,23 +193,132 @@ def _download_via_ftp(remote: str, destination: Path, expected_size: int | None)
     raise SourceError(f"A transferência FTP parou ou foi interrompida após duas tentativas: {last_error}") from last_error
 
 
-def source_cache(system: str, year: int, uf: str = "PA") -> Path:
+def source_cache(system: str, year: int, uf: str = "PA", kind: str = "") -> Path:
     folder = UPLOADS / ".cache" / "source-files"
     folder.mkdir(parents=True, exist_ok=True)
-    return folder / f"{system}-{uf.lower()}-{year}.json"
+    suffix=f"-{re.sub(r'[^A-Z0-9_-]','',kind.upper())}" if kind else ""
+    return folder / f"{system}-{uf.lower()}-{year}{suffix}.json"
 
 
 def cached_source(path: Path) -> dict[str, Any] | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        if isinstance(data, dict) and isinstance(data.get("names"), list) and all(isinstance(name, str) and FILENAME_PATTERN.fullmatch(name) for name in data["names"]) and isinstance(data.get("fetched_at"), (int, float)):
+        if isinstance(data, dict) and isinstance(data.get("names"), list) and all(isinstance(name, str) and name.lower().endswith(".dbc") and ".." not in name for name in data["names"]) and isinstance(data.get("fetched_at"), (int, float)):
             return data
     except (OSError, ValueError, TypeError):
         pass
     return None
 
 
-def select_files(system: str, year: int, month: int | None = None, uf: str = "PA") -> list[dict[str, Any]]:
+def _extended_directories(system: str, kind: str) -> list[tuple[str,str]]:
+    if system=="sinan":
+        return [("FINAIS",f"{SINAN_REMOTE}/FINAIS"),("PRELIM",f"{SINAN_REMOTE}/PRELIM")]
+    if system=="sim": return [("FINAIS",ANNUAL_REMOTE["sim"]),("PRELIM",SIM_PRELIM_REMOTE)]
+    if system=="sinasc": return [("SINASC",ANNUAL_REMOTE["sinasc"])]
+    if system=="cnes":
+        if kind not in CNES_TYPES: raise SourceError("Escolha um conjunto de arquivos do CNES.")
+        return [("CNES",f"{CNES_REMOTE}/{kind}")]
+    raise SourceError("Escolha uma base de dados disponível.")
+
+def _extended_item(system: str, year: int, uf: str, kind: str, filename: str, remote: str, stage: str, source_mode: str) -> dict[str,Any] | None:
+    if stage=="cache":
+        remote_upper=remote.upper()
+        stage="PRELIM" if "/PRELIM/" in remote_upper else "FINAIS" if system in {"sinan","sim"} else stage
+    if system=="sinan":
+        match=re.fullmatch(r"(?P<kind>[A-Z0-9]{2,8}?)BR(?P<yy>\d{2})\.DBC",filename,re.I)
+        if not match or 2000+int(match.group("yy"))!=year: return None
+        file_kind=match.group("kind").upper()
+        if kind and file_kind!=kind.upper(): return None
+        label=SINAN_TYPES.get(file_kind,f"Notificações do SINAN · {file_kind}")
+        file_uf="BR"; file_month=None
+    elif system in {"sim","sinasc"}:
+        prefix="DO" if system=="sim" else "DN"
+        match=re.fullmatch(rf"{prefix}(?P<uf>[A-Z]{{2}})(?P<year>19\d{{2}}|20\d{{2}})\.DBC",filename,re.I)
+        if not match or int(match.group("year"))!=year or match.group("uf").upper()!=uf: return None
+        file_kind=prefix; file_uf=uf; file_month=None
+        label="Óbitos por residência · SIM" if system=="sim" else "Nascidos vivos · SINASC"
+    else:
+        match=FILENAME_PATTERN.fullmatch(filename)
+        if not match or 2000+int(match.group("yy"))!=year or match.group("uf").upper()!=uf or match.group("kind").upper()!=kind.upper(): return None
+        file_kind=kind.upper(); file_uf=uf; file_month=int(match.group("mm"))
+        label=CNES_TYPES.get(file_kind,f"Arquivo CNES · {file_kind}")
+    folder_period=file_month if file_month else None
+    local=UPLOADS/relative_folder(system,year,folder_period,file_kind)/filename
+    downloaded=local.is_file() and local.stat().st_size>0
+    if downloaded:
+        try: validate_dbc_header(local)
+        except (OSError,SourceError): downloaded=False
+    return {"name":filename,"kind":file_kind,"uf":file_uf,"label":label,"month":file_month,"year":year,"stage":stage if system in {"sinan","sim"} else None,"size":local.stat().st_size if downloaded else None,"modified":None,"remote":remote,"source_mode":source_mode,"local_path":str(local.relative_to(UPLOADS)).replace("\\","/"),"downloaded":downloaded,"incomplete":local.is_file() and not downloaded}
+
+def select_extended_files(system: str, year: int, month: int | None = None, uf: str = "PA", kind: str = "") -> list[dict[str,Any]]:
+    system=system.lower(); uf=uf.upper(); kind=kind.upper().strip()
+    if system not in {"sinan","sim","sinasc","cnes"}: raise SourceError("Escolha uma base de dados disponível.")
+    if uf not in VALID_UFS: raise SourceError("Unidade da Federação inválida.")
+    if system=="sinan" and kind and kind not in SINAN_TYPES and kind!="LERD":
+        raise SourceError("O agravo selecionado não existe na lista pública do SINAN.")
+    if system in {"sim","sinasc"} and year<1996: raise SourceError("Esta base anual está disponível a partir de 1996.")
+    if system=="cnes" and year<2005: raise SourceError("Os arquivos mensais do CNES estão disponíveis a partir de 2005.")
+    if system=="sinan" and year<2007: raise SourceError("Os arquivos do SINAN estão disponíveis a partir de 2007.")
+    directories=_extended_directories(system,kind)
+    cache_kind=kind or ("DO" if system=="sim" else "DN" if system=="sinasc" else "")
+    cache_path=source_cache(system,year,"BR" if system=="sinan" else uf,cache_kind)
+    cached=cached_source(cache_path)
+    freshness=600 if year==datetime.now().year else 86400
+    if cached and time.time()-cached["fetched_at"]<freshness:
+        remote_files=cached["names"]; source_mode="cache"
+    else:
+        remote_files=[]; ftp=None; errors=[]
+        try:
+            ftp=connect()
+            for stage,directory in directories:
+                try:
+                    remote_files.extend((stage,f"{directory}/{name.rsplit('/',1)[-1]}") for name in ftp.nlst(directory))
+                except Exception as exc:
+                    errors.append(exc)
+            if not remote_files and errors: raise errors[-1]
+            source_mode="ftp"
+            try:
+                temporary=cache_path.with_suffix(".json.part")
+                temporary.write_text(json.dumps({"fetched_at":time.time(),"names":[remote for _,remote in remote_files]},ensure_ascii=True),encoding="utf-8")
+                os.replace(temporary,cache_path)
+            except OSError:
+                temporary.unlink(missing_ok=True)
+        except Exception as exc:
+            if cached:
+                remote_files=[("cache",remote) for remote in cached["names"]]; source_mode="stale-cache"
+            else:
+                local_root=UPLOADS/system.upper()/str(year)
+                local_files=list(local_root.rglob("*.dbc"))+list(local_root.rglob("*.DBC")) if local_root.is_dir() else []
+                if not local_files:
+                    raise SourceError(f"Não foi possível consultar os arquivos do DATASUS agora. Confira a conexão e tente novamente. Detalhe: {exc}") from exc
+                remote_files=[("local",f"{directory}/{path.name}") for path in local_files for _,directory in directories]
+                source_mode="local"
+        finally:
+            if ftp is not None:
+                try: ftp.quit()
+                except Exception: ftp.close()
+
+    found=[]
+    for stage,remote in remote_files:
+        filename=remote.rsplit("/",1)[-1]
+        item=_extended_item(system,year,uf,kind,filename,remote,stage,source_mode)
+        if item: found.append(item)
+    if system in {"sinan","sim"}:
+        # Prefer the final edition when the same annual file also appears in
+        # the preliminary folder.
+        selected={}
+        for item in found:
+            key=item["name"].upper()
+            if key not in selected or (selected[key].get("stage")!="FINAIS" and item.get("stage")=="FINAIS"):
+                selected[key]=item
+        found=list(selected.values())
+    if system=="cnes" and month is not None:
+        found=[item for item in found if item["month"]==int(month)]
+    return sorted(found,key=lambda item:(item["month"] or 0,item["kind"],item["name"].lower()))
+
+def select_files(system: str, year: int, month: int | None = None, uf: str = "PA", kind: str = "") -> list[dict[str, Any]]:
+    if system not in REMOTE:
+        return select_extended_files(system,year,month,uf,kind)
     uf = uf.upper()
     if uf not in VALID_UFS:
         raise SourceError("Unidade da Federação inválida.")
@@ -274,11 +418,12 @@ def select_files(system: str, year: int, month: int | None = None, uf: str = "PA
                 ftp.close()
 
 
-def relative_folder(system: str, year: int, month: int, kind: str) -> Path:
-    return Path(system.upper()) / str(year) / f"{month:02d}" / kind
+def relative_folder(system: str, year: int, month: int | None, kind: str) -> Path:
+    period=f"{month:02d}" if month else "ANUAL"
+    return Path(system.upper()) / str(year) / period / kind
 
 
-def library_folder(system: str, year: int, month: int) -> str:
+def library_folder(system: str, year: int, month: int | None) -> str:
     """Return a stable, user-facing path independent of the app install folder."""
     return f"uploads/{relative_folder(system, year, month, '').as_posix()}"
 
@@ -402,9 +547,9 @@ def list_all_municipalities() -> dict[str, Any]:
         raise SourceError(f"Não foi possível carregar a lista de municípios do IBGE: {exc}") from exc
 
 
-def download_selected(system: str, year: int, month: int, requested_names: list[str], available: list[dict[str, Any]] | None = None, uf: str = "PA") -> dict[str, Any]:
+def download_selected(system: str, year: int, month: int | None, requested_names: list[str], available: list[dict[str, Any]] | None = None, uf: str = "PA", kind: str = "") -> dict[str, Any]:
     if available is None:
-        available = select_files(system, year, month, uf)
+        available = select_files(system, year, month, uf,kind)
     allowed = {
         item["name"].strip().upper(): item
         for item in available
@@ -528,15 +673,19 @@ def main() -> int:
             return 0
         system = request.get("system")
         year = int(request.get("year"))
-        month = int(request["month"]) if "month" in request else None
+        month = int(request["month"]) if request.get("month") not in (None, "") else None
         uf = str(request.get("uf", "PA")).upper()
-        if system not in REMOTE or year < 2008 or year > datetime.now().year:
+        kind = str(request.get("kind") or "").upper().strip()
+        minimum_year={"sia":2008,"sih":2008,"sinan":2007,"sim":1996,"sinasc":1996,"cnes":2005}.get(system)
+        if minimum_year is None or year < minimum_year or year > datetime.now().year:
             raise SourceError("Base ou ano inválido.")
         if uf not in VALID_UFS:
             raise SourceError("Unidade da Federação inválida.")
+        if system in {"sia","sih","cnes"} and action!="competencies" and (month is None or month<1 or month>12):
+            raise SourceError("Escolha uma competência mensal válida.")
 
         if action in {"competencies", "files", "download"}:
-            files = select_files(system, year, month if action != "competencies" else None, uf)
+            files = select_files(system, year, month if action != "competencies" else None, uf,kind)
         else:
             raise SourceError("Ação não reconhecida.")
 
@@ -550,7 +699,7 @@ def main() -> int:
                 item["size_label"] = safe_size(item["size"])
             output = {"ok": True, "system": system, "year": year, "month": month, "uf": uf, "files": files, "count": len(files), "source_mode": files[0]["source_mode"] if files else "https"}
         else:
-            downloaded = download_selected(system, year, month or 0, request.get("names", []), files, uf)
+            downloaded = download_selected(system, year, month, request.get("names", []), files, uf,kind)
             output = {"ok": True, "system": system, "year": year, "month": month, "uf": uf, **downloaded}
 
         # Escaped Unicode keeps stdout valid even when Apache starts Python with a legacy Windows code page.
